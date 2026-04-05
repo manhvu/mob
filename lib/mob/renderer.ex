@@ -89,15 +89,13 @@ defmodule Mob.Renderer do
 
   # ── Children ──────────────────────────────────────────────────────────────
 
-  defp render_children(parent_ref, children, platform, nif, parent_type) do
+  defp render_children(parent_ref, children, platform, nif, _parent_type) do
     Enum.reduce_while(children, :ok, fn child, :ok ->
       case render(child, platform, nif) do
         {:ok, child_ref} ->
-          # For scroll views the NIF expects add_child on the inner layout,
-          # but from the Elixir side we always pass the scroll ref — the NIF
-          # (or MobBridge) resolves the inner layout via getTag.
-          is_row = parent_type == :row
-          apply(nif, :add_child, [parent_ref, child_ref, is_row])
+          # add_child/2 — the NIF reads is_row and scroll inner layout from
+          # the parent resource itself. We always pass the parent ref directly.
+          apply(nif, :add_child, [parent_ref, child_ref])
           {:cont, :ok}
 
         {:error, _} = err ->

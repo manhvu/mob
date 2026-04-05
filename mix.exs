@@ -23,7 +23,6 @@ defmodule Mob.MixProject do
     [
       # HTML/HEEx template engine — same one Phoenix uses
       # {:phoenix_live_view, "~> 1.0", optional: true},  # add when HEEx rendering lands
-      # Testing
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end

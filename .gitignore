@@ -22,3 +22,7 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 mob-*.tar
 
+# Compiled objects from ios/ or android/ native builds
+android/**/*.o
+ios/*.o
+

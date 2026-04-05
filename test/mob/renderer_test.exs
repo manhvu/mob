@@ -20,7 +20,7 @@ defmodule Mob.RendererTest do
     def create_label(text), do: record(:create_label, [text])
     def create_button(text), do: record(:create_button, [text])
     def create_scroll, do: record(:create_scroll, [])
-    def add_child(parent, child, is_row), do: (record_void(:add_child, [parent, child, is_row]); :ok)
+    def add_child(parent, child), do: (record_void(:add_child, [parent, child]); :ok)
     def set_text(view, text), do: (record_void(:set_text, [view, text]); :ok)
     def set_text_size(view, sp), do: (record_void(:set_text_size, [view, sp]); :ok)
     def set_text_color(view, color), do: (record_void(:set_text_color, [view, color]); :ok)

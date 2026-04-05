@@ -84,7 +84,19 @@ defmodule Mob.Screen do
   """
   @spec start_link(module(), map(), keyword()) :: GenServer.on_start()
   def start_link(screen_module, params, opts \\ []) do
-    GenServer.start_link(__MODULE__, {screen_module, params}, opts)
+    GenServer.start_link(__MODULE__, {screen_module, params, :no_render}, opts)
+  end
+
+  @doc """
+  Start a screen as the root UI screen. Calls mount, renders the component tree
+  via `Mob.Renderer`, and calls `set_root` on the resulting view.
+
+  This is the main entry point for production use. `start_link/2` is for tests
+  (no NIF calls).
+  """
+  @spec start_root(module(), map(), keyword()) :: GenServer.on_start()
+  def start_root(screen_module, params \\ %{}, opts \\ []) do
+    GenServer.start_link(__MODULE__, {screen_module, params, :render}, opts)
   end
 
   @doc """
@@ -108,12 +120,18 @@ defmodule Mob.Screen do
   # ── GenServer callbacks ───────────────────────────────────────────────────
 
   @impl GenServer
-  def init({screen_module, params}) do
+  def init({screen_module, params, render_mode}) do
     socket = Mob.Socket.new(screen_module)
 
     case screen_module.mount(params, %{}, socket) do
       {:ok, mounted_socket} ->
-        {:ok, {screen_module, mounted_socket}}
+        socket =
+          if render_mode == :render do
+            do_render(screen_module, mounted_socket)
+          else
+            mounted_socket
+          end
+        {:ok, {screen_module, socket, render_mode}}
 
       {:error, reason} ->
         {:stop, reason}
@@ -121,28 +139,62 @@ defmodule Mob.Screen do
   end
 
   @impl GenServer
-  def handle_call({:event, event, params}, _from, {module, socket}) do
+  def handle_call({:event, event, params}, _from, {module, socket, render_mode}) do
     case module.handle_event(event, params, socket) do
       {:noreply, new_socket} ->
-        {:reply, :ok, {module, new_socket}}
+        new_socket =
+          if render_mode == :render do
+            do_render(module, new_socket)
+          else
+            new_socket
+          end
+        {:reply, :ok, {module, new_socket, render_mode}}
 
       {:reply, _response, new_socket} ->
-        {:reply, :ok, {module, new_socket}}
+        new_socket =
+          if render_mode == :render do
+            do_render(module, new_socket)
+          else
+            new_socket
+          end
+        {:reply, :ok, {module, new_socket, render_mode}}
     end
   end
 
-  def handle_call(:get_socket, _from, {_module, socket} = state) do
+  def handle_call(:get_socket, _from, {_module, socket, _mode} = state) do
     {:reply, socket, state}
   end
 
   @impl GenServer
-  def handle_info(message, {module, socket}) do
+  def handle_info(message, {module, socket, render_mode}) do
     {:noreply, new_socket} = module.handle_info(message, socket)
-    {:noreply, {module, new_socket}}
+    new_socket =
+      if render_mode == :render do
+        do_render(module, new_socket)
+      else
+        new_socket
+      end
+    {:noreply, {module, new_socket, render_mode}}
   end
 
   @impl GenServer
-  def terminate(reason, {module, socket}) do
+  def terminate(reason, {module, socket, _render_mode}) do
     module.terminate(reason, socket)
+  end
+
+  # ── Render pipeline ───────────────────────────────────────────────────────
+
+  defp do_render(module, socket) do
+    platform = socket.__mob__.platform
+    tree = module.render(socket.assigns)
+    case Mob.Renderer.render(tree, platform) do
+      {:ok, root_ref} ->
+        :mob_nif.set_root(root_ref)
+        Mob.Socket.put_root_view(socket, root_ref)
+      {:error, reason} ->
+        require Logger
+        Logger.error("Mob.Screen render failed: #{inspect(reason)}")
+        socket
+    end
   end
 end

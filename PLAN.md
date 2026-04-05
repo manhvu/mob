@@ -365,3 +365,42 @@ end
 3. Write `Mob.Registry` with tests (Iteration 2)
 4. Set up mob_demo Android project (copy+rename from BeamHello)
 5. Wire HelloScreen through the stack end-to-end on device (Iteration 3)
+
+---
+
+## Phase 2+ Roadmap
+
+### lazy_list API
+`<.lazy_list>` needs `on_end_reached` event (fires when user scrolls near the end, for infinite scroll) and a `threshold` prop (how many items from the end to trigger — mirrors React Native FlatList's `onEndReachedThreshold`). NIF side: listen for RecyclerView scroll state; Elixir side: `handle_event("end_reached", %{}, socket)`.
+
+### Push Notifications
+`mob_push` package. FCM (Android) / APNs (iOS). Registration token surfaced via `handle_info({:notification, payload}, socket)`. App requests permission via `Mob.Permissions.request(:notifications, socket)` (see Permissions below). Server-side sending out of scope for mob library — just receive and route.
+
+### Permissions System
+`Mob.Permissions.request(:camera | :location | :microphone | :notifications, socket)` — triggers OS dialog, result delivered as `handle_info({:permission_result, :camera, :granted | :denied | :not_determined}, socket)`. `Mob.Permissions.status(:location)` → synchronous check. Android: `ActivityCompat.requestPermissions`; iOS: `AVCaptureDevice.requestAccess` etc.
+
+### Offline / Local Storage
+SQLite via NIF (`exqlite` or a thin mob-specific wrapper). Blessed pattern: one `Mob.Repo` per app, schema defined in Elixir, migrations run on app start. Keeps it familiar for Phoenix devs. Key constraint: WAL mode on by default; single writer, multiple readers OK on device.
+
+### App Store / Play Store Build Pipeline
+`mix mob.release --platform android|ios` — triggers Gradle/Xcode build, signs the artifact, outputs `.aab` / `.ipa`. Fastlane integration for upload. Separate `mix mob.release.upload --track internal` for Play/TestFlight. Needs signing config in `mob.exs` (keystore path, provisioning profile).
+
+### Accessibility
+TalkBack (Android) / VoiceOver (iOS) support. Prop: `accessible_label` on any component (maps to `contentDescription` / `accessibilityLabel`). `accessible_hint` for secondary description. `accessible_role` (button, image, header, etc.) maps to `AccessibilityNodeInfoCompat.setRoleDescription` / `UIAccessibilityTraits`. Goal: zero-config for text components (label text is used automatically); explicit opt-in for images and custom components.
+
+### Testing Story
+`Mob.ScreenTest` — pure Elixir, no emulator, no NIF calls. Mount a screen, send events, assert assigns and rendered tree shape. NIFs stubbed out; component tree returned as a plain map for assertions. API mirrors LiveView's `live/2` + `render_click`. Example:
+```elixir
+test "counter increments" do
+  {:ok, screen} = Mob.ScreenTest.mount(CounterScreen)
+  assert screen.assigns.count == 0
+  {:ok, screen} = Mob.ScreenTest.event(screen, "increment", %{})
+  assert screen.assigns.count == 1
+end
+```
+
+### Fonts and Assets
+`mix mob.gen.assets` — copies fonts/images into the correct platform dirs (`res/font/`, `Assets.xcassets`). `<.text font="MyFont-Bold">` maps to a registered font name. Images: `<.image src={:my_logo}>` resolved from asset catalog at build time. Hash-based cache busting for OTA updates.
+
+### Error Boundaries
+`<.error_boundary>` component with a `fallback` slot. Catches crashes in child component trees (via process links or try/rescue in renderer) and renders the fallback instead of crashing the whole screen. Configurable supervision: `:restart` (re-mount screen), `:show_fallback` (static error UI), `:propagate` (let it crash — default OTP behaviour). Useful for isolating third-party components or experimental screens.
