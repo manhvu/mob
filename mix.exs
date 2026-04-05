@@ -9,13 +9,21 @@ defmodule Mob.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "BEAM-on-device mobile framework for Elixir",
-      source_url: "https://github.com/kevinbsmith/mob"
+      source_url: "https://github.com/kevinbsmith/mob",
+      package: package()
     ]
   end
 
   def application do
     [
       extra_applications: [:logger]
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/kevinbsmith/mob"}
     ]
   end
 
