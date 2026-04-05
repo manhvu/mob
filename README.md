@@ -50,4 +50,4 @@ end
 
 ## Source
 
-[github.com/kevinbsmith/mob](https://github.com/kevinbsmith/mob)
+[github.com/genericjam/mob](https://github.com/genericjam/mob)
