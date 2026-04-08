@@ -388,8 +388,48 @@ SQLite via NIF (`exqlite` or a thin mob-specific wrapper). Blessed pattern: one 
 ### Accessibility
 TalkBack (Android) / VoiceOver (iOS) support. Prop: `accessible_label` on any component (maps to `contentDescription` / `accessibilityLabel`). `accessible_hint` for secondary description. `accessible_role` (button, image, header, etc.) maps to `AccessibilityNodeInfoCompat.setRoleDescription` / `UIAccessibilityTraits`. Goal: zero-config for text components (label text is used automatically); explicit opt-in for images and custom components.
 
+### Mob.DevServer (AI + Playwright integration)
+
+Starts alongside `mix mob.dev`. Exposes the running app to external tools — Playwright, Tidewave, Claude — without browser-based Android emulation.
+
+**Key insight:** `Mob.Screen` already holds the full render tree in `socket.__mob__.view_tree`. The native views (Android Views / UIKit) are just the rendered output of it. We never need to reverse-engineer the native side — the Elixir tree is always in sync and is the canonical representation.
+
+`Mob.DevServer` serializes that tree as HTML:
+```
+:column  →  <div style="display:flex; flex-direction:column">
+:row     →  <div style="display:flex; flex-direction:row">
+:text    →  <span>
+:button  →  <button>
+```
+
+Served as a Phoenix LiveView page that updates in real time as app state changes.
+
+**Endpoints:**
+```
+GET  /            → live HTML mirror of current render tree (Playwright target)
+GET  /assigns     → current screen assigns as JSON
+GET  /tree        → raw component tree as JSON
+GET  /screenshot  → PNG via NIF
+POST /tap         → simulate a tap event
+POST /event       → send any event to the running screen
+WS   /live        → stream of state changes
+```
+
+**Why this beats browser-based Android:**
+- Works identically for Android and iOS — one interface, one Playwright script
+- Real DOM elements, not pixels — `page.click("button:has-text('Increment')")` just works
+- Tidewave can read `/assigns` and `/tree` to feed structured data directly to Claude
+- No heavyweight emulator; no pixel scraping; always in sync with app state
+
+**Claude feedback loop:** Playwright screenshots + DOM + `/assigns` JSON gives Claude full visibility into the running app on any platform. Same workflow as debugging a Phoenix LiveView.
+
+---
+
 ### Testing Story
-`Mob.ScreenTest` — pure Elixir, no emulator, no NIF calls. Mount a screen, send events, assert assigns and rendered tree shape. NIFs stubbed out; component tree returned as a plain map for assertions. API mirrors LiveView's `live/2` + `render_click`. Example:
+
+**`Mob.ScreenTest` — unit tests, no device needed**
+
+Pure Elixir, no emulator, no NIF calls. NIFs stubbed out; component tree returned as a plain map for assertions. API mirrors LiveView's `live/2` + `render_click`.
 ```elixir
 test "counter increments" do
   {:ok, screen} = Mob.ScreenTest.mount(CounterScreen)
@@ -399,8 +439,77 @@ test "counter increments" do
 end
 ```
 
+**`Mob.UITest` — integration tests against a running device**
+
+Connects to the on-device node over Erlang distribution (same WiFi, `mac.local`). Drives the real running app — real NIFs, real platform views. No Appium, no Espresso, no XCUITest. Same API for Android and iOS.
+
+```elixir
+test "counter increments on tap" do
+  {:ok, screen} = Mob.UITest.mount(device_node, CounterScreen)
+  assert Mob.UITest.assigns(screen).count == 0
+
+  Mob.UITest.tap(screen, "increment-button")
+  assert Mob.UITest.assigns(screen).count == 1
+  assert Mob.UITest.text(screen, "counter-label") == "Count: 1"
+end
+```
+
+Screenshot support via a NIF that returns a PNG binary — useful for visual regression tests. Simulator/emulator can also use platform tools (`xcrun simctl io`, `adb`) when available.
+
+**Remote inspection (free once distribution is set up):**
+- `:observer.start()` on Mac shows on-device process tree, memory, message queues
+- `:dbg` / `:recon` for function call and message tracing on-device from Mac IEx
+- `:sys.get_state(pid)` to inspect any live GenServer
+
 ### Fonts and Assets
 `mix mob.gen.assets` — copies fonts/images into the correct platform dirs (`res/font/`, `Assets.xcassets`). `<.text font="MyFont-Bold">` maps to a registered font name. Images: `<.image src={:my_logo}>` resolved from asset catalog at build time. Hash-based cache busting for OTA updates.
 
+### Hot Deploy (Dev UX)
+
+Two modes: dev (code lives on Mac) and release (self-contained on device).
+
+**Dev mode — Erlang distribution + file watcher**
+
+Device runs a minimal install: ERTS (compiled into the app binary) + OTP base apps (kernel, stdlib, elixir, logger beams — stable). All `mob` library and app screen code lives on the Mac.
+
+Bootstrap on device dials home to the Mac node on startup. From that point the device is a display terminal — app code runs on-device via distribution, but the source of truth is the Mac.
+
+Mac side runs `iex -S mix mob.dev`, which:
+1. Starts a file watcher on `lib/` (same as Phoenix's `mix phx.server`)
+2. On `.ex` change: recompiles → calls `nl(Module)` to push bytecode to all connected nodes (device included)
+3. Sends a re-render signal so the running `Mob.Screen` picks up the new module
+
+From IEx you also get the full dev loop manually:
+```elixir
+r(MobDemo.CounterScreen)  # recompile + load on device instantly
+Node.call(:"mob_demo@device", :sys, :get_state, [MobDemo.CounterScreen])  # inspect live state
+```
+
+Device dials Mac's LAN IP directly over WiFi — no adb, no platform-specific tooling. Same mechanism works identically on Android and iOS. Bootstrap dials `mac.local` (mDNS) — works out of the box on both platforms when on the same WiFi. Zero config, survives IP changes.
+
+Re-render hook: `Mob.Screen` implements `code_change/3` (standard OTP GenServer callback) — called automatically by OTP when the module is hot-loaded. Triggers a re-render with current assigns.
+
+**Release mode — self-contained**
+
+`mix mob.release --platform android|ios` bundles everything (OTP base + mob library + app beams) onto the device. No Mac connection. This is also the App Store / Play Store path.
+
+Deploy commands:
+```bash
+./deploy.sh --dev      # minimal install, dials home to Mac IEx
+./deploy.sh --release  # or: mix mob.release --platform android
+```
+
 ### Error Boundaries
 `<.error_boundary>` component with a `fallback` slot. Catches crashes in child component trees (via process links or try/rescue in renderer) and renders the fallback instead of crashing the whole screen. Configurable supervision: `:restart` (re-mount screen), `:show_fallback` (static error UI), `:propagate` (let it crash — default OTP behaviour). Useful for isolating third-party components or experimental screens.
+
+---
+
+## Long Term / Experimental
+
+### Headless Mode (phone as a server)
+
+Run BEAM as an Android Foreground Service with no UI component. The Foreground Service keeps the process at foreground priority — Android won't kill it under memory pressure. A persistent notification is required (the OS-enforced cost of the feature).
+
+Use case: a phone running a full OTP application — GenServers, Phoenix, Ecto, PubSub — with no screen. Essentially a low-power server node you can put in a drawer. The phone's LTE/WiFi makes it reachable anywhere; OTP clustering means it can join a distributed system.
+
+Intentionally long-term: background execution is a battery and abuse vector. Would need rate limiting, battery-aware supervision (pause work when battery is low), and clear user consent. iOS equivalent is heavily restricted by the OS and would require a declared Background Mode (audio, location, VoIP) — no general-purpose equivalent.
