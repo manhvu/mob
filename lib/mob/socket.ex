@@ -84,6 +84,7 @@ defmodule Mob.Socket do
   end
 
   @doc false
+  @spec put_mob(t(), atom(), term()) :: t()
   def put_mob(%__MODULE__{__mob__: mob} = socket, key, value) do
     %{socket | __mob__: Map.put(mob, key, value)}
   end

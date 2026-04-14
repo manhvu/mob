@@ -39,6 +39,7 @@ defmodule Mob.Registry do
   Pass `name: nil` for an anonymous registry (useful in tests).
   Pass `name: Mob.Registry` for the global application registry.
   """
+  @spec start_link(keyword()) :: Agent.on_start()
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
     initial = build_initial()

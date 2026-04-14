@@ -382,6 +382,29 @@ static ERL_NIF_TERM nif_log(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_atom(env, "ok");
 }
 
+// ── NIF: log/2 ───────────────────────────────────────────────────────────────
+// log(Level :: debug|info|warning|error, Msg :: string) -> ok
+// Routes Elixir Logger output to Android logcat with proper priority.
+
+static int atom_to_android_priority(ErlNifEnv* env, ERL_NIF_TERM level_atom) {
+    char level[16];
+    if (!enif_get_atom(env, level_atom, level, sizeof(level), ERL_NIF_LATIN1))
+        return ANDROID_LOG_INFO;
+    if (strcmp(level, "debug")   == 0) return ANDROID_LOG_DEBUG;
+    if (strcmp(level, "warning") == 0) return ANDROID_LOG_WARN;
+    if (strcmp(level, "error")   == 0) return ANDROID_LOG_ERROR;
+    return ANDROID_LOG_INFO;  // info, notice, and unknown levels
+}
+
+static ERL_NIF_TERM nif_log2(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char buf[4096];
+    int priority = atom_to_android_priority(env, argv[0]);
+    if (!get_string(env, argv[1], buf, sizeof(buf)))
+        return enif_make_badarg(env);
+    __android_log_print(priority, "Elixir", "%s", buf);
+    return enif_make_atom(env, "ok");
+}
+
 static ERL_NIF_TERM nif_platform(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     return enif_make_atom(env, "android");
 }
@@ -391,6 +414,7 @@ static ERL_NIF_TERM nif_platform(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 static ErlNifFunc nif_funcs[] = {
     {"platform",              0, nif_platform,             0},
     {"log",                  1, nif_log,                  0},
+    {"log",                  2, nif_log2,                 0},
     {"create_column",        0, nif_create_column,        0},
     {"create_row",           0, nif_create_row,           0},
     {"create_label",         1, nif_create_label,         0},

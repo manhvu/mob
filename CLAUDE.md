@@ -88,6 +88,11 @@ the APK as `lib*.so` in `jniLibs/arm64-v8a/` (gets `apk_data_file` label, which 
 mix test          # from ~/code/mob
 ```
 
+## Common pitfalls
+
+See [`common_fixes.md`](common_fixes.md) for a running log of diagnosed bugs and their
+fixes — consult it first when hitting silent crashes or unexpected BEAM behavior.
+
 ## Key files
 
 - `lib/mob/screen.ex` — GenServer wrapper, lifecycle callbacks

@@ -99,6 +99,59 @@ Android uses `adb reverse tcp:4369 tcp:4369` so the Android BEAM registers in th
 EPMD (not Android's), then `adb forward tcp:9100 tcp:9100` for the dist port. Both
 platforms end up in the same EPMD. `dev_connect.sh` handles this automatically.
 
+## Power benchmark
+
+The BEAM's idle power draw on a real Android device is negligible when tuned correctly.
+Use `mix mob.battery_bench` (from `mob_dev`) to measure battery drain for your app.
+
+### Running a benchmark
+
+```bash
+# WiFi ADB setup (once, while plugged in):
+adb -s SERIAL tcpip 5555
+adb connect PHONE_IP:5555
+
+# Run with defaults (Nerves-tuned BEAM, 30 min):
+mix mob.battery_bench --device 192.168.1.42:5555
+
+# Compare against no-BEAM baseline:
+mix mob.battery_bench --no-beam --device 192.168.1.42:5555
+
+# Try a specific preset:
+mix mob.battery_bench --preset untuned   # raw BEAM, no tuning
+mix mob.battery_bench --preset sbwt      # busy-wait disabled only
+mix mob.battery_bench --preset nerves    # full Nerves set (same as default)
+
+# Custom flags:
+mix mob.battery_bench --flags "-sbwt none -S 1:1"
+
+# Longer run for more accurate mAh resolution:
+mix mob.battery_bench --duration 3600
+```
+
+### What the results mean
+
+Example results on a Moto G phone (30-min screen-off run):
+
+| Config          | mAh drain | mAh/hr |
+|-----------------|-----------|--------|
+| no-beam         | 100 mAh   | 200    |
+| nerves (default)| 101 mAh   | 202    |
+| untuned BEAM    | 125 mAh   | 250    |
+
+The Nerves-tuned BEAM (`-S 1:1 -sbwt none +C multi_time_warp`) has essentially the same
+idle power draw as a stock Android app. The overhead is in the noise for most workloads.
+The untuned BEAM uses ~25% more power due to scheduler busy-waiting.
+
+### Tuning flags
+
+| Flag | Effect |
+|------|--------|
+| `-S 1:1 -SDcpu 1:1 -SDio 1` | Single scheduler — no cross-CPU wakeups |
+| `-A 1` | Single async thread pool thread |
+| `-sbwt none -sbwtdcpu none -sbwtdio none` | Disable busy-wait in all schedulers |
+| `+C multi_time_warp` | Allow clock to jump forward; avoids spurious wakeups |
+
 ## Source
 
 [github.com/genericjam/mob](https://github.com/genericjam/mob)

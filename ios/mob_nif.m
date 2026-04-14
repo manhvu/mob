@@ -82,6 +82,18 @@ static ERL_NIF_TERM nif_log(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_atom(env, "ok");
 }
 
+// ── NIF: log/2 ────────────────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_log2(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char level[16] = {0};
+    char buf[4096] = {0};
+    enif_get_atom(env, argv[0], level, sizeof(level), ERL_NIF_LATIN1);
+    if (!get_string(env, argv[1], buf, sizeof(buf)))
+        return enif_make_badarg(env);
+    NSLog(@"[%s] %s", level, buf);
+    return enif_make_atom(env, "ok");
+}
+
 // ── NIF: create_column/0 ─────────────────────────────────────────────────────
 
 static ERL_NIF_TERM nif_create_column(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -287,6 +299,7 @@ static ERL_NIF_TERM nif_platform(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 static ErlNifFunc nif_funcs[] = {
     {"platform",              0, nif_platform,             0},
     {"log",                  1, nif_log,                  0},
+    {"log",                  2, nif_log2,                 0},
     {"create_column",        0, nif_create_column,        0},
     {"create_row",           0, nif_create_row,           0},
     {"create_label",         1, nif_create_label,         0},

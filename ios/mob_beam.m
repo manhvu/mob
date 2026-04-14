@@ -31,8 +31,8 @@ void mob_start_beam(const char* app_module) {
     // Defaults to 9100 if not set (standalone launch without mob_dev).
     const char *env_port = getenv("MOB_DIST_PORT");
     static char dist_port_min[16], dist_port_max[16];
-    snprintf(dist_port_min, sizeof(dist_port_min), "%s", env_port ? env_port : "9100");
-    snprintf(dist_port_max, sizeof(dist_port_max), "%s", env_port ? env_port : "9100");
+    snprintf(dist_port_min, sizeof(dist_port_min), "%s", env_port ? env_port : "9101");
+    snprintf(dist_port_max, sizeof(dist_port_max), "%s", env_port ? env_port : "9101");
 
     // Build dynamic strings from app_module.
     char eval_expr[280];

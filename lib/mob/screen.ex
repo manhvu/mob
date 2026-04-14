@@ -76,6 +76,7 @@ defmodule Mob.Screen do
   # ── GenServer wrapper ─────────────────────────────────────────────────────
 
   use GenServer
+  require Logger
 
   @doc """
   Start a screen process linked to the calling process.
@@ -193,7 +194,6 @@ defmodule Mob.Screen do
         :mob_nif.set_root(root_ref)
         Mob.Socket.put_root_view(socket, root_ref)
       {:error, reason} ->
-        require Logger
         Logger.error("Mob.Screen render failed: #{inspect(reason)}")
         socket
     end
