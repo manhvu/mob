@@ -32,6 +32,9 @@
         _fixedWidth      = 0.0;
         _fixedHeight     = 0.0;
         _cornerRadius    = 0.0;
+        _videoAutoplay = NO;
+        _videoLoop     = NO;
+        _videoControls = YES;
         _children      = [NSMutableArray array];
     }
     return self;

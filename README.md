@@ -27,15 +27,17 @@ defmodule MyApp.CounterScreen do
     }
   end
 
-  def handle_event("tap", _params, socket) do
+  def handle_info({:tap, _tag}, socket) do
     {:noreply, Mob.Socket.assign(socket, :count, socket.assigns.count + 1)}
   end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
 end
 ```
 
-- **Android:** native Views via JNI, no WebView
-- **iOS:** UIKit via Objective-C NIFs, no WebView
-- **State management:** `Mob.Screen` GenServer with `mount/3`, `render/1`, `handle_event/3`, `handle_info/2`
+- **Android:** native Compose UI via JNI, no WebView
+- **iOS:** SwiftUI via Objective-C NIFs, no WebView
+- **State management:** `Mob.Screen` GenServer with `mount/3`, `render/1`, `handle_info/2`
 - **Boot time:** ~64ms to first Elixir line on iOS simulator (M4 Pro)
 
 ## Installation
@@ -47,6 +49,311 @@ def deps do
   ]
 end
 ```
+
+## Components
+
+Mob components are plain Elixir maps with `:type`, `:props`, and `:children` keys. The component vocabulary mirrors SwiftUI and Jetpack Compose layout primitives.
+
+### Layout
+
+**`column`** — stacks children vertically (VStack / Column)
+
+```elixir
+%{type: :column, props: %{padding: 16, background: :white}, children: [...]}
+```
+
+**`row`** — stacks children horizontally (HStack / Row)
+
+```elixir
+%{type: :row, props: %{padding: 8, gap: 12}, children: [...]}
+```
+
+**`box`** — overlays children (ZStack / Box). Useful for badges, overlapping elements.
+
+```elixir
+%{type: :box, props: %{}, children: [background_node, foreground_node]}
+```
+
+**`scroll`** — makes content scrollable
+
+```elixir
+%{type: :scroll, props: %{axis: :vertical, show_indicator: false}, children: [
+  %{type: :column, props: %{}, children: [...]}
+]}
+```
+
+| Prop | Values | Default |
+|------|--------|---------|
+| `axis` | `:vertical`, `:horizontal` | `:vertical` |
+| `show_indicator` | `true`, `false` | `true` |
+
+**`spacer`** — fixed-size gap
+
+```elixir
+%{type: :spacer, props: %{size: 16}, children: []}
+```
+
+**`divider`** — horizontal rule
+
+```elixir
+%{type: :divider, props: %{color: :gray_300}, children: []}
+```
+
+### Display
+
+**`text`** — text node with full typography support
+
+```elixir
+%{type: :text, props: %{
+  text:           "Hello",
+  text_size:      :xl,           # see token table below
+  text_color:     :gray_900,
+  font_weight:    :bold,         # :bold | :semibold | :medium | :regular | :light | :thin
+  text_align:     :center,       # :left | :center | :right
+  italic:         true,
+  line_height:    1.6,           # multiplier
+  letter_spacing: 1.0,           # sp / pt
+  font:           "Inter",       # custom font family name
+  background:     :blue_600,
+  padding:        12,
+}, children: []}
+```
+
+**`image`** — async image from URL or local path
+
+```elixir
+%{type: :image, props: %{
+  src:              "https://example.com/photo.jpg",   # URL or local path
+  width:            200,
+  height:           150,
+  content_mode:     :fill,     # :fill | :fit | :stretch
+  corner_radius:    8,
+  placeholder_color: :gray_200,
+}, children: []}
+```
+
+iOS uses `AsyncImage` (built-in); Android uses Coil. Both handle URL loading natively.
+
+**`progress`** — linear progress bar
+
+```elixir
+# Determinate
+%{type: :progress, props: %{value: 0.6, color: :blue_600}, children: []}
+
+# Indeterminate (spinner / animated bar)
+%{type: :progress, props: %{indeterminate: true, color: :blue_600}, children: []}
+```
+
+**`video`** — local video playback
+
+```elixir
+%{type: :video, props: %{
+  src:      "/path/to/video.mp4",  # local file path
+  autoplay: true,
+  loop:     false,
+  controls: true,
+  width:    360,
+  height:   240,
+}, children: []}
+```
+
+iOS: `AVPlayer` wrapped in `UIViewRepresentable`. Android: `Media3 ExoPlayer`.
+
+### Input
+
+**`button`** — tappable button
+
+```elixir
+%{type: :button, props: %{
+  text:       "Save",
+  background: :blue_600,
+  text_color: :white,
+  text_size:  :lg,
+  padding:    12,
+  on_tap:     {self(), :save_tapped},
+}, children: []}
+```
+
+**`text_field`** — single-line text input
+
+```elixir
+%{type: :text_field, props: %{
+  value:         assigns.name,
+  placeholder:   "Enter name",
+  keyboard_type: :default,    # :default | :email | :numeric | :phone | :url
+  on_change:     {self(), :name_changed},   # → {:change, :name_changed, "new value"}
+  on_focus:      {self(), :name_focus},     # → {:tap, :name_focus}
+  on_blur:       {self(), :name_blur},      # → {:tap, :name_blur}
+  on_submit:     {self(), :name_submit},    # → {:tap, :name_submit} on Return key
+}, children: []}
+```
+
+**`toggle`** — on/off switch
+
+```elixir
+%{type: :toggle, props: %{
+  value:     assigns.enabled,
+  on_change: {self(), :toggle_changed},   # → {:change, :toggle_changed, true | false}
+}, children: []}
+```
+
+**`slider`** — continuous value input
+
+```elixir
+%{type: :slider, props: %{
+  value:     assigns.volume,
+  min:       0.0,
+  max:       1.0,
+  on_change: {self(), :volume_changed},   # → {:change, :volume_changed, 0.72}
+}, children: []}
+```
+
+### Lists
+
+**`lazy_list`** — virtualized scrolling list (low-level)
+
+```elixir
+%{type: :lazy_list, props: %{
+  on_end_reached: {self(), :load_more},   # → {:tap, :load_more}
+}, children: rows}    # rows are pre-rendered node maps
+```
+
+**`list`** — higher-level list with built-in event routing and default renderer
+
+```elixir
+%{type: :list, props: %{
+  id:             :items,
+  items:          assigns.items,          # raw data
+  on_end_reached: {self(), :items},       # → {:end_reached, :items}
+}, children: []}
+```
+
+Row taps arrive as `{:select, id, index}`. Register a custom renderer at mount time:
+
+```elixir
+def mount(_params, _session, socket) do
+  socket = Mob.List.put_renderer(socket, :items, &item_row/1)
+  {:ok, Mob.Socket.assign(socket, :items, [])}
+end
+
+defp item_row(item) do
+  %{type: :row, props: %{padding: 12}, children: [
+    %{type: :text, props: %{text: item.title}, children: []},
+  ]}
+end
+```
+
+Default renderer handles binaries (shown as text), maps with `:label` / `:title` / `:name` keys, and falls back to `inspect/1`.
+
+### Navigation containers
+
+**`tab_bar`** — bottom tab bar
+
+```elixir
+%{type: :tab_bar,
+  props: %{
+    active:        assigns.active_tab,
+    on_tab_select: {self(), :tab_changed},   # → {:change, :tab_changed, "tab_id"}
+    tabs: [
+      %{id: "home",    label: "Home",    icon: "house"},
+      %{id: "profile", label: "Profile", icon: "person"},
+    ]
+  },
+  children: [home_view(assigns), profile_view(assigns)]
+}
+```
+
+Tab children are rendered in order; the active tab's child is shown. Icons are SF Symbol names (iOS) / text fallback (Android — Material Icons are a future addition).
+
+---
+
+## Styling
+
+### Color tokens
+
+Pass atom color tokens instead of hex values. Tokens are resolved in `Mob.Renderer` before serialisation — zero runtime cost on the native side.
+
+Color scale: `:gray_50` through `:gray_950`, `:red_500`, `:blue_600`, `:green_700`, etc. Full Tailwind 500–950 palette. Special tokens: `:white`, `:black`, `:transparent`, `:primary`, `:on_primary`.
+
+```elixir
+%{type: :text, props: %{text: "Hello", text_color: :blue_600, background: :gray_50}, children: []}
+```
+
+### Text size tokens
+
+| Token | Approximate size |
+|-------|-----------------|
+| `:xs` | 12 sp/pt |
+| `:sm` | 14 sp/pt |
+| `:base` | 16 sp/pt |
+| `:lg` | 18 sp/pt |
+| `:xl` | 20 sp/pt |
+| `"2xl"` | 24 sp/pt |
+| `"3xl"` | 30 sp/pt |
+
+### `Mob.Style`
+
+Reusable prop maps that can be shared across components:
+
+```elixir
+@card_style %Mob.Style{props: %{background: :white, padding: 16, corner_radius: 8}}
+
+%{type: :column, props: %{style: @card_style, padding_bottom: 8}, children: [...]}
+```
+
+Inline props override style values. `Mob.Renderer` merges them before serialisation.
+
+### Per-edge padding
+
+Any layout node accepts individual edge overrides. Missing edges fall back to the uniform `padding` value.
+
+```elixir
+%{type: :column, props: %{
+  padding:        16,
+  padding_top:    trunc(assigns.safe_area.top) + 16,
+}, children: [...]}
+```
+
+Available edges: `padding_top`, `padding_right`, `padding_bottom`, `padding_left`.
+
+### Platform blocks
+
+Props under an `:ios` or `:android` key are applied only on that platform. The other platform's block is silently dropped by `Mob.Renderer`.
+
+```elixir
+%{type: :column, props: %{
+  padding: 16,
+  ios:     %{background: :gray_50},
+  android: %{background: :white},
+}, children: [...]}
+```
+
+---
+
+## Events
+
+Mob uses two event shapes:
+
+| Shape | When |
+|-------|------|
+| `{:tap, tag}` | Button press, text field focus/blur/submit, list row tap (via `:select`) |
+| `{:change, tag, value}` | Text field text change, toggle flip, slider drag, tab selection |
+
+Both arrive in `handle_info/2`:
+
+```elixir
+def handle_info({:tap,    :save_pressed},            socket), do: ...
+def handle_info({:change, :name_changed,  new_text}, socket), do: ...
+def handle_info({:change, :toggle_on,     true},     socket), do: ...
+def handle_info({:change, :volume,        0.72},     socket), do: ...
+def handle_info({:select, :items,         2},        socket), do: ...   # list row tap
+def handle_info({:end_reached, :items},              socket), do: ...
+def handle_info(_message, socket), do: {:noreply, socket}   # always add a catch-all
+```
+
+The `tag` in `on_tap: {self(), :tag}` / `on_change: {self(), :tag}` is the atom that appears in the event.
+
+---
 
 ## Navigation
 
@@ -458,6 +765,229 @@ The untuned BEAM uses ~25% more power due to scheduler busy-waiting.
 | `-A 1` | Single async thread pool thread |
 | `-sbwt none -sbwtdcpu none -sbwtdio none` | Disable busy-wait in all schedulers |
 | `+C multi_time_warp` | Allow clock to jump forward; avoids spurious wakeups |
+
+## Device capabilities
+
+Hardware APIs follow the same `handle_info` convention as UI events. Capabilities that need OS permission use `Mob.Permissions.request/2` — the result arrives as `handle_info`.
+
+### Permissions
+
+```elixir
+# Request a permission (shows OS dialog if not already decided)
+{:noreply, Mob.Permissions.request(socket, :camera)}
+
+# Arrives as:
+def handle_info({:permission, :camera, :granted}, socket), do: ...
+def handle_info({:permission, :camera, :denied},  socket), do: ...
+```
+
+Capabilities that require permissions: `:camera`, `:microphone`, `:photo_library`, `:location`, `:notifications`.
+
+Capabilities that need no permission: haptics, clipboard, share sheet, file picker (user-initiated).
+
+### Haptics
+
+```elixir
+Mob.Haptic.trigger(socket, :light)    # brief tap
+Mob.Haptic.trigger(socket, :medium)   # standard tap
+Mob.Haptic.trigger(socket, :heavy)    # strong tap
+Mob.Haptic.trigger(socket, :success)  # success pattern
+Mob.Haptic.trigger(socket, :error)    # error pattern
+Mob.Haptic.trigger(socket, :warning)  # warning pattern
+```
+
+Returns the socket unchanged so it can be used inline. Fire-and-forget.
+
+### Clipboard
+
+```elixir
+# Write to clipboard
+Mob.Clipboard.put(socket, "some text")
+
+# Read from clipboard (synchronous)
+case Mob.Clipboard.get(socket) do
+  {:clipboard, :ok, text} -> ...
+  {:clipboard, :empty}    -> ...
+end
+```
+
+### Share sheet
+
+Opens the OS share dialog. Fire-and-forget.
+
+```elixir
+Mob.Share.text(socket, "Check out Mob!")
+```
+
+### Biometric authentication
+
+```elixir
+# Requires no extra permission — uses device unlock credentials
+Mob.Biometric.authenticate(socket, reason: "Confirm payment")
+
+def handle_info({:biometric, :success},       socket), do: ...
+def handle_info({:biometric, :failure},        socket), do: ...
+def handle_info({:biometric, :not_available},  socket), do: ...
+```
+
+iOS: `LAContext.evaluatePolicy` (Face ID / Touch ID). Android: `BiometricPrompt`.
+
+### Location
+
+```elixir
+# One-shot fix (requires :location permission)
+Mob.Location.get_once(socket)
+
+# Continuous updates
+Mob.Location.start(socket, accuracy: :high)
+Mob.Location.stop(socket)
+
+def handle_info({:location, %{lat: lat, lon: lon, accuracy: acc, altitude: alt}}, socket), do: ...
+def handle_info({:location, :error, reason}, socket), do: ...
+```
+
+Accuracy levels: `:high` (GPS), `:balanced`, `:low` (cell/WiFi only).
+
+iOS: `CLLocationManager`. Android: `FusedLocationProviderClient`.
+
+Permission key: `:location`.
+
+### Camera
+
+```elixir
+# Capture a photo (opens native camera UI)
+Mob.Camera.capture_photo(socket, quality: :high)
+
+# Capture a video
+Mob.Camera.capture_video(socket, max_duration: 60)
+
+def handle_info({:camera, :photo, %{path: path, width: w, height: h}}, socket), do: ...
+def handle_info({:camera, :video, %{path: path, duration: secs}},       socket), do: ...
+def handle_info({:camera, :cancelled},                                   socket), do: ...
+```
+
+iOS: `UIImagePickerController`. Android: `TakePicture` / `TakeVideo` activity contracts.
+
+Permission key: `:camera` (and `:microphone` for video).
+
+### Photo library picker
+
+```elixir
+Mob.Photos.pick(socket, max: 3, types: [:image, :video])
+
+def handle_info({:photos, :picked,    items},   socket), do: ...
+def handle_info({:photos, :cancelled},          socket), do: ...
+# items: [%{path: ..., type: :image | :video, width: ..., height: ...}]
+```
+
+iOS: `PHPickerViewController` (no permission needed on iOS 14+). Android: `PickMultipleVisualMedia`.
+
+### File picker
+
+```elixir
+Mob.Files.pick(socket, types: ["application/pdf", "text/plain"])
+
+def handle_info({:files, :picked,    items},   socket), do: ...
+def handle_info({:files, :cancelled},          socket), do: ...
+# items: [%{path: ..., name: ..., mime: ..., size: ...}]
+```
+
+iOS: `UIDocumentPickerViewController`. Android: `OpenMultipleDocuments`.
+
+### Microphone / audio recording
+
+```elixir
+# Requires :microphone permission
+Mob.Audio.start_recording(socket, format: :aac, quality: :medium)
+Mob.Audio.stop_recording(socket)
+
+def handle_info({:audio, :recorded, %{path: path, duration: secs}}, socket), do: ...
+def handle_info({:audio, :error,    reason},                          socket), do: ...
+```
+
+Formats: `:aac` (default), `:wav`. Quality: `:low`, `:medium` (default), `:high`.
+
+iOS: `AVAudioRecorder`. Android: `MediaRecorder`.
+
+### Accelerometer / gyroscope
+
+```elixir
+# No permission required
+Mob.Motion.start(socket, sensors: [:accelerometer, :gyro], interval_ms: 100)
+Mob.Motion.stop(socket)
+
+def handle_info({:motion, %{accel: {ax, ay, az}, gyro: {gx, gy, gz}, timestamp: t}}, socket), do: ...
+```
+
+Omit `:gyro` to get accelerometer only; omit `:accelerometer` for gyro only.
+
+iOS: `CMMotionManager`. Android: `SensorManager`.
+
+### QR / barcode scanner
+
+```elixir
+# Requires :camera permission
+Mob.Scanner.scan(socket, formats: [:qr, :ean13, :code128])
+
+def handle_info({:scan, :result,    %{type: :qr, value: "https://..."}}, socket), do: ...
+def handle_info({:scan, :cancelled},                                       socket), do: ...
+```
+
+Supported formats: `:qr`, `:ean13`, `:ean8`, `:code128`, `:code39`, `:upca`, `:upce`, `:pdf417`, `:aztec`, `:data_matrix`.
+
+iOS: `AVCaptureMetadataOutput` + `AVFoundation`. Android: `CameraX` + ML Kit `BarcodeScanning`.
+
+### Notifications
+
+Notifications always arrive via `handle_info`, whether the app is foregrounded, backgrounded, or relaunched after being killed. When the app is killed and the user taps a notification, the BEAM starts normally, `mount/3` runs, and then the notification is delivered to `handle_info` — no special `mount` case needed.
+
+**Local notifications** (scheduled by your app, no server):
+
+```elixir
+# Request permission first
+Mob.Permissions.request(socket, :notifications)
+
+# Schedule a notification
+Mob.Notify.schedule(socket,
+  id:    "reminder_1",
+  title: "Time to check in",
+  body:  "Open the app to see today's updates",
+  at:    ~U[2026-04-16 09:00:00Z],   # or delay_seconds: 60
+  data:  %{screen: "reminders"}
+)
+
+# Cancel a pending notification
+Mob.Notify.cancel(socket, "reminder_1")
+
+# Arrival (foreground, background tap, or launch tap):
+def handle_info({:notification, %{id: id, data: data, source: :local}}, socket), do: ...
+```
+
+**Push notifications** (`mob_push` package, separate from core `mob`):
+
+```elixir
+# Register for push (call once at app start after permission granted)
+Mob.Notify.register_push(socket)
+
+# Token arrives — send it to your server
+def handle_info({:push_token, :ios,     token}, socket), do: ...
+def handle_info({:push_token, :android, token}, socket), do: ...
+
+# Incoming push:
+def handle_info({:notification, %{title: t, body: b, data: d, source: :push}}, socket), do: ...
+```
+
+iOS: `UNUserNotificationCenter` + APNs. Android: `NotificationManager` + `AlarmManager` + FCM.
+
+The `mob_push` server-side library (separate Hex package) handles sending to FCM / APNs:
+
+```elixir
+# In your Phoenix/Elixir server:
+MobPush.send(token, :ios,     %{title: "Hi", body: "Hello", data: %{}})
+MobPush.send(token, :android, %{title: "Hi", body: "Hello", data: %{}})
+```
+
+---
 
 ## Source
 

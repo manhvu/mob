@@ -40,4 +40,19 @@ void mob_start_beam(const char* app_module);
 extern JavaVM* g_jvm;
 extern jobject g_activity;
 
+// ── Device capability delivery functions ─────────────────────────────────
+// Called from beam_jni.c JNI stubs when Kotlin delivers async results.
+// pid is an ErlNifPid passed as jlong through Kotlin.
+
+void mob_deliver_atom2(jlong pid, const char* a1, const char* a2);
+void mob_deliver_atom3(jlong pid, const char* a1, const char* a2, const char* a3);
+void mob_deliver_location(jlong pid, double lat, double lon, double acc, double alt);
+void mob_deliver_motion(jlong pid, double ax, double ay, double az,
+                        double gx, double gy, double gz, long long ts);
+void mob_deliver_file_result(jlong pid, const char* event, const char* sub,
+                             const char* json_items);
+void mob_deliver_push_token(jlong pid, const char* token);
+void mob_deliver_notification(jlong pid, const char* json);
+void mob_set_launch_notification(const char* json);
+
 #endif // MOB_BEAM_H

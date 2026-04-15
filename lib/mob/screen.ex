@@ -160,6 +160,13 @@ defmodule Mob.Screen do
       {:ok, mounted_socket} ->
         socket =
           if render_mode == :render do
+            # Check for a notification that launched the app from a killed state.
+            # Send it to self so it arrives via handle_info after init returns,
+            # consistent with foreground notification delivery.
+            case :mob_nif.take_launch_notification() do
+              :none -> :ok
+              json  -> send(self(), {:mob_launch_notification, json})
+            end
             do_render(screen_module, mounted_socket)
           else
             mounted_socket
@@ -208,6 +215,44 @@ defmodule Mob.Screen do
 
   def handle_call(:get_nav_history, _from, {_module, _socket, nav_history, _mode} = state) do
     {:reply, nav_history, state}
+  end
+
+  # Android file/camera/photo/scan results arrive as {:mob_file_result, event, sub, json_binary}.
+  # Decode the JSON and re-dispatch as the user-facing event tuple.
+  def handle_info({:mob_file_result, event, sub, json_binary}, state) do
+    event_atom = String.to_atom(event)
+    sub_atom   = String.to_atom(sub)
+    items = case :json.decode(json_binary) do
+      list when is_list(list) ->
+        Enum.map(list, fn item when is_map(item) ->
+          Map.new(item, fn {k, v} -> {String.to_atom(k), v} end)
+        end)
+      _ -> []
+    end
+    msg = case {event_atom, sub_atom} do
+      {:camera, :photo}   -> {:camera, :photo,   List.first(items) || %{}}
+      {:camera, :video}   -> {:camera, :video,   List.first(items) || %{}}
+      {:camera, :cancelled} -> {:camera, :cancelled}
+      {:photos, :picked}  -> {:photos, :picked,  items}
+      {:files,  :picked}  -> {:files,  :picked,  items}
+      {:audio,  :recorded}-> {:audio,  :recorded, List.first(items) || %{}}
+      {:scan,   :result}  ->
+        item = List.first(items) || %{}
+        {:scan, :result, %{type: item[:type] |> to_atom_safe(), value: item[:value]}}
+      _ -> {event_atom, sub_atom, items}
+    end
+    handle_info(msg, state)
+  end
+
+  defp to_atom_safe(nil), do: :qr
+  defp to_atom_safe(s) when is_binary(s), do: String.to_atom(s)
+  defp to_atom_safe(a) when is_atom(a), do: a
+
+  # Notification that launched the app from a killed state.
+  # Decoded from JSON and re-dispatched as the standard {:notification, map} message.
+  def handle_info({:mob_launch_notification, json}, {module, socket, nav_history, render_mode}) do
+    notif = decode_notification_json(json)
+    handle_info({:notification, notif}, {module, socket, nav_history, render_mode})
   end
 
   # System back gesture (Android hardware/swipe, iOS edge-pan).
@@ -359,6 +404,31 @@ defmodule Mob.Screen do
 
   defp clear_nav_action(socket) do
     Mob.Socket.put_mob(socket, :nav_action, nil)
+  end
+
+  # ── Helpers ───────────────────────────────────────────────────────────────
+
+  defp decode_notification_json(json) when is_binary(json) do
+    case :json.decode(json) do
+      map when is_map(map) ->
+        source = case Map.get(map, "source", "local") do
+          "push" -> :push
+          _      -> :local
+        end
+        data = case Map.get(map, "data") do
+          d when is_map(d) ->
+            Map.new(d, fn {k, v} -> {String.to_atom(k), v} end)
+          _ -> %{}
+        end
+        %{
+          id:     Map.get(map, "id"),
+          title:  Map.get(map, "title"),
+          body:   Map.get(map, "body"),
+          data:   data,
+          source: source
+        }
+      _ -> %{source: :local, data: %{}}
+    end
   end
 
   # ── Render pipeline ───────────────────────────────────────────────────────

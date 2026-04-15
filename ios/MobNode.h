@@ -23,6 +23,7 @@ typedef NS_ENUM(NSInteger, MobNodeType) {
     MobNodeTypeImage,
     MobNodeTypeLazyList,
     MobNodeTypeTabBar,
+    MobNodeTypeVideo,
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -98,6 +99,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, nullable) NSArray*         tabDefs;       // array of NSDictionary, each with id/label/icon
 @property (nonatomic, copy,   nullable) NSString*        activeTab;     // selected tab id
 @property (nonatomic, copy,   nullable) void (^onTabSelect)(NSString*); // sends selected tab id as string
+
+// Video player
+@property (nonatomic) BOOL videoAutoplay;
+@property (nonatomic) BOOL videoLoop;
+@property (nonatomic) BOOL videoControls;
 
 // Children
 @property (nonatomic, strong, nonnull) NSMutableArray<MobNode*>* children;

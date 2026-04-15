@@ -481,6 +481,119 @@ Mob.Share.file(socket, "/path/to/file.pdf", mime: "application/pdf")
 iOS: `UIActivityViewController`
 Android: `Intent.ACTION_SEND`
 
+---
+
+## Device capabilities — shipped (continued)
+
+### Permissions ✅ Done (2026-04-15)
+
+```elixir
+Mob.Permissions.request(socket, :camera)
+def handle_info({:permission, :camera, :granted | :denied}, socket), do: ...
+```
+
+Capabilities: `:camera`, `:microphone`, `:photo_library`, `:location`, `:notifications`
+
+### Biometric authentication ✅ Done (2026-04-15)
+
+```elixir
+Mob.Biometric.authenticate(socket, reason: "Confirm payment")
+def handle_info({:biometric, :success | :failure | :not_available}, socket), do: ...
+```
+
+iOS: `LAContext.evaluatePolicy`. Android: `BiometricPrompt` (requires `androidx.biometric:biometric:1.1.0`).
+
+### Location ✅ Done (2026-04-15)
+
+```elixir
+Mob.Location.get_once(socket)
+Mob.Location.start(socket, accuracy: :high)
+Mob.Location.stop(socket)
+def handle_info({:location, %{lat: lat, lon: lon, accuracy: acc, altitude: alt}}, socket), do: ...
+```
+
+iOS: `CLLocationManager`. Android: `FusedLocationProviderClient` (requires `com.google.android.gms:play-services-location:21.0.1`).
+
+### Camera capture ✅ Done (2026-04-15)
+
+```elixir
+Mob.Camera.capture_photo(socket)           # → {:camera, :photo, %{path:, width:, height:}}
+Mob.Camera.capture_video(socket)           # → {:camera, :video, %{path:, duration:}}
+                                           # or {:camera, :cancelled}
+```
+
+iOS: `UIImagePickerController`. Android: `TakePicture`/`CaptureVideo` activity contracts.
+
+### Photo library picker ✅ Done (2026-04-15)
+
+```elixir
+Mob.Photos.pick(socket, max: 3, types: [:image, :video])
+def handle_info({:photos, :picked, items}, socket), do: ...   # items: [%{path:, type:, ...}]
+def handle_info({:photos, :cancelled},     socket), do: ...
+```
+
+iOS: `PHPickerViewController`. Android: `PickMultipleVisualMedia`.
+
+### File picker ✅ Done (2026-04-15)
+
+```elixir
+Mob.Files.pick(socket, types: ["application/pdf"])
+def handle_info({:files, :picked, items}, socket), do: ...   # items: [%{path:, name:, mime:, size:}]
+def handle_info({:files, :cancelled},     socket), do: ...
+```
+
+iOS: `UIDocumentPickerViewController`. Android: `OpenMultipleDocuments`.
+
+### Video playback ✅ Done (2026-04-15)
+
+```elixir
+%{type: :video, props: %{src: "/path/to/file.mp4", autoplay: true, loop: false, controls: true}, children: []}
+```
+
+iOS: `AVPlayerViewController` wrapped in `UIViewControllerRepresentable`. Android: Stub — full implementation requires `androidx.media3:media3-exoplayer:1.3.0` (see component docs).
+
+### Microphone / audio recording ✅ Done (2026-04-15)
+
+```elixir
+Mob.Audio.start_recording(socket, format: :aac, quality: :medium)
+Mob.Audio.stop_recording(socket)
+def handle_info({:audio, :recorded, %{path: path, duration: secs}}, socket), do: ...
+```
+
+iOS: `AVAudioRecorder`. Android: `MediaRecorder`.
+
+### Motion sensors ✅ Done (2026-04-15)
+
+```elixir
+Mob.Motion.start(socket, sensors: [:accelerometer, :gyro], interval_ms: 100)
+Mob.Motion.stop(socket)
+def handle_info({:motion, %{accel: {ax,ay,az}, gyro: {gx,gy,gz}, timestamp: ms}}, socket), do: ...
+```
+
+iOS: `CMMotionManager`. Android: `SensorManager`.
+
+### QR / barcode scanner ✅ Done (2026-04-15)
+
+```elixir
+Mob.Scanner.scan(socket, formats: [:qr])
+def handle_info({:scan, :result,    %{type: :qr, value: "..."}}, socket), do: ...
+def handle_info({:scan, :cancelled},                               socket), do: ...
+```
+
+iOS: `AVCaptureMetadataOutput` + `MobScannerViewController`. Android: `MobScannerActivity` with CameraX + ML Kit (requires `com.google.mlkit:barcode-scanning:17.2.0` + CameraX deps).
+
+### Notifications (local + push) ✅ Done (2026-04-15)
+
+All notifications arrive via `handle_info` regardless of app state. When the app is killed and relaunched via a notification tap, the payload is stored at launch time and delivered after the root screen's `mount/3` completes.
+
+**iOS setup:** In your `AppDelegate`/scene delegate, call `mob_set_launch_notification_json(json)` for remote-notification launches, and `mob_send_push_token(hexToken)` from `application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`.
+
+**Android setup:** `NotificationReceiver` BroadcastReceiver handles scheduled local notifications. Push requires adding `com.google.firebase:firebase-messaging` to build.gradle and uncommenting the FCM token retrieval in `MobBridge.notify_register_push`.
+
+### 12. KitchenSink screen — moved to Phase 2 backlog
+
+---
+
 ### Priority 2 — Runtime permissions required
 
 **Biometric authentication**

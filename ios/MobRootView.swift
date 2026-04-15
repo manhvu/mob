@@ -2,6 +2,7 @@
 // node tree pushed by BEAM NIFs via MobViewModel.setRoot().
 
 import SwiftUI
+import AVKit
 
 extension View {
     @ViewBuilder
@@ -237,6 +238,15 @@ struct MobNodeView: View {
                 let tabs = node.tabDefs as? [[String: Any]] ?? []
                 MobTabView(node: node, tabs: tabs)
 
+            case .video:
+                if let src = node.src {
+                    MobVideoPlayer(src: src, autoplay: node.videoAutoplay,
+                                   loop: node.videoLoop, controls: node.videoControls)
+                        .ifLet(node.fixedWidth  > 0 ? node.fixedWidth  : nil) { v, w in v.frame(width:  CGFloat(w)) }
+                        .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
+                        .padding(node.paddingEdgeInsets)
+                }
+
             @unknown default:
                 EmptyView()
             }
@@ -271,6 +281,40 @@ private struct MobTabView: View {
             }
         }
     }
+}
+
+// ── Video player ─────────────────────────────────────────────────────────────
+
+private struct MobVideoPlayer: UIViewControllerRepresentable {
+    let src: String
+    let autoplay: Bool
+    let loop: Bool
+    let controls: Bool
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let vc = AVPlayerViewController()
+        let url: URL
+        if src.hasPrefix("http://") || src.hasPrefix("https://") {
+            url = URL(string: src)!
+        } else {
+            url = URL(fileURLWithPath: src)
+        }
+        let player = AVPlayer(url: url)
+        vc.player = player
+        vc.showsPlaybackControls = controls
+        if loop {
+            NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: player.currentItem, queue: .main) { _ in
+                player.seek(to: .zero)
+                player.play()
+            }
+        }
+        if autoplay { player.play() }
+        return vc
+    }
+
+    func updateUIViewController(_ vc: AVPlayerViewController, context: Context) {}
 }
 
 // ── Input component views ──────────────────────────────────────────────────
