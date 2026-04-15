@@ -233,6 +233,22 @@ defmodule Mob.Screen do
     {:noreply, {module, new_socket, new_history, render_mode}}
   end
 
+  # List row selected — intercept before the user's handle_info and convert to
+  # a plain {:select, id, index} message so screens don't need to know about
+  # the internal {:tap, {:list, ...}} tag format.
+  def handle_info({:tap, {:list, id, :select, index}}, {module, socket, nav_history, render_mode}) do
+    {:noreply, new_socket} = module.handle_info({:select, id, index}, socket)
+    {module, new_socket, nav_history, transition} =
+      apply_nav_action(module, new_socket, nav_history)
+    new_socket =
+      if render_mode == :render do
+        do_render(module, new_socket, transition)
+      else
+        new_socket
+      end
+    {:noreply, {module, new_socket, nav_history, render_mode}}
+  end
+
   def handle_info(message, {module, socket, nav_history, render_mode}) do
     {:noreply, new_socket} = module.handle_info(message, socket)
     {module, new_socket, nav_history, transition} =
@@ -348,8 +364,11 @@ defmodule Mob.Screen do
   # ── Render pipeline ───────────────────────────────────────────────────────
 
   defp do_render(module, socket, transition \\ :none) do
-    platform = socket.__mob__.platform
-    tree = module.render(socket.assigns)
+    platform       = socket.__mob__.platform
+    list_renderers = Map.get(socket.__mob__, :list_renderers, %{})
+    tree =
+      module.render(socket.assigns)
+      |> Mob.List.expand(list_renderers, self())
     case Mob.Renderer.render(tree, platform, :mob_nif, transition) do
       {:ok, token} ->
         Mob.Socket.put_root_view(socket, token)
