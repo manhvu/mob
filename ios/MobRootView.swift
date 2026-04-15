@@ -33,6 +33,53 @@ extension MobNode {
         let left   = paddingLeft   >= 0 ? paddingLeft   : padding
         return EdgeInsets(top: top, leading: left, bottom: bottom, trailing: right)
     }
+
+    /// Resolved SwiftUI Font respecting font family, size, weight, and italic.
+    var resolvedFont: Font {
+        let size: CGFloat = textSize > 0 ? textSize : 16.0
+        let weight: Font.Weight = {
+            switch fontWeight {
+            case "bold":     return .bold
+            case "semibold": return .semibold
+            case "medium":   return .medium
+            case "light":    return .light
+            case "thin":     return .thin
+            default:         return .regular
+            }
+        }()
+        var font: Font
+        if let family = fontFamily, !family.isEmpty {
+            font = Font.custom(family, size: size)
+        } else {
+            font = .system(size: size)
+        }
+        font = font.weight(weight)
+        if italic { font = font.italic() }
+        return font
+    }
+
+    var textAlignEnum: TextAlignment {
+        switch textAlign {
+        case "center": return .center
+        case "right":  return .trailing
+        default:       return .leading
+        }
+    }
+
+    var frameTextAlignment: Alignment {
+        switch textAlign {
+        case "center": return .center
+        case "right":  return .trailing
+        default:       return .leading
+        }
+    }
+
+    /// Extra inter-line spacing derived from the lineHeight multiplier.
+    var computedLineSpacing: CGFloat {
+        guard lineHeight > 0 else { return 0 }
+        let size: CGFloat = textSize > 0 ? textSize : 16.0
+        return (lineHeight - 1.0) * size
+    }
 }
 
 // ── Recursive node renderer ────────────────────────────────────────────────
@@ -77,16 +124,22 @@ struct MobNodeView: View {
 
             case .label:
                 Text(node.text ?? "")
-                    .font(node.textSize > 0 ? .system(size: node.textSize) : .body)
+                    .font(node.resolvedFont)
                     .foregroundColor(node.textColor.map { Color($0) } ?? Color.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(node.textAlignEnum)
+                    .lineSpacing(node.computedLineSpacing)
+                    .kerning(node.letterSpacing)
+                    .frame(maxWidth: .infinity, alignment: node.frameTextAlignment)
                     .padding(node.paddingEdgeInsets)
                     .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
+                    .ifLet(node.onTap) { view, tap in
+                        view.contentShape(Rectangle()).onTapGesture { tap() }
+                    }
 
             case .button:
                 Button(action: { node.onTap?() }) {
                     Text(node.text ?? "")
-                        .font(node.textSize > 0 ? .system(size: node.textSize) : .body)
+                        .font(node.resolvedFont)
                         .foregroundColor(node.textColor.map { Color($0) } ?? Color.accentColor)
                         .frame(maxWidth: .infinity)
                 }
@@ -180,8 +233,41 @@ struct MobNodeView: View {
                         .padding(node.paddingEdgeInsets)
                 }
 
+            case .tabBar:
+                let tabs = node.tabDefs as? [[String: Any]] ?? []
+                MobTabView(node: node, tabs: tabs)
+
             @unknown default:
                 EmptyView()
+            }
+        }
+    }
+}
+
+// ── Tab bar ───────────────────────────────────────────────────────────────────
+
+private struct MobTabView: View {
+    let node: MobNode
+    let tabs: [[String: Any]]
+
+    var body: some View {
+        let activeId = node.activeTab ?? (tabs.first?["id"] as? String ?? "")
+        TabView(selection: Binding(
+            get: { activeId },
+            set: { newId in node.onTabSelect?(newId) }
+        )) {
+            ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
+                if index < node.childNodes.count {
+                    MobNodeView(node: node.childNodes[index])
+                        .tabItem {
+                            Label(
+                                tab["label"] as? String ?? "",
+                                systemImage: tab["icon"] as? String ?? "circle"
+                            )
+                        }
+                        .tag(tab["id"] as? String ?? "\(index)")
+                        .ignoresSafeArea(.container, edges: .bottom)
+                }
             }
         }
     }
@@ -333,6 +419,7 @@ private struct MobImage: View {
 public struct MobRootView: View {
     @ObservedObject var model = MobViewModel.shared
     @State private var currentRoot: MobNode? = nil
+    @State private var currentTransition: String = "none"
 
     public init() {}
 
@@ -340,8 +427,11 @@ public struct MobRootView: View {
         ZStack {
             if let root = currentRoot {
                 MobNodeView(node: root)
+                    // New identity on every render forces SwiftUI to see old→new
+                    // as a genuine insertion/removal, enabling asymmetric transitions.
+                    .id(model.rootVersion)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .transition(navTransition(model.transition))
+                    .transition(navTransition(currentTransition))
             } else {
                 VStack {
                     Spacer()
@@ -356,12 +446,16 @@ public struct MobRootView: View {
         .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
         .onChange(of: model.rootVersion) { _ in
             let t = model.transition
+            let newRoot = model.root
+            // Capture transition before the animation block so the modifier sees
+            // the right value when the new view is inserted.
+            currentTransition = t
             if let animation = navAnimation(t) {
                 withAnimation(animation) {
-                    currentRoot = model.root
+                    currentRoot = newRoot
                 }
             } else {
-                currentRoot = model.root
+                currentRoot = newRoot
             }
         }
     }

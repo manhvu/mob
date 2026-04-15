@@ -26,6 +26,10 @@ static struct {
     jmethodID set_root;
     jmethodID move_to_back;
     jmethodID get_safe_area;
+    jmethodID haptic;
+    jmethodID clipboard_put;
+    jmethodID clipboard_get;
+    jmethodID share_text;
 } Bridge;
 
 // ── Tap handle registry ───────────────────────────────────────────────────────
@@ -375,6 +379,83 @@ static ERL_NIF_TERM nif_safe_area(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
     );
 }
 
+// ── NIF: haptic/1 ─────────────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_haptic(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char type[32] = {0};
+    enif_get_atom(env, argv[0], type, sizeof(type), ERL_NIF_LATIN1);
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jtype = (*jenv)->NewStringUTF(jenv, type);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.haptic, jtype);
+    (*jenv)->DeleteLocalRef(jenv, jtype);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+// ── NIF: clipboard_put/1 ──────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_clipboard_put(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    char* text = (char*)malloc(bin.size + 1);
+    if (!text) return enif_make_atom(env, "error");
+    memcpy(text, bin.data, bin.size);
+    text[bin.size] = 0;
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jtext = (*jenv)->NewStringUTF(jenv, text);
+    free(text);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.clipboard_put, jtext);
+    (*jenv)->DeleteLocalRef(jenv, jtext);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+// ── NIF: clipboard_get/0 ──────────────────────────────────────────────────────
+// Returns {:ok, Binary} or :empty.
+
+static ERL_NIF_TERM nif_clipboard_get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring result = (jstring)(*jenv)->CallStaticObjectMethod(jenv, Bridge.cls, Bridge.clipboard_get);
+
+    ERL_NIF_TERM ret;
+    if (result) {
+        const char* utf8 = (*jenv)->GetStringUTFChars(jenv, result, NULL);
+        ErlNifBinary bin;
+        size_t len = strlen(utf8);
+        enif_alloc_binary(len, &bin);
+        memcpy(bin.data, utf8, len);
+        (*jenv)->ReleaseStringUTFChars(jenv, result, utf8);
+        (*jenv)->DeleteLocalRef(jenv, result);
+        ret = enif_make_tuple2(env, enif_make_atom(env, "ok"), enif_make_binary(env, &bin));
+    } else {
+        ret = enif_make_atom(env, "empty");
+    }
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return ret;
+}
+
+// ── NIF: share_text/1 ─────────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_share_text(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    char* text = (char*)malloc(bin.size + 1);
+    if (!text) return enif_make_atom(env, "error");
+    memcpy(text, bin.data, bin.size);
+    text[bin.size] = 0;
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jtext = (*jenv)->NewStringUTF(jenv, text);
+    free(text);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.share_text, jtext);
+    (*jenv)->DeleteLocalRef(jenv, jtext);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
 // ── NIF table & load ─────────────────────────────────────────────────────────
 
 static ErlNifFunc nif_funcs[] = {
@@ -387,6 +468,10 @@ static ErlNifFunc nif_funcs[] = {
     {"clear_taps",     0, nif_clear_taps,     0},
     {"exit_app",       0, nif_exit_app,       0},
     {"safe_area",      0, nif_safe_area,      0},
+    {"haptic",         1, nif_haptic,         0},
+    {"clipboard_put",  1, nif_clipboard_put,  0},
+    {"clipboard_get",  0, nif_clipboard_get,  0},
+    {"share_text",     1, nif_share_text,     0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
@@ -406,6 +491,18 @@ static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
 
     Bridge.get_safe_area = (*jenv)->GetStaticMethodID(jenv, Bridge.cls, "getSafeArea", "()[F");
     if (!Bridge.get_safe_area) { LOGE("nif_load: getSafeArea() not found on MobBridge"); return -1; }
+
+    Bridge.haptic = (*jenv)->GetStaticMethodID(jenv, Bridge.cls, "haptic", "(Ljava/lang/String;)V");
+    if (!Bridge.haptic) { LOGE("nif_load: haptic(String) not found on MobBridge"); return -1; }
+
+    Bridge.clipboard_put = (*jenv)->GetStaticMethodID(jenv, Bridge.cls, "clipboardPut", "(Ljava/lang/String;)V");
+    if (!Bridge.clipboard_put) { LOGE("nif_load: clipboardPut(String) not found on MobBridge"); return -1; }
+
+    Bridge.clipboard_get = (*jenv)->GetStaticMethodID(jenv, Bridge.cls, "clipboardGet", "()Ljava/lang/String;");
+    if (!Bridge.clipboard_get) { LOGE("nif_load: clipboardGet() not found on MobBridge"); return -1; }
+
+    Bridge.share_text = (*jenv)->GetStaticMethodID(jenv, Bridge.cls, "shareText", "(Ljava/lang/String;)V");
+    if (!Bridge.share_text) { LOGE("nif_load: shareText(String) not found on MobBridge"); return -1; }
 
     if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
 

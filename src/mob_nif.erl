@@ -9,7 +9,11 @@
          register_tap/1,
          clear_taps/0,
          exit_app/0,
-         safe_area/0]).
+         safe_area/0,
+         haptic/1,
+         clipboard_put/1,
+         clipboard_get/0,
+         share_text/1]).
 -nifs([platform/0,
        log/1, log/2,
        set_transition/1,
@@ -17,7 +21,11 @@
        register_tap/1,
        clear_taps/0,
        exit_app/0,
-       safe_area/0]).
+       safe_area/0,
+       haptic/1,
+       clipboard_put/1,
+       clipboard_get/0,
+       share_text/1]).
 -on_load(init/0).
 
 init() -> erlang:load_nif("mob_nif", 0).
@@ -31,3 +39,7 @@ register_tap(_Pid)       -> erlang:nif_error(not_loaded).
 clear_taps()             -> erlang:nif_error(not_loaded).
 exit_app()               -> erlang:nif_error(not_loaded).
 safe_area()              -> erlang:nif_error(not_loaded).
+haptic(_Type)            -> erlang:nif_error(not_loaded).
+clipboard_put(_Text)     -> erlang:nif_error(not_loaded).
+clipboard_get()          -> erlang:nif_error(not_loaded).
+share_text(_Text)        -> erlang:nif_error(not_loaded).

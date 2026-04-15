@@ -145,7 +145,95 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 - Android: `nodeModifier` updated to detect edge props; uses `Modifier.padding(top=, end=, bottom=, start=)` when any edge is present, uniform `.padding()` otherwise
 - Usage: `padding_top: trunc(assigns.safe_area.top) + 16, padding: 16` — top clears the status bar; sides and bottom get uniform 16dp padding
 
-### 6. Typography
+### 6. ~~Typography~~ ✅ Done
+
+**Shipped (2026-04-15):**
+- `font_weight: :bold | :semibold | :medium | :regular | :light | :thin`
+- `text_align: :left | :center | :right`
+- `italic: true`
+- `line_height` multiplier (e.g. `1.4`) — converted to inter-line spacing on both platforms
+- `letter_spacing` in sp/pt
+- `font: "FontName"` — custom family; falls back to system font if not installed
+- No renderer changes needed — OTP's `:json.encode` serialises atom values as strings
+- iOS: `resolvedFont` + `textAlignEnum` + `computedLineSpacing` computed properties on MobNode Swift extension; applied to label case in `MobRootView`
+- Android: `fontWeightProp`, `textAlignProp`, `fontFamilyProp` helpers in `MobBridge.kt`; applied to `MobText` composable
+- Font bundling (`priv/fonts/` + `mix mob.deploy --native`) is a separate step
+
+### 7. ~~Tab bar / drawer navigation~~ ✅ Done (tab bar; drawer Phase 2)
+
+**Shipped (2026-04-15):**
+- `type: :tab_bar` node with `tabs: [%{id:, label:, icon:}]`, `active:`, `on_tab_select:`
+- Tab selection sends `{:change, tag, tab_id_string}` to screen's `handle_info` (reuses existing change mechanism)
+- `on_tab_select: {self(), tag}` registered in `Mob.Renderer.prepare_props/3`
+- iOS: `MobTabView` SwiftUI struct using `TabView` with SF Symbol icons; `MobNodeTypeTabBar` added to enum
+- Android: `MobTabBar` composable using `Scaffold` + `NavigationBar`; `tabDefsProp` parses `JSONArray` from props
+- `MobDemo.TabScreen` demo with 3 tabs, also exercises typography props
+
+### 8. ~~Nav animations — iOS~~ ✅ Done
+
+**Shipped (2026-04-15):**
+- Added `@State private var currentTransition: String = "none"` to `MobRootView`
+- Set `currentTransition = t` BEFORE the `withAnimation` block so the modifier sees the right value when the new view is inserted
+- Added `.id(model.rootVersion)` to `MobNodeView` — forces SwiftUI to treat each root update as a distinct view insertion/removal, enabling asymmetric push/pop slide transitions rather than a whole-screen fade
+
+### ~~(9, 10, 11 assigned elsewhere)~~
+
+### 12. (KitchenSink — deferred to later)
+
+---
+
+## Device capabilities — shipped
+
+### Haptics ✅ Done (2026-04-15)
+
+No permission required.
+
+```elixir
+Mob.Haptic.trigger(socket, :light)    # brief tap
+Mob.Haptic.trigger(socket, :medium)   # standard tap
+Mob.Haptic.trigger(socket, :heavy)    # strong tap
+Mob.Haptic.trigger(socket, :success)  # success pattern
+Mob.Haptic.trigger(socket, :error)    # error pattern
+Mob.Haptic.trigger(socket, :warning)  # warning pattern
+```
+
+Returns socket unchanged so it can be used inline. Fire-and-forget (dispatch_async / runOnUiThread).
+- iOS: `UIImpactFeedbackGenerator` / `UINotificationFeedbackGenerator`
+- Android: `View.performHapticFeedback` with `HapticFeedbackConstants`
+- NIF: `mob_nif:haptic/1` on both platforms
+
+### Clipboard ✅ Done (2026-04-15)
+
+No permission required.
+
+```elixir
+Mob.Clipboard.put(socket, "some text")
+case Mob.Clipboard.get(socket) do
+  {:clipboard, :ok, text} -> ...
+  {:clipboard, :empty}    -> ...
+end
+```
+
+`get/1` is synchronous (dispatch_sync / CountDownLatch), same pattern as `safe_area/0`.
+- iOS: `UIPasteboard.generalPasteboard`
+- Android: `ClipboardManager` / `ClipData`
+- NIFs: `mob_nif:clipboard_put/1`, `mob_nif:clipboard_get/0`
+
+### Share sheet ✅ Done (2026-04-15)
+
+No permission required. Fire-and-forget.
+
+```elixir
+Mob.Share.text(socket, "Check out Mob!")
+```
+
+- iOS: `UIActivityViewController` with popover support for iPad
+- Android: `Intent.ACTION_SEND` via `Intent.createChooser`
+- NIF: `mob_nif:share_text/1`
+
+---
+
+### Typography (original item 6)
 
 Text props that are missing on both platforms:
 

@@ -173,6 +173,7 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
     else if ([type isEqualToString:@"slider"])     node.nodeType = MobNodeTypeSlider;
     else if ([type isEqualToString:@"image"])      node.nodeType = MobNodeTypeImage;
     else if ([type isEqualToString:@"lazy_list"])  node.nodeType = MobNodeTypeLazyList;
+    else if ([type isEqualToString:@"tab_bar"])    node.nodeType = MobNodeTypeTabBar;
 
     NSDictionary* props = dict[@"props"];
     if ([props isKindOfClass:[NSDictionary class]]) {
@@ -193,6 +194,31 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
 
         id textSize = props[@"text_size"];
         if (textSize) node.textSize = [textSize doubleValue];
+
+        id fontFamily = props[@"font"];
+        if ([fontFamily isKindOfClass:[NSString class]]) node.fontFamily = fontFamily;
+        id fontWeight = props[@"font_weight"];
+        if (fontWeight) node.fontWeight = [fontWeight description];
+        id textAlign = props[@"text_align"];
+        if (textAlign) node.textAlign = [textAlign description];
+        id italic = props[@"italic"];
+        if (italic) node.italic = [italic boolValue];
+        id lineHeight = props[@"line_height"];
+        if (lineHeight) node.lineHeight = [lineHeight doubleValue];
+        id letterSpacing = props[@"letter_spacing"];
+        if (letterSpacing) node.letterSpacing = [letterSpacing doubleValue];
+
+        id tabDefs = props[@"tabs"];
+        if ([tabDefs isKindOfClass:[NSArray class]]) node.tabDefs = tabDefs;
+        id activeTab = props[@"active"];
+        if (activeTab) node.activeTab = [activeTab description];
+        id onTabSelect = props[@"on_tab_select"];
+        if (onTabSelect && [onTabSelect isKindOfClass:[NSNumber class]]) {
+            int handle = [onTabSelect intValue];
+            node.onTabSelect = ^(NSString* tabId) {
+                mob_send_change_str(handle, [tabId UTF8String]);
+            };
+        }
 
         id bg = props[@"background"];
         if (bg) node.backgroundColor = color_from_argb((long)[bg longLongValue]);
@@ -489,6 +515,113 @@ static ERL_NIF_TERM nif_clear_taps(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     return enif_make_atom(env, "ok");
 }
 
+// ── NIF: haptic/1 ─────────────────────────────────────────────────────────────
+// Triggers haptic feedback. Fire-and-forget; dispatched async to main thread.
+
+static ERL_NIF_TERM nif_haptic(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char type[32] = {0};
+    enif_get_atom(env, argv[0], type, sizeof(type), ERL_NIF_LATIN1);
+    NSString* typeStr = [NSString stringWithUTF8String:type];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([typeStr isEqualToString:@"success"] ||
+            [typeStr isEqualToString:@"error"]   ||
+            [typeStr isEqualToString:@"warning"]) {
+            UINotificationFeedbackGenerator* g = [[UINotificationFeedbackGenerator alloc] init];
+            [g prepare];
+            if ([typeStr isEqualToString:@"success"])
+                [g notificationOccurred:UINotificationFeedbackTypeSuccess];
+            else if ([typeStr isEqualToString:@"error"])
+                [g notificationOccurred:UINotificationFeedbackTypeError];
+            else
+                [g notificationOccurred:UINotificationFeedbackTypeWarning];
+        } else {
+            UIImpactFeedbackStyle style = UIImpactFeedbackStyleMedium;
+            if ([typeStr isEqualToString:@"light"])  style = UIImpactFeedbackStyleLight;
+            if ([typeStr isEqualToString:@"heavy"])  style = UIImpactFeedbackStyleHeavy;
+            UIImpactFeedbackGenerator* g = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
+            [g prepare];
+            [g impactOccurred];
+        }
+    });
+    return enif_make_atom(env, "ok");
+}
+
+// ── NIF: clipboard_put/1 ──────────────────────────────────────────────────────
+// Writes a UTF-8 binary to the system clipboard. Fire-and-forget.
+
+static ERL_NIF_TERM nif_clipboard_put(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+
+    NSString* text = [[NSString alloc] initWithBytes:bin.data
+                                              length:bin.size
+                                            encoding:NSUTF8StringEncoding];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [UIPasteboard generalPasteboard].string = text;
+    });
+    return enif_make_atom(env, "ok");
+}
+
+// ── NIF: clipboard_get/0 ──────────────────────────────────────────────────────
+// Returns {:ok, Binary} or :empty. Synchronous (dispatch_sync to main thread).
+
+static ERL_NIF_TERM nif_clipboard_get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    __block NSString* text = nil;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        text = [UIPasteboard generalPasteboard].string;
+    });
+
+    if (text) {
+        const char* utf8 = [text UTF8String];
+        ErlNifBinary bin;
+        size_t len = strlen(utf8);
+        enif_alloc_binary(len, &bin);
+        memcpy(bin.data, utf8, len);
+        ERL_NIF_TERM text_term = enif_make_binary(env, &bin);
+        return enif_make_tuple2(env, enif_make_atom(env, "ok"), text_term);
+    }
+    return enif_make_atom(env, "empty");
+}
+
+// ── NIF: share_text/1 ─────────────────────────────────────────────────────────
+// Opens the iOS share sheet with plain text. Fire-and-forget.
+
+static ERL_NIF_TERM nif_share_text(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+
+    NSString* text = [[NSString alloc] initWithBytes:bin.data
+                                              length:bin.size
+                                            encoding:NSUTF8StringEncoding];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIActivityViewController* vc =
+            [[UIActivityViewController alloc] initWithActivityItems:@[text]
+                                              applicationActivities:nil];
+        UIViewController* root = nil;
+        for (UIScene* scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                root = ((UIWindowScene*)scene).windows.firstObject.rootViewController;
+                break;
+            }
+        }
+        if (root) {
+            if (vc.popoverPresentationController) {
+                vc.popoverPresentationController.sourceView = root.view;
+                CGRect r = root.view.bounds;
+                vc.popoverPresentationController.sourceRect =
+                    CGRectMake(CGRectGetMidX(r), CGRectGetMidY(r), 0, 0);
+            }
+            [root presentViewController:vc animated:YES completion:nil];
+        }
+    });
+    return enif_make_atom(env, "ok");
+}
+
 // ── NIF table & load ──────────────────────────────────────────────────────────
 
 static ErlNifFunc nif_funcs[] = {
@@ -501,6 +634,10 @@ static ErlNifFunc nif_funcs[] = {
     {"clear_taps",     0, nif_clear_taps,     0},
     {"exit_app",       0, nif_exit_app,       0},
     {"safe_area",      0, nif_safe_area,      0},
+    {"haptic",         1, nif_haptic,         0},
+    {"clipboard_put",  1, nif_clipboard_put,  0},
+    {"clipboard_get",  0, nif_clipboard_get,  0},
+    {"share_text",     1, nif_share_text,     0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {

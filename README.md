@@ -210,6 +210,80 @@ Android uses `adb reverse tcp:4369 tcp:4369` so the Android BEAM registers in th
 EPMD (not Android's), then `adb forward tcp:9100 tcp:9100` for the dist port. Both
 platforms end up in the same EPMD. `dev_connect.sh` handles this automatically.
 
+## Android manifest requirements
+
+Your Android `AndroidManifest.xml` needs a few specific settings for Mob to work
+correctly. These are already included in projects created with `mix mob.new`, but if
+you're integrating Mob into an existing Android project, add them manually.
+
+### windowSoftInputMode
+
+Without this, tapping a `text_field` component does **not** raise the soft keyboard —
+Android defaults to overlaying the keyboard on top of the window instead of resizing it.
+
+```xml
+<activity
+    android:name=".MainActivity"
+    android:windowSoftInputMode="adjustResize"
+    ...>
+```
+
+### configChanges
+
+Without `android:configChanges`, Android recreates the `Activity` on orientation
+changes, keyboard appearance, and other config events. This causes `nativeStartBeam()`
+to be called a second time, crashing the already-running BEAM.
+
+```xml
+<activity
+    android:name=".MainActivity"
+    android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|fontScale|density"
+    ...>
+```
+
+### AppTheme with black windowBackground
+
+The default Android theme has a white window background. When the app resumes or the
+surface is recreated, there is a 1–2 frame gap before Compose draws its first frame.
+Without overriding the background, this gap shows as a white flash.
+
+Create `res/values/styles.xml`:
+
+```xml
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.NoTitleBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>
+```
+
+Then reference it in your manifest:
+
+```xml
+<application
+    android:theme="@style/AppTheme"
+    ...>
+```
+
+### Complete activity element example
+
+```xml
+<application android:theme="@style/AppTheme" ...>
+    <activity
+        android:name=".MainActivity"
+        android:exported="true"
+        android:windowSoftInputMode="adjustResize"
+        android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|fontScale|density">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+    </activity>
+</application>
+```
+
 ## OS debug tools
 
 If you're coming from Elixir/backend land, the mobile toolchains have their own CLIs for talking to devices. Here's what's useful and what each thing does.

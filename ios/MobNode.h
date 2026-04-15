@@ -22,6 +22,7 @@ typedef NS_ENUM(NSInteger, MobNodeType) {
     MobNodeTypeSlider,
     MobNodeTypeImage,
     MobNodeTypeLazyList,
+    MobNodeTypeTabBar,
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -84,6 +85,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic)                  CGFloat    fixedHeight;       // 0 = auto
 @property (nonatomic)                  CGFloat    cornerRadius;
 @property (nonatomic, strong, nullable) UIColor*  placeholderColor;
+
+// Typography
+@property (nonatomic, copy, nullable) NSString* fontFamily;    // nil = system font
+@property (nonatomic, copy, nonnull)  NSString* fontWeight;   // "regular","medium","semibold","bold","light","thin"
+@property (nonatomic, copy, nonnull)  NSString* textAlign;    // "left","center","right"
+@property (nonatomic)                 BOOL      italic;
+@property (nonatomic)                 CGFloat   lineHeight;   // multiplier; 0 = default
+@property (nonatomic)                 CGFloat   letterSpacing;
+
+// Tab bar
+@property (nonatomic, strong, nullable) NSArray*         tabDefs;       // array of NSDictionary, each with id/label/icon
+@property (nonatomic, copy,   nullable) NSString*        activeTab;     // selected tab id
+@property (nonatomic, copy,   nullable) void (^onTabSelect)(NSString*); // sends selected tab id as string
 
 // Children
 @property (nonatomic, strong, nonnull) NSMutableArray<MobNode*>* children;

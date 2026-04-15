@@ -13,6 +13,11 @@
         _paddingRight  = -1.0;
         _paddingBottom = -1.0;
         _paddingLeft   = -1.0;
+        _fontWeight    = @"regular";
+        _textAlign     = @"left";
+        _italic        = NO;
+        _lineHeight    = 0.0;
+        _letterSpacing = 0.0;
         _thickness     = 1.0;
         _fixedSize     = 0.0;
         _value         = NAN;   // NaN = indeterminate (progress) or not-yet-set (slider)

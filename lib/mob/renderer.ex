@@ -196,6 +196,9 @@ defmodule Mob.Renderer do
       {:on_end_reached, {pid, tag}} when is_pid(pid) ->
         {"on_end_reached", nif.register_tap({pid, tag})}
 
+      {:on_tab_select, {pid, tag}} when is_pid(pid) ->
+        {"on_tab_select", nif.register_tap({pid, tag})}
+
       {key, value} ->
         {Atom.to_string(key), resolve_token(key, value)}
     end)
