@@ -813,6 +813,60 @@ SQLite via NIF. `Mob.Repo` with Elixir schema + migrations on app start. WAL mod
 ### App Store / Play Store build pipeline
 `mix mob.release --platform android|ios` — Gradle/Xcode build, signing, `.aab` / `.ipa` output. Fastlane for upload.
 
+### Mob.Cluster
+
+Connect Mob apps to each other — or to any Elixir/OTP node — at runtime without a server in the middle.
+
+Two phones that share a cookie become a cluster. Every OTP primitive works across the connection: `:rpc.call`, `send` to a remote pid, distributed GenServer, global process registry. This is not a messaging protocol built on WebSockets — it is Erlang distribution, which has been doing this since 1986.
+
+**Rendezvous options:**
+- Server-mediated: both apps fetch a session cookie from your backend, call `Node.set_cookie/2` + `Node.connect/1`
+- QR code: one app displays a QR containing its node name + cookie; the other scans and connects
+- mDNS / local broadcast: apps discover each other on the same network without any server
+
+**Cookie rotation:** `Node.set_cookie/2` works at runtime with no restart, so session cookies can be rotated between cluster sessions without stopping the BEAM.
+
+**Scope:** `Mob.Cluster` is a thin API over `Node.set_cookie/2`, `Node.connect/1`, `Node.disconnect/1`, and `Mob.Dist.stop/0`. The heavy lifting is already in OTP.
+
+```elixir
+# Two phones, one line each:
+Mob.Cluster.join(:"other_app@192.168.1.42", cookie: :session_abc)
+
+# Then standard OTP across devices:
+:rpc.call(:"other_app@192.168.1.42", MyApp.GameServer, :move, [:left])
+```
+
+### OTA BEAM updates (on-demand distribution)
+
+Push new `.beam` files to installed production apps without an App Store release.
+
+**Mechanism:** app polls an HTTP endpoint for an update manifest. When an update is available, it starts EPMD + Erlang distribution on-demand, connects outbound to the update server's BEAM node, receives new BEAMs via `:code.load_binary`, then shuts distribution back down. Distribution is never persistently open — it lives only for the duration of the update session.
+
+```
+App (on device)                     Update server (Elixir)
+    │
+    ├── GET /updates/check           ← signed manifest or 304
+    │       {version, cookie, modules: [...]}
+    │
+    ├── Mob.Dist.ensure_started/1    ← start EPMD + dist on-demand
+    │       (epmd_port: from manifest)
+    │
+    ├── Node.connect(server_node)    ← outbound connection; no open inbound port
+    │
+    ├── :rpc.call → :code.load_binary for each module
+    │
+    └── Mob.Dist.stop/0              ← shut down EPMD + dist when done
+```
+
+**Properties:**
+- Phone initiates — no inbound ports need to be open on the device
+- Cookie can be session-scoped (rotated per manifest) rather than static
+- EPMD port configurable via manifest to avoid the 4369/adb conflict on dev machines
+- Graceful fallback: if distribution fails, App Store update is still the backstop
+- No App Store review for Elixir/BEAM changes (binary compatibility permitting)
+
+**Scope:** requires `Mob.Dist.stop/0` (not yet implemented), manifest signing, and a server-side update distribution service. `mix mob.release` should produce a manifest alongside the build artifacts.
+
 ### User-defined style tokens
 `MyApp.Styles` module + `mob.exs` config key. Developer defines their own color palette, type scale, spacing scale as token maps. `Mob.Renderer` merges app tokens on top of the default set at compile time.
 

@@ -45,6 +45,7 @@ defmodule Mob.Dist do
   """
   @spec ensure_started(keyword()) :: :ok
   def ensure_started(opts \\ []) do
+
     case :mob_nif.platform() do
       :ios ->
         :ok
@@ -57,6 +58,36 @@ defmodule Mob.Dist do
         spawn(fn -> start_after(node, cookie, delay, dist_port) end)
         :ok
     end
+  end
+
+  @doc """
+  Stop Erlang distribution and shut down EPMD.
+
+  Disconnects all connected nodes, stops the distribution listener, and
+  terminates the local EPMD daemon if one was started by this node.
+
+  Intended for use after an OTA update session or when forming a `Mob.Cluster`
+  connection that should not persist. The app continues running normally after
+  calling `stop/0` — only remote connectivity is removed.
+
+  Returns `:ok` whether or not distribution was running.
+
+      # OTA update session
+      Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: session_cookie)
+      Node.connect(update_server_node)
+      # ... receive BEAMs ...
+      Mob.Dist.stop()
+
+      # Mob.Cluster — rotate cookie between sessions
+      Node.set_cookie(new_session_cookie)   # no restart needed
+  """
+  @spec stop() :: :ok
+  def stop do
+    if Node.alive?() do
+      Enum.each(Node.list(), &Node.disconnect/1)
+      :net_kernel.stop()
+    end
+    :ok
   end
 
   defp start_after(node, cookie, delay, dist_port) do

@@ -29,6 +29,7 @@ defmodule Mob.MixProject do
       source_url_pattern: "https://github.com/genericjam/mob/blob/main/%{path}#L%{line}",
       extras: [
         "README.md": [title: "Mob"],
+        "guides/why_beam.md": [title: "Why the BEAM?"],
         "guides/getting_started.md": [title: "Getting Started"],
         "guides/architecture.md": [title: "Architecture & Prior Art"],
         "guides/screen_lifecycle.md": [title: "Screen Lifecycle"],
@@ -37,6 +38,7 @@ defmodule Mob.MixProject do
         "guides/navigation.md": [title: "Navigation"],
         "guides/device_capabilities.md": [title: "Device Capabilities"],
         "guides/testing.md": [title: "Testing"],
+        "guides/troubleshooting.md": [title: "Troubleshooting"],
       ],
       groups_for_extras: [
         Guides: ~r/guides\/.*/
