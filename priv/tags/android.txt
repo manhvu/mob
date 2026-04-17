@@ -1,0 +1,23 @@
+# Mob component tags supported on Android (Jetpack Compose)
+# One PascalCase tag name per line.
+# Generated source: android/jni/mob_nif.c / MobBridge.kt switch statement
+# See guides/styling.md for native mapping details.
+# Note: Video is a stub pending ExoPlayer integration.
+
+Box
+Button
+Column
+Divider
+Image
+LazyList
+List
+Progress
+Row
+Scroll
+Slider
+Spacer
+TabBar
+Text
+TextField
+Toggle
+Video

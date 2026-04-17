@@ -1,6 +1,8 @@
 # Components
 
-A component is a plain Elixir map with three keys:
+There are two equivalent ways to write Mob UI — plain Elixir maps and the `~MOB` sigil. Both produce identical output; choose whichever feels natural.
+
+## Map syntax
 
 ```elixir
 %{
@@ -10,7 +12,40 @@ A component is a plain Elixir map with three keys:
 }
 ```
 
-`Mob.Renderer` serialises this tree to JSON and passes it to the native side in a single NIF call. Compose (Android) and SwiftUI (iOS) handle diffing and rendering.
+Maps are idiomatic Elixir and compose naturally with `Enum.map`, pattern matching, and helper functions.
+
+## Sigil syntax
+
+```elixir
+import Mob.Sigil
+
+~MOB"""
+<Column padding={16}>
+  <Text text="Hello" text_size={:xl} />
+  <Button text="Save" on_tap={{self(), :save}} />
+</Column>
+"""
+```
+
+The `~MOB` sigil compiles to the same maps at compile time — there is no runtime overhead or interpretation. It is a good fit for layouts that are mostly static structure, and for developers coming from LiveView or web backgrounds.
+
+Expression attributes use `{...}` and support any Elixir expression including nested maps and function calls. Expression child slots also use `{...}` and accept a single node map or a list:
+
+```elixir
+~MOB"""
+<Column>
+  {Enum.map(assigns.items, fn item ->
+    ~MOB(<Text text={item} />)
+  end)}
+</Column>
+"""
+```
+
+The two styles are fully interchangeable — you can mix them freely in the same `render/1` function.
+
+---
+
+`Mob.Renderer` serialises the component tree to JSON and passes it to the native side in a single NIF call. Compose (Android) and SwiftUI (iOS) handle diffing and rendering.
 
 ## Prop values
 
@@ -239,14 +274,14 @@ Currently `Mob.UI` covers `:text`. Maps are preferred for full component control
 
 ## Tap handler conventions
 
-Use tagged tuples for tap handlers so you can pattern-match on the tag in `handle_event/3`:
+Use tagged tuples for tap handlers so you can pattern-match on the tag in `handle_info/2`:
 
 ```elixir
 # In render:
 on_tap: {self(), :save}
 
-# In handle_event:
-def handle_event("tap", %{"tag" => "save"}, socket) do
+# In handle_info:
+def handle_info({:tap, :save}, socket) do
   ...
 end
 ```
@@ -255,5 +290,43 @@ Using a bare `pid` works but loses the tag:
 
 ```elixir
 on_tap: self()
-# handle_event receives event "tap" with no "tag" key
+# handle_info receives {:tap, nil}
+```
+
+## Event routing
+
+**All events are delivered to the screen process.** `self()` inside `render/1` is always the screen's GenServer pid, so every `on_tap`, `on_change`, `on_select`, and similar handler sends its message to the screen's `handle_info/2`.
+
+```elixir
+# These two are equivalent — both deliver {:tap, :save} to the screen
+on_tap: {self(), :save}
+on_tap: self()   # tag is nil
+```
+
+This holds regardless of nesting. A `:button` buried inside a `:scroll` inside a `:column` still sends its tap event to the screen, not to any intermediate container.
+
+For `:list` rows the message shape is `{:select, tag, index}`:
+
+```elixir
+props: %{on_select: {self(), :item_tapped}}
+
+def handle_info({:select, :item_tapped, index}, socket) do
+  ...
+end
+```
+
+### Sub-component event isolation (planned, not yet implemented)
+
+A future `Mob.Component` wrapper will allow a subtree of the render tree to have its own `handle_info/2`, routing events to that component process instead of the screen. The design is:
+
+```elixir
+# Future — not available yet
+%{type: :component, props: %{module: MyWidget}, children: [...]}
+```
+
+Until then, use the `tag` field to distinguish events from different parts of the same screen:
+
+```elixir
+%{type: :button, props: %{text: "Top Save",    on_tap: {self(), :top_save}},    children: []}
+%{type: :button, props: %{text: "Bottom Save", on_tap: {self(), :bottom_save}}, children: []}
 ```

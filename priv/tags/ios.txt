@@ -1,0 +1,22 @@
+# Mob component tags supported on iOS (SwiftUI)
+# One PascalCase tag name per line.
+# Generated source: mob/ios/mob_nif.m switch statement
+# See guides/styling.md for native mapping details.
+
+Box
+Button
+Column
+Divider
+Image
+LazyList
+List
+Progress
+Row
+Scroll
+Slider
+Spacer
+TabBar
+Text
+TextField
+Toggle
+Video

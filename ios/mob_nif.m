@@ -21,7 +21,7 @@
 #include <string.h>
 #include "erl_nif.h"
 #import "MobNode.h"
-#import "MobDemo-Swift.h"
+#import "MobApp-Swift.h"
 
 #define LOGI(...) NSLog(@"[MobNIF] " __VA_ARGS__)
 #define LOGE(...) NSLog(@"[MobNIF][ERROR] " __VA_ARGS__)

@@ -8,57 +8,43 @@ defmodule Mob.SigilTest do
 
   import Mob.Sigil
 
-  # ~MOB is an uppercase sigil — use () or [] delimiters so quote chars
-  # inside the template don't need escaping.
+  # ── self-closing: string attributes ─────────────────────────────────────────
 
-  # ── static string attributes ─────────────────────────────────────────────────
-
-  describe "~MOB static string attrs" do
-    test "produces a :text node" do
+  describe "self-closing with string attrs" do
+    test "produces correct type atom" do
       node = ~MOB(<Text text="hello" />)
       assert node.type == :text
     end
 
-    test "captures the text attribute" do
+    test "captures string attribute" do
       node = ~MOB(<Text text="hello" />)
       assert node.props.text == "hello"
     end
 
-    test "text is a leaf — children is empty" do
+    test "children is empty list" do
       node = ~MOB(<Text text="hello" />)
       assert node.children == []
     end
 
-    test "captures text_color attribute" do
-      node = ~MOB(<Text text="hi" text_color="#ff0000" />)
-      assert node.props.text_color == "#ff0000"
+    test "multiple string attributes" do
+      node = ~MOB(<Text text="hi" font_weight="bold" />)
+      assert node.props.text == "hi"
+      assert node.props.font_weight == "bold"
     end
 
-    test "captures text_size attribute as string" do
-      node = ~MOB(<Text text="hi" text_size="18" />)
-      assert node.props.text_size == "18"
-    end
-
-    test "empty text string is valid" do
+    test "empty string attribute" do
       node = ~MOB(<Text text="" />)
       assert node.props.text == ""
     end
   end
 
-  # ── expression attributes ─────────────────────────────────────────────────────
+  # ── self-closing: expression attributes ─────────────────────────────────────
 
-  describe "~MOB expression attrs {expr}" do
+  describe "self-closing with expression attrs" do
     test "evaluates a variable in scope" do
       greeting = "world"
       node = ~MOB(<Text text={greeting} />)
       assert node.props.text == "world"
-    end
-
-    test "evaluates an arbitrary expression" do
-      # Hoist to variable — () inside {expr} conflicts with ~MOB() delimiter
-      upcased = String.upcase("hello")
-      node = ~MOB(<Text text={upcased} />)
-      assert node.props.text == "HELLO"
     end
 
     test "evaluates map access" do
@@ -67,44 +53,196 @@ defmodule Mob.SigilTest do
       assert node.props.text == "Alice"
     end
 
-    test "expression and literal attrs can be mixed" do
-      color = "#0000ff"
-      node = ~MOB(<Text text="hi" text_color={color} />)
-      assert node.props.text == "hi"
-      assert node.props.text_color == "#0000ff"
+    test "evaluates atom expression" do
+      node = ~MOB(<Text text_size={:xl} />)
+      assert node.props.text_size == :xl
+    end
+
+    test "evaluates tuple expression for on_tap" do
+      handler = {self(), :ok}
+      node = ~MOB(<Button text="OK" on_tap={handler} />)
+      assert elem(node.props.on_tap, 1) == :ok
+    end
+
+    test "mixed string and expression attrs" do
+      color = :primary
+      node = ~MOB(<Button text="Save" background={color} />)
+      assert node.props.text == "Save"
+      assert node.props.background == :primary
     end
   end
 
-  # ── parity with Mob.UI.text/1 ──────────────────────────────────────────────
+  # ── nesting ──────────────────────────────────────────────────────────────────
 
-  describe "sigil/component function parity" do
+  describe "nested layout" do
+    test "column with single text child" do
+      node = ~MOB"""
+      <Column padding={16}>
+        <Text text="hello" />
+      </Column>
+      """
+      assert node.type == :column
+      assert node.props.padding == 16
+      assert length(node.children) == 1
+      assert hd(node.children).type == :text
+      assert hd(node.children).props.text == "hello"
+    end
+
+    test "multiple children" do
+      node = ~MOB"""
+      <Column>
+        <Text text="one" />
+        <Text text="two" />
+        <Text text="three" />
+      </Column>
+      """
+      assert length(node.children) == 3
+      assert Enum.map(node.children, & &1.props.text) == ["one", "two", "three"]
+    end
+
+    test "deeply nested structure" do
+      node = ~MOB"""
+      <Column>
+        <Row>
+          <Text text="left" />
+          <Text text="right" />
+        </Row>
+      </Column>
+      """
+      assert node.type == :column
+      [row] = node.children
+      assert row.type == :row
+      assert length(row.children) == 2
+    end
+
+    test "self-closing and container siblings" do
+      node = ~MOB"""
+      <Column>
+        <Text text="label" />
+        <Row>
+          <Button text="A" />
+          <Button text="B" />
+        </Row>
+      </Column>
+      """
+      assert length(node.children) == 2
+      [text, row] = node.children
+      assert text.type == :text
+      assert row.type == :row
+      assert length(row.children) == 2
+    end
+  end
+
+  # ── expression children ──────────────────────────────────────────────────────
+
+  describe "expression child slots {expr}" do
+    test "injects a single node from an expression" do
+      child = %{type: :text, props: %{text: "dynamic"}, children: []}
+      node = ~MOB"""
+      <Column>
+        {child}
+      </Column>
+      """
+      assert length(node.children) == 1
+      assert hd(node.children).props.text == "dynamic"
+    end
+
+    test "injects a list of nodes from Enum.map" do
+      items = ["a", "b", "c"]
+      node = ~MOB"""
+      <Column>
+        {Enum.map(items, fn i -> %{type: :text, props: %{text: i}, children: []} end)}
+      </Column>
+      """
+      assert length(node.children) == 3
+      assert Enum.map(node.children, & &1.props.text) == ["a", "b", "c"]
+    end
+
+    test "expression child mixed with static child" do
+      extra = %{type: :divider, props: %{}, children: []}
+      node = ~MOB"""
+      <Column>
+        <Text text="header" />
+        {extra}
+      </Column>
+      """
+      assert length(node.children) == 2
+      assert hd(node.children).type == :text
+      assert List.last(node.children).type == :divider
+    end
+  end
+
+  # ── tag type resolution ──────────────────────────────────────────────────────
+
+  describe "tag to type atom" do
+    test "PascalCase becomes snake_case atom" do
+      node = ~MOB(<TabBar />)
+      assert node.type == :tab_bar
+    end
+
+    test "LazyList becomes :lazy_list" do
+      node = ~MOB(<LazyList />)
+      assert node.type == :lazy_list
+    end
+
+    test "TextField becomes :text_field" do
+      node = ~MOB(<TextField value="x" />)
+      assert node.type == :text_field
+    end
+  end
+
+  # ── parity with raw maps ─────────────────────────────────────────────────────
+
+  describe "parity with Mob.UI" do
     test "sigil output equals Mob.UI.text/1 for static attrs" do
       assert ~MOB(<Text text="hello" />) == Mob.UI.text(text: "hello")
     end
 
-    test "sigil output equals Mob.UI.text/1 when using expression" do
+    test "sigil output equals Mob.UI.text/1 for expression attr" do
       text = "hello"
       assert ~MOB(<Text text={text} />) == Mob.UI.text(text: "hello")
     end
+  end
 
-    test "sigil and function node are interchangeable in a list" do
-      nodes = [~MOB(<Text text="a" />), Mob.UI.text(text: "b")]
-      assert Enum.all?(nodes, &match?(%{type: :text, children: []}, &1))
+  # ── unknown tags pass through with warning ───────────────────────────────────
+
+  describe "unknown tag pass-through" do
+    test "unknown tag produces a node with the derived type atom" do
+      # MapView is not in the whitelist — should warn but still compile
+      node = Code.eval_string(~S[
+        import Mob.Sigil
+        ~MOB(<MapView zoom={10} />)
+      ]) |> elem(0)
+      assert node.type == :map_view
+      assert node.props.zoom == 10
     end
   end
 
   # ── compile-time errors ───────────────────────────────────────────────────────
 
   describe "compile-time errors" do
-    test "unknown component raises CompileError" do
-      assert_raise CompileError, ~r/unknown component.*Paragraph/i, fn ->
-        Code.eval_string(~S[import Mob.Sigil; ~MOB(<Paragraph text="hi" />)])
+    test "mismatched tags raises CompileError" do
+      assert_raise CompileError, ~r/mismatched tags/i, fn ->
+        Code.compile_string(~S[import Mob.Sigil; ~MOB"""
+        <Column>
+          <Text text="hi" />
+        </Row>
+        """])
       end
     end
 
     test "malformed template raises CompileError" do
-      assert_raise CompileError, ~r/self-closing/i, fn ->
-        Code.eval_string(~S[import Mob.Sigil; ~MOB(not a tag)])
+      assert_raise CompileError, fn ->
+        Code.compile_string(~S[import Mob.Sigil; ~MOB(not a tag)])
+      end
+    end
+
+    test "unclosed tag raises CompileError" do
+      assert_raise CompileError, fn ->
+        Code.compile_string(~S[import Mob.Sigil; ~MOB"""
+        <Column>
+          <Text text="hi" />
+        """])
       end
     end
   end

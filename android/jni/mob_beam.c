@@ -152,6 +152,79 @@ void mob_start_beam(const char* app_module) {
     };
     int ac = 0;
     while (args[ac]) ac++;
+
+    // ── Cold-start race condition fix ────────────────────────────────────────
+    //
+    // DO NOT REMOVE THIS BLOCK.
+    //
+    // Problem: on a cold start (first launch after install or after the process
+    // was killed), calling erl_start() too early causes a SIGABRT deep inside
+    // ERTS pthread initialisation.  The crash looks like:
+    //
+    //   FORTIFY: pthread_mutex_lock called on a destroyed mutex
+    //   backtrace:
+    //     #00  abort
+    //     #01  pthread_mutex_lock (FORTIFY wrapper)
+    //     #02  ... (ERTS internal thread pool setup)
+    //     #03  erl_start
+    //
+    // Root cause: Android's hwui (hardware-accelerated UI renderer) creates its
+    // own native thread pool during the very first layout/draw pass.  That
+    // initialisation uses pthread mutexes that it allocates and later destroys.
+    // ERTS also calls into pthreads during erl_start().  If erl_start() runs
+    // concurrently with hwui's first-draw setup, the two pthread paths race on
+    // the same internal libc state and the FORTIFY mutex check fires → SIGABRT.
+    //
+    // The race only reproduces on cold start because:
+    //   • On warm start hwui's thread pool already exists → no race.
+    //   • The window-focus event is the earliest point at which Android
+    //     guarantees the first layout/draw pass has completed, so hwui's
+    //     pthread state is stable.
+    //
+    // Fix: poll Activity.hasWindowFocus() every 50 ms before calling erl_start().
+    // hasWindowFocus() returns true only after the window has been drawn and
+    // given input focus, which is *after* hwui finishes its thread-pool setup.
+    // We wait up to 3 seconds (covers slow emulators and heavily loaded devices)
+    // and fall through anyway so a stuck window never blocks BEAM forever.
+    //
+    // Why this lives here instead of in MainActivity.kt:
+    //   Putting the delay in Kotlin would mean every app built on Mob needs to
+    //   replicate and maintain the fix.  Centralising it in mob_beam.c means
+    //   app code can stay a simple `Thread({ nativeStartBeam() }).start()`.
+    //
+    // JNI threading notes:
+    //   • beam-main is created via `new Thread()` in Kotlin, so it is already
+    //     attached to the JVM when this function runs.  Calling
+    //     AttachCurrentThread on an already-attached thread is a no-op, but
+    //     calling DetachCurrentThread on a Java-created thread makes ART abort.
+    //   • We therefore call GetEnv first.  If the thread is already attached
+    //     (needs_detach == 0) we skip both Attach and Detach.  Only a purely
+    //     native thread that was never attached would set needs_detach == 1.
+    if (g_jvm && g_activity) {
+        JNIEnv* env2 = NULL;
+        int needs_detach = ((*g_jvm)->GetEnv(g_jvm, (void**)&env2, JNI_VERSION_1_6) != JNI_OK);
+        if (needs_detach)
+            (*g_jvm)->AttachCurrentThread(g_jvm, &env2, NULL);
+
+        jclass    act_cls   = (*env2)->GetObjectClass(env2, g_activity);
+        jmethodID has_focus = (*env2)->GetMethodID(env2, act_cls, "hasWindowFocus", "()Z");
+        int waited = 0;
+        const int max_wait = 3000; /* ms — fall through if focus never arrives */
+        while (!(*env2)->CallBooleanMethod(env2, g_activity, has_focus) && waited < max_wait) {
+            struct timespec ts = {0, 50000000}; /* 50 ms */
+            nanosleep(&ts, NULL);
+            waited += 50;
+        }
+        /* Only detach if we attached above — detaching a Java thread aborts ART. */
+        if (needs_detach)
+            (*g_jvm)->DetachCurrentThread(g_jvm);
+        if (waited >= max_wait)
+            LOGI("mob_start_beam: focus timeout (%d ms) — starting BEAM anyway", waited);
+        else if (waited)
+            LOGI("mob_start_beam: waited %d ms for window focus", waited);
+    }
+    // ── end cold-start race condition fix ────────────────────────────────────
+
     LOGI("mob_start_beam: starting BEAM with module=%s, argc=%d", app_module, ac);
 
     // Symlink ERTS executables from BINDIR to the native lib dir.

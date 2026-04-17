@@ -1,11 +1,5 @@
 # Why the BEAM?
 
-You can vibe-code a React Native app in an afternoon. JavaScript runs everywhere,
-the npm ecosystem is enormous, and if something breaks you just reload. So why
-would you run a 40-year-old Erlang virtual machine on a phone?
-
-Here is the honest answer.
-
 ## Your app is a distributed system whether you like it or not
 
 A mobile app talks to a server, handles push notifications while in the
@@ -90,9 +84,9 @@ platform workaround.
 ## The honest trade-off
 
 The BEAM is not free. You are writing Elixir, not JavaScript or Swift. The
-ecosystem is smaller. Hiring is harder. Some things that are trivial in React
-Native — a particular animation library, a specific native SDK wrapper — require
-more work.
+ecosystem is smaller. Some things that are trivial in React Native — a particular 
+animation library, a specific native SDK wrapper — require more work. But the things that 
+are impossible on React Native are possible now.
 
 What you are buying is a runtime that was engineered for exactly the problem
 mobile apps have: high concurrency, fault tolerance, live updates, distributed

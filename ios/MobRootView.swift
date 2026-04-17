@@ -93,7 +93,7 @@ struct MobNodeView: View {
             switch node.nodeType {
             case .column:
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(node.childNodes) { MobNodeView(node: $0) }
+                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(node.paddingEdgeInsets)
@@ -104,7 +104,7 @@ struct MobNodeView: View {
 
             case .row:
                 HStack(spacing: 0) {
-                    ForEach(node.childNodes) { MobNodeView(node: $0) }
+                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
                 }
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
@@ -114,7 +114,7 @@ struct MobNodeView: View {
 
             case .box:
                 ZStack(alignment: .topLeading) {
-                    ForEach(node.childNodes) { MobNodeView(node: $0) }
+                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(node.paddingEdgeInsets)
@@ -142,6 +142,7 @@ struct MobNodeView: View {
                     Text(node.text ?? "")
                         .font(node.resolvedFont)
                         .foregroundColor(node.textColor.map { Color($0) } ?? Color.clear)
+                        .lineLimit(1)
                         .frame(maxWidth: node.fillWidth ? .infinity : nil)
                 }
                 .padding(node.paddingEdgeInsets)
@@ -157,12 +158,12 @@ struct MobNodeView: View {
                 ScrollView(axes, showsIndicators: node.showIndicator) {
                     if isHorizontal {
                         HStack(alignment: .top, spacing: 0) {
-                            ForEach(node.childNodes) { MobNodeView(node: $0) }
+                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
                         }
                         .frame(maxHeight: .infinity, alignment: .topLeading)
                     } else {
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(node.childNodes) { MobNodeView(node: $0) }
+                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -207,10 +208,10 @@ struct MobNodeView: View {
             case .lazyList:
                 ScrollView(.vertical, showsIndicators: true) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(node.childNodes) { child in
+                        ForEach(Array(node.childNodes.enumerated()), id: \.offset) { index, child in
                             MobNodeView(node: child)
                                 .onAppear {
-                                    if child === node.childNodes.last {
+                                    if index == node.childNodes.count - 1 {
                                         node.onTap?()
                                     }
                                 }
@@ -443,14 +444,23 @@ private struct MobImage: View {
 
     var body: some View {
         Group {
-            if let src = node.src, let url = URL(string: src) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: contentMode)
-                    default:
-                        placeholder
+            if let src = node.src {
+                if (src.hasPrefix("http://") || src.hasPrefix("https://")),
+                   let url = URL(string: src) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: contentMode)
+                        default:
+                            placeholder
+                        }
                     }
+                } else if let uiImage = UIImage(contentsOfFile: src) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: contentMode)
+                } else {
+                    placeholder
                 }
             } else {
                 placeholder
@@ -460,7 +470,6 @@ private struct MobImage: View {
             width:  node.fixedWidth  > 0 ? node.fixedWidth  : nil,
             height: node.fixedHeight > 0 ? node.fixedHeight : nil
         )
-        .background(placeholder)
         .clipShape(RoundedRectangle(cornerRadius: node.cornerRadius))
     }
 }
@@ -478,9 +487,11 @@ public struct MobRootView: View {
         ZStack {
             if let root = currentRoot {
                 MobNodeView(node: root)
-                    // New identity on every render forces SwiftUI to see old→new
-                    // as a genuine insertion/removal, enabling asymmetric transitions.
-                    .id(model.rootVersion)
+                    // Only assign a new identity on navigation transitions (push/pop),
+                    // not on every state-update re-render. Using rootVersion here would
+                    // tear down and recreate the whole view tree on every keystroke,
+                    // causing MobTextField to lose focus and dismiss the keyboard.
+                    .id(model.navVersion)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .transition(navTransition(currentTransition))
             } else {

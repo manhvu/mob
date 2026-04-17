@@ -34,6 +34,7 @@ defmodule Mob.MixProject do
         "guides/architecture.md": [title: "Architecture & Prior Art"],
         "guides/screen_lifecycle.md": [title: "Screen Lifecycle"],
         "guides/components.md": [title: "Components"],
+        "guides/styling.md": [title: "Styling & Native Rendering"],
         "guides/theming.md": [title: "Theming"],
         "guides/navigation.md": [title: "Navigation"],
         "guides/device_capabilities.md": [title: "Device Capabilities"],
@@ -79,6 +80,7 @@ defmodule Mob.MixProject do
     [
       # HTML/HEEx template engine — same one Phoenix uses
       # {:phoenix_live_view, "~> 1.0", optional: true},  # add when HEEx rendering lands
+      {:nimble_parsec, "~> 1.0"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:jump_credo_checks, "~> 0.1.0", only: [:dev, :test], runtime: false}

@@ -105,13 +105,43 @@ defmodule MyApp.HomeScreen do
     }
   end
 
-  def handle_event("tap", %{"tag" => "increment"}, socket) do
+  def handle_info({:tap, :increment}, socket) do
     {:noreply, Mob.Socket.assign(socket, :count, socket.assigns.count + 1)}
   end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
 end
 ```
 
-`mount/3` initialises assigns. `render/1` returns the component tree as a plain Elixir map. `handle_event/3` updates assigns in response to user interaction. After each callback that returns a modified socket, the framework calls `render/1` again and pushes the diff to the native layer.
+The same screen written with the `~MOB` sigil is identical at runtime:
+
+```elixir
+defmodule MyApp.HomeScreen do
+  use Mob.Screen
+  import Mob.Sigil
+
+  def mount(_params, _session, socket) do
+    {:ok, Mob.Socket.assign(socket, :count, 0)}
+  end
+
+  def render(assigns) do
+    ~MOB"""
+    <Column padding={24} gap={16}>
+      <Text text={"Count: #{assigns.count}"} text_size={:xl} />
+      <Button text="Tap me" on_tap={{self(), :increment}} />
+    </Column>
+    """
+  end
+
+  def handle_info({:tap, :increment}, socket) do
+    {:noreply, Mob.Socket.assign(socket, :count, socket.assigns.count + 1)}
+  end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+end
+```
+
+`mount/3` initialises assigns. `render/1` returns the component tree — as a plain map or via the `~MOB` sigil, your choice. `handle_info/2` updates assigns in response to user interaction. After each callback that returns a modified socket, the framework calls `render/1` again and pushes the diff to the native layer.
 
 ## App entry point
 

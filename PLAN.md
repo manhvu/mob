@@ -308,6 +308,60 @@ iOS approach: keep `MobRootView` as-is but switch `ZStack` + `.transition()` to 
 All components exercised in one demo screen: `column`, `row`, `scroll`, `box`, `text`, `button`, `text_field`, `toggle`, `slider`, `divider`, `spacer`, `progress`, `image`, `lazy_list`.
 Update after per-edge padding (item 5) and typography (item 6) land.
 
+### 13. Permission / capability build wizard (mob_dev dashboard)
+
+**Problem:** Native permission declarations must be in place at build time — `AndroidManifest.xml` for Android, `Info.plist` for iOS — but today developers have to edit those files by hand. This is one of the most friction-heavy parts of the first-deploy flow, especially for less experienced mobile developers.
+
+**Goal:** A wizard in the mob_dev dashboard that lets developers declare which device capabilities their app uses. The wizard writes the correct platform manifest entries and regenerates files before the next `mix mob.deploy --native`.
+
+**UX sketch:**
+
+The wizard lives in the mob_dev dashboard under a "Build Config" or "Capabilities" tab. It shows a checklist of capabilities:
+
+| Capability | Description | Android permission | iOS key |
+|---|---|---|---|
+| Camera | Capture photo / video | `CAMERA` | `NSCameraUsageDescription` |
+| Microphone | Audio recording | `RECORD_AUDIO` | `NSMicrophoneUsageDescription` |
+| Location (coarse) | Cell/wifi position | `ACCESS_COARSE_LOCATION` | `NSLocationWhenInUseUsageDescription` |
+| Location (fine) | GPS | `ACCESS_FINE_LOCATION` | (same key, finer entitlement) |
+| Photo library read | Pick photos | `READ_MEDIA_IMAGES` (API 33+) / `READ_EXTERNAL_STORAGE` | `NSPhotoLibraryUsageDescription` |
+| Photo library write | Save photos | `WRITE_EXTERNAL_STORAGE` (API < 29) | `NSPhotoLibraryAddUsageDescription` |
+| Notifications (local) | Schedule local alerts | `POST_NOTIFICATIONS` (API 33+) | (permission requested at runtime) |
+| Biometric | FaceID / fingerprint | `USE_BIOMETRIC` | `NSFaceIDUsageDescription` |
+| Bluetooth | BLE scan/connect | `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT` | `NSBluetoothAlwaysUsageDescription` |
+| NFC | Tag read/write | `NFC` | `NFCReaderUsageDescription` |
+
+Each capability has an optional **usage description** field (iOS requires a human-readable string explaining why the app needs it; Android 13+ notifications also require one).
+
+**Implementation:**
+
+- Capability selections + usage strings stored in `mob.exs` under a `:capabilities` key
+- `mix mob.deploy --native` reads `mob.exs[:capabilities]` and patches:
+  - `android/app/src/main/AndroidManifest.xml` — adds `<uses-permission>` entries
+  - `ios/Info.plist` — adds `NS*UsageDescription` keys
+- `mix mob.new` generates starter manifests with a comment block where Mob will inject permissions; this makes the files safe to patch idempotently
+- Dashboard wizard writes to `mob.exs` in the project root via a LiveView form; changes take effect on next `--native` build
+- Validation: warn if a `Mob.*` API is called in the BEAM code but the corresponding capability is not declared (cross-reference `Mob.Camera`, `Mob.Location` etc. call sites vs declared capabilities)
+
+**mob.exs format:**
+
+```elixir
+import Config
+
+config :mob_dev,
+  bundle_id: "com.example.myapp",
+  capabilities: [
+    camera:       [usage: "Take profile photos"],
+    microphone:   [usage: "Record voice memos"],
+    location:     [accuracy: :coarse, usage: "Show nearby places"],
+    photo_library:[access: :read, usage: "Choose a profile picture"],
+    notifications:[],
+    biometric:    [usage: "Confirm payments with Face ID"],
+  ]
+```
+
+**Scope note:** The wizard UI and `mob.exs` schema live in `mob_dev`. The manifest patching logic (`patch_android_manifest/1`, `patch_ios_plist/1`) lives in `mob_dev` alongside `NativeBuild`. The capability→permission mapping table is a compile-time constant in `mob_dev`.
+
 ---
 
 ## List component overhaul ✅ Phase 1 shipped (2026-04-15)
@@ -1019,6 +1073,55 @@ These kill the process before the BEAM can do anything. Requires platform-native
 - **Custom backend** — `Mob.CrashReporter` posts structured JSON to any endpoint. Simplest for teams already running their own observability stack.
 
 **Batteries-included goal**: `mob_crash` Hex package that works out of the box with zero config for self-hosted Sentry, and an escape hatch to configure any HTTP endpoint. Developer opts in by adding `mob_crash` to deps and calling `Mob.CrashReporter.start_link(dsn: "https://...")` in their application supervisor. No native SDK required for BEAM-level crash capture; native crash handling documented as a separate optional step.
+
+---
+
+### Named scroll containers + scroll events
+
+**Problem:** Two `:scroll` nodes on the same screen have no way to be told apart, and the BEAM never hears about scroll position at all. This matters for: lazy-load triggers, hide-on-scroll headers, "back to top" buttons, analytics.
+
+**Design:**
+
+Add an `id` prop to `:scroll` (and generalise it as the standard identity mechanism across all interactive nodes):
+
+```elixir
+%{
+  type: :scroll,
+  props: %{id: :feed, on_scroll: {self(), :scrolled}},
+  children: [...]
+}
+```
+
+The BEAM receives scroll events as:
+
+```elixir
+def handle_info({:scroll, :feed, %{offset_y: 142.0, at_top: false, at_bottom: false}}, socket) do
+  ...
+end
+```
+
+**Payload fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `offset_y` | float | Vertical scroll offset in dp/pts |
+| `offset_x` | float | Horizontal scroll offset (for `axis: :horizontal` scrolls) |
+| `at_top` | boolean | Offset ≤ threshold (e.g. 8dp) |
+| `at_bottom` | boolean | Within threshold of the bottom |
+| `velocity_y` | float | Optional — scroll velocity (useful for fling detection) |
+
+**Implementation notes:**
+
+- iOS: `ScrollView` doesn't expose offset natively in SwiftUI; use a `GeometryReader` + `PreferenceKey` trick or `UIScrollView` delegate via `UIViewRepresentable`
+- Android: `LazyColumn` scroll state is readable via `LazyListState.firstVisibleItemScrollOffset`; `nestedScroll` modifier captures velocity
+- Throttle events on the native side (e.g. every 16ms / 1 frame) before sending to BEAM — raw scroll events at 60fps would flood the mailbox
+- `on_scroll` is opt-in; a `:scroll` with no `on_scroll` prop costs nothing
+
+**Generalise `id` prop across all interactive nodes:**
+
+Currently interactive nodes use `on_tap`/`on_change` tuple tags for routing. A first-class `id` prop would be cleaner and consistent — the `id` serves as the stable routing key, and the BEAM always knows which widget fired regardless of handle churn between renders.
+
+**Platforms:** Both (Compose `LazyListState` / `ScrollState`; SwiftUI `ScrollViewReader` / `UIScrollView` delegate)
 
 ---
 
