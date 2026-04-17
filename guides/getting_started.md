@@ -5,7 +5,7 @@ This guide walks you through creating a new Mob app from scratch, running it on 
 ## Prerequisites
 
 - Elixir 1.18 or later
-- `mob_dev` installed globally: `mix archive.install hex mob_dev`
+- `mob_new` installed globally: `mix archive.install hex mob_new`
 - For iOS: Xcode 15+ and the iOS simulator
 - For Android: Android Studio with an AVD (Android Virtual Device)
 

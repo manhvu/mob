@@ -25,6 +25,7 @@ defmodule Mob.MixProject do
   defp docs do
     [
       main: "readme",
+      logo: "assets/logo/logo_full_color.png",
       source_url: "https://github.com/genericjam/mob",
       source_url_pattern: "https://github.com/genericjam/mob/blob/main/%{path}#L%{line}",
       extras: [

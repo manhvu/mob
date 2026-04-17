@@ -31,10 +31,10 @@ def deps do
 end
 ```
 
-The `mob_dev` package (separate) provides project generation, deployment tooling, and a live dashboard. Install it as a Mix archive:
+The `mob_new` package (separate) provides project generation, deployment tooling, and will import `mob_dev` which is a live dashboard. Install it as a Mix archive:
 
 ```bash
-mix archive.install hex mob_dev
+mix archive.install hex mob_new
 ```
 
 ## A screen
