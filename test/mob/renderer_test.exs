@@ -249,11 +249,12 @@ defmodule Mob.RendererTest do
     end
 
     test "color atom in text_color is resolved" do
+      # :on_surface resolves through the default dark theme → :gray_100 → 0xFFF5F5F5
       tree = %{type: :text, props: %{text: "hi", text_color: :on_surface}, children: []}
       Renderer.render(tree, :android, MockNIF)
       {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
       decoded = :json.decode(json)
-      assert decoded["props"]["text_color"] == 0xFF212121
+      assert decoded["props"]["text_color"] == 0xFFF5F5F5
     end
 
     test "text_size atom is resolved to float sp" do
@@ -306,6 +307,92 @@ defmodule Mob.RendererTest do
       decoded = :json.decode(json)
       refute Map.has_key?(decoded["props"], "android")
       refute Map.has_key?(decoded["props"], "ios")
+    end
+  end
+
+  describe "theme token resolution" do
+    setup do
+      # Reset to default theme after each test
+      on_exit(fn -> Application.delete_env(:mob, :theme) end)
+      :ok
+    end
+
+    test "spacing token :space_md resolves to 16 at default scale" do
+      tree = %{type: :column, props: %{padding: :space_md}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["padding"] == 16
+    end
+
+    test "spacing token scales with space_scale" do
+      Mob.Theme.set(space_scale: 2.0)
+      tree = %{type: :column, props: %{padding: :space_md}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["padding"] == 32
+    end
+
+    test "radius token :radius_md resolves to theme value" do
+      tree = %{type: :button, props: %{text: "x", corner_radius: :radius_md}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["corner_radius"] == 10
+    end
+
+    test "radius token reflects custom theme radius" do
+      Mob.Theme.set(radius_md: 20)
+      tree = %{type: :button, props: %{text: "x", corner_radius: :radius_md}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["corner_radius"] == 20
+    end
+
+    test "text_size scales with type_scale" do
+      Mob.Theme.set(type_scale: 2.0)
+      tree = %{type: :text, props: %{text: "hi", text_size: :base}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["text_size"] == 32.0
+    end
+
+    test "semantic color :primary resolves through theme to palette integer" do
+      Mob.Theme.set(primary: :emerald_500)
+      tree = %{type: :column, props: %{background: :primary}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["background"] == 0xFF10B981
+    end
+
+    test "semantic color accepts raw ARGB integer in theme" do
+      Mob.Theme.set(primary: 0xFFDEADBEEF)
+      tree = %{type: :column, props: %{background: :primary}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["background"] == 0xFFDEADBEEF
+    end
+
+    test "button gets default background from theme when not specified" do
+      tree = %{type: :button, props: %{text: "Go"}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      props = :json.decode(json)["props"]
+      # Default primary → blue_500 → 0xFF2196F3
+      assert props["background"] == 0xFF2196F3
+    end
+
+    test "explicit button background overrides default" do
+      tree = %{type: :button, props: %{text: "Go", background: :red_500}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["background"] == 0xFFF44336
+    end
+
+    test "divider gets default color from theme border token" do
+      tree = %{type: :divider, props: %{}, children: []}
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      # default border → :gray_700 → 0xFF616161
+      assert :json.decode(json)["props"]["color"] == 0xFF616161
     end
   end
 

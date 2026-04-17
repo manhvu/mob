@@ -1,7 +1,7 @@
-defmodule Mob.AndroidLoggerTest do
+defmodule Mob.NativeLoggerTest do
   use ExUnit.Case, async: false
 
-  alias Mob.AndroidLogger
+  alias Mob.NativeLogger
   require Logger
 
   # ── Mock NIF ─────────────────────────────────────────────────────────────────
@@ -22,8 +22,8 @@ defmodule Mob.AndroidLoggerTest do
   end
 
   # Wrap the pid-based MockNIF in a module that matches the nif: interface
-  # expected by AndroidLogger (i.e. nif.platform/0 and nif.log/2 called with
-  # no pid argument).  We store the pid in the process dictionary so the
+  # expected by NativeLogger (i.e. nif.platform/0 and nif.log/2 called with
+  # no pid argument). We store the pid in the process dictionary so the
   # zero-arity wrappers can find it.
 
   defmodule BoundNIF do
@@ -35,8 +35,8 @@ defmodule Mob.AndroidLoggerTest do
   setup do
     {:ok, pid} = MockNIF.start(:android)
     BoundNIF.bind(pid)
-    :logger.remove_handler(:mob_android_logger)
-    on_exit(fn -> :logger.remove_handler(:mob_android_logger) end)
+    :logger.remove_handler(:mob_native_logger)
+    on_exit(fn -> :logger.remove_handler(:mob_native_logger) end)
     {:ok, nif_pid: pid}
   end
 
@@ -44,31 +44,27 @@ defmodule Mob.AndroidLoggerTest do
 
   describe "install/1" do
     test "installs handler when platform is :android" do
-      assert :ok = AndroidLogger.install(nif: BoundNIF)
-      handlers = :logger.get_handler_ids()
-      assert :mob_android_logger in handlers
+      assert :ok = NativeLogger.install(nif: BoundNIF)
+      assert :mob_native_logger in :logger.get_handler_ids()
     end
 
     test "installs handler when platform is :ios" do
       {:ok, ios_pid} = MockNIF.start(:ios)
       BoundNIF.bind(ios_pid)
-      assert :ok = AndroidLogger.install(nif: BoundNIF)
-      handlers = :logger.get_handler_ids()
-      assert :mob_android_logger in handlers
+      assert :ok = NativeLogger.install(nif: BoundNIF)
+      assert :mob_native_logger in :logger.get_handler_ids()
     end
 
     test "is a no-op when platform is :host" do
       {:ok, host_pid} = MockNIF.start(:host)
       BoundNIF.bind(host_pid)
-      assert :ok = AndroidLogger.install(nif: BoundNIF)
-      handlers = :logger.get_handler_ids()
-      refute :mob_android_logger in handlers
+      assert :ok = NativeLogger.install(nif: BoundNIF)
+      refute :mob_native_logger in :logger.get_handler_ids()
     end
 
-    test "returns ok if handler already installed" do
-      assert :ok = AndroidLogger.install(nif: BoundNIF)
-      # Second install should not crash
-      assert :ok = AndroidLogger.install(nif: BoundNIF)
+    test "returns :ok if handler already installed" do
+      assert :ok = NativeLogger.install(nif: BoundNIF)
+      assert :ok = NativeLogger.install(nif: BoundNIF)
     end
   end
 
@@ -76,12 +72,12 @@ defmodule Mob.AndroidLoggerTest do
 
   describe "log/2 handler callback" do
     setup do
-      AndroidLogger.install(nif: BoundNIF)
+      NativeLogger.install(nif: BoundNIF)
       :ok
     end
 
     test "routes :string messages to nif.log", %{nif_pid: pid} do
-      AndroidLogger.log(
+      NativeLogger.log(
         %{level: :info, msg: {:string, "hello world"}, meta: %{}},
         %{nif: BoundNIF}
       )
@@ -89,7 +85,7 @@ defmodule Mob.AndroidLoggerTest do
     end
 
     test "routes :report messages to nif.log as inspect output", %{nif_pid: pid} do
-      AndroidLogger.log(
+      NativeLogger.log(
         %{level: :warning, msg: {:report, %{key: :value}}, meta: %{}},
         %{nif: BoundNIF}
       )
@@ -99,7 +95,7 @@ defmodule Mob.AndroidLoggerTest do
     end
 
     test "routes :format messages to nif.log", %{nif_pid: pid} do
-      AndroidLogger.log(
+      NativeLogger.log(
         %{level: :error, msg: {:format, "count=~p", [42]}, meta: %{}},
         %{nif: BoundNIF}
       )
@@ -129,56 +125,33 @@ defmodule Mob.AndroidLoggerTest do
   # ── level_to_nif/1 ───────────────────────────────────────────────────────────
 
   describe "level_to_nif/1" do
-    test "maps :debug to :debug" do
-      assert AndroidLogger.level_to_nif(:debug) == :debug
-    end
-
-    test "maps :info to :info" do
-      assert AndroidLogger.level_to_nif(:info) == :info
-    end
-
-    test "maps :notice to :info" do
-      assert AndroidLogger.level_to_nif(:notice) == :info
-    end
-
-    test "maps :warning to :warning" do
-      assert AndroidLogger.level_to_nif(:warning) == :warning
-    end
-
-    test "maps :error to :error" do
-      assert AndroidLogger.level_to_nif(:error) == :error
-    end
-
-    test "maps :critical to :error" do
-      assert AndroidLogger.level_to_nif(:critical) == :error
-    end
-
-    test "maps :alert to :error" do
-      assert AndroidLogger.level_to_nif(:alert) == :error
-    end
-
-    test "maps :emergency to :error" do
-      assert AndroidLogger.level_to_nif(:emergency) == :error
-    end
+    test "maps :debug to :debug",     do: assert NativeLogger.level_to_nif(:debug)     == :debug
+    test "maps :info to :info",       do: assert NativeLogger.level_to_nif(:info)      == :info
+    test "maps :notice to :info",     do: assert NativeLogger.level_to_nif(:notice)    == :info
+    test "maps :warning to :warning", do: assert NativeLogger.level_to_nif(:warning)   == :warning
+    test "maps :error to :error",     do: assert NativeLogger.level_to_nif(:error)     == :error
+    test "maps :critical to :error",  do: assert NativeLogger.level_to_nif(:critical)  == :error
+    test "maps :alert to :error",     do: assert NativeLogger.level_to_nif(:alert)     == :error
+    test "maps :emergency to :error", do: assert NativeLogger.level_to_nif(:emergency) == :error
   end
 
   # ── format_msg/2 ─────────────────────────────────────────────────────────────
 
   describe "format_msg/2" do
     test "{:string, iodata} returns binary" do
-      assert AndroidLogger.format_msg({:string, "hello"}, %{}) == "hello"
+      assert NativeLogger.format_msg({:string, "hello"}, %{}) == "hello"
     end
 
     test "{:string, iolist} converts to binary" do
-      assert AndroidLogger.format_msg({:string, ["hel", "lo"]}, %{}) == "hello"
+      assert NativeLogger.format_msg({:string, ["hel", "lo"]}, %{}) == "hello"
     end
 
     test "{:report, map} returns inspect string" do
-      assert AndroidLogger.format_msg({:report, %{a: 1}}, %{}) =~ "a: 1"
+      assert NativeLogger.format_msg({:report, %{a: 1}}, %{}) =~ "a: 1"
     end
 
     test "{:format, fmt, args} applies format" do
-      result = AndroidLogger.format_msg({:format, "x=~p y=~p", [1, 2]}, %{})
+      result = NativeLogger.format_msg({:format, "x=~p y=~p", [1, 2]}, %{})
       assert result == "x=1 y=2"
     end
   end

@@ -92,7 +92,7 @@ defmodule Mob.List do
   @doc """
   Walk a render tree and expand all `type: :list` nodes into `lazy_list` nodes.
 
-  Called by `Mob.Screen.do_render/3` before passing the tree to `Mob.Renderer`.
+  Called internally by `Mob.Screen` before passing the tree to `Mob.Renderer`.
   `renderers` is the `list_renderers` map from `socket.__mob__`. `pid` is the
   screen process (used as the tap target for row-select events).
   """

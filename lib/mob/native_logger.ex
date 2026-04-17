@@ -1,28 +1,42 @@
-defmodule Mob.AndroidLogger do
+defmodule Mob.NativeLogger do
   @moduledoc """
-  OTP logger handler that routes Elixir Logger output to Android logcat.
+  OTP logger handler that routes Elixir Logger output to the platform's native
+  system log.
 
-  Uses `mob_nif:log/2` so each message appears in `adb logcat` with the
-  correct priority level (D/I/W/E) under the tag `Elixir`.
+  - **Android** — `mob_nif:log/2` → `android.util.Log` → `adb logcat`
+  - **iOS** — `mob_nif:log/2` → `NSLog` → unified system log (Xcode console,
+    `xcrun simctl spawn booted log stream`)
+
+  Each message appears with the correct priority level (D/I/W/E) under the
+  tag `Elixir`. OTP supervision reports, GenServer crashes, and all
+  `Logger.info/warn/error` calls are captured from the first BEAM instruction,
+  including boot-time failures that happen before Erlang distribution comes up.
 
   ## Usage
 
-  Call `install/0` once after `application:start(logger)` in your BEAM
-  entry point (e.g. `mob_demo.erl`):
+  Call `install/0` once after `application:start(logger)` in your BEAM entry
+  point (e.g. `mob_demo.erl`):
 
-      'Elixir.Mob.AndroidLogger':install()
+      'Elixir.Mob.NativeLogger':install()
 
-  On non-Android platforms the call is a no-op, so the same code works
-  unchanged on iOS and the host mix environment.
+  On the host Mix environment (`:host` platform) the call is a no-op, so the
+  same boot file works unchanged during `mix test` and local development.
+
+  ## Relationship to Erlang distribution
+
+  This handler and dist-based log forwarding are complementary. Native logging
+  is always-on and survives connection drops; dist forwarding surfaces logs in
+  the mob_dev dashboard. Both can be active simultaneously — OTP supports
+  multiple logger handlers.
   """
 
-  @handler_id :mob_android_logger
+  @handler_id :mob_native_logger
 
   @doc """
-  Installs the Android logcat logger handler.
+  Installs the native system log handler.
 
-  Checks the platform via the NIF; if not `:android`, returns `:ok` without
-  adding any handler. Safe to call multiple times.
+  Checks the platform via the NIF; if `:host`, returns `:ok` without adding
+  any handler. Safe to call multiple times.
 
   Options:
   - `:nif` — NIF module to use (default `:mob_nif`; override in tests)

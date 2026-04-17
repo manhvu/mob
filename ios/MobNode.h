@@ -79,12 +79,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic)                  CGFloat    value;
 @property (nonatomic, strong, nullable) UIColor*  color;       // track / indicator color
 
+// Layout behaviour
+@property (nonatomic) BOOL    fillWidth;    // fill parent width (default NO; button default YES)
+@property (nonatomic) CGFloat cornerRadius; // rounded corners in pt (default 0)
+
 // image
 @property (nonatomic, copy,   nullable) NSString*  src;
 @property (nonatomic, copy,   nonnull)  NSString*  contentModeStr;   // "fit" | "fill" | "stretch"
 @property (nonatomic)                  CGFloat    fixedWidth;        // 0 = fill available
 @property (nonatomic)                  CGFloat    fixedHeight;       // 0 = auto
-@property (nonatomic)                  CGFloat    cornerRadius;
 @property (nonatomic, strong, nullable) UIColor*  placeholderColor;
 
 // Typography
@@ -104,6 +107,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL videoAutoplay;
 @property (nonatomic) BOOL videoLoop;
 @property (nonatomic) BOOL videoControls;
+
+// Accessibility — set from the tap tag atom name; read by XCTest / ui_describe_all
+@property (nonatomic, copy, nullable) NSString* accessibilityId;
 
 // Children
 @property (nonatomic, strong, nonnull) NSMutableArray<MobNode*>* children;

@@ -18,6 +18,21 @@ defmodule Mob.Permissions do
 
   @type capability :: :camera | :microphone | :photo_library | :location | :notifications
 
+  @doc """
+  Request an OS permission from the user.
+
+  The system dialog is shown asynchronously. The result arrives in
+  `handle_info/2`:
+
+      def handle_info({:permission, :camera, :granted}, socket), do: ...
+      def handle_info({:permission, :camera, :denied},  socket), do: ...
+
+  Safe to call if the permission is already granted — the result still arrives
+  via `handle_info` with the current status.
+
+  Capabilities that do not require permission (haptics, clipboard, share sheet,
+  file picker) will raise `FunctionClauseError` — do not call `request/2` for them.
+  """
   @spec request(Mob.Socket.t(), capability()) :: Mob.Socket.t()
   def request(socket, capability)
       when capability in [:camera, :microphone, :photo_library, :location, :notifications] do

@@ -1,3 +1,8 @@
+# credo:disable-for-this-file Jump.CredoChecks.VacuousTest
+# Rationale: ~MOB is a compile-time sigil (Mob.Sigil.sigil_MOB/2). The check's
+# static analysis cannot see through sigil macro expansion and flags the tests
+# as "not calling application code". The tests are valid — they exercise the
+# sigil at compile time and the resulting nodes at runtime.
 defmodule Mob.SigilTest do
   use ExUnit.Case, async: true
 
@@ -10,15 +15,18 @@ defmodule Mob.SigilTest do
 
   describe "~MOB static string attrs" do
     test "produces a :text node" do
-      assert (~MOB(<Text text="hello" />)).type == :text
+      node = ~MOB(<Text text="hello" />)
+      assert node.type == :text
     end
 
     test "captures the text attribute" do
-      assert (~MOB(<Text text="hello" />)).props.text == "hello"
+      node = ~MOB(<Text text="hello" />)
+      assert node.props.text == "hello"
     end
 
     test "text is a leaf — children is empty" do
-      assert (~MOB(<Text text="hello" />)).children == []
+      node = ~MOB(<Text text="hello" />)
+      assert node.children == []
     end
 
     test "captures text_color attribute" do
@@ -32,7 +40,8 @@ defmodule Mob.SigilTest do
     end
 
     test "empty text string is valid" do
-      assert (~MOB(<Text text="" />)).props.text == ""
+      node = ~MOB(<Text text="" />)
+      assert node.props.text == ""
     end
   end
 
@@ -41,18 +50,21 @@ defmodule Mob.SigilTest do
   describe "~MOB expression attrs {expr}" do
     test "evaluates a variable in scope" do
       greeting = "world"
-      assert (~MOB(<Text text={greeting} />)).props.text == "world"
+      node = ~MOB(<Text text={greeting} />)
+      assert node.props.text == "world"
     end
 
     test "evaluates an arbitrary expression" do
       # Hoist to variable — () inside {expr} conflicts with ~MOB() delimiter
       upcased = String.upcase("hello")
-      assert (~MOB(<Text text={upcased} />)).props.text == "HELLO"
+      node = ~MOB(<Text text={upcased} />)
+      assert node.props.text == "HELLO"
     end
 
     test "evaluates map access" do
       assigns = %{name: "Alice"}
-      assert (~MOB(<Text text={assigns.name} />)).props.text == "Alice"
+      node = ~MOB(<Text text={assigns.name} />)
+      assert node.props.text == "Alice"
     end
 
     test "expression and literal attrs can be mixed" do

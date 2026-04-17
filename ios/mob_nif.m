@@ -17,6 +17,7 @@
 #import <PhotosUI/PhotosUI.h>
 #import <UserNotifications/UserNotifications.h>
 #import <AVFoundation/AVFoundation.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <string.h>
 #include "erl_nif.h"
 #import "MobNode.h"
@@ -313,6 +314,9 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
         id cornerRadius = props[@"corner_radius"];
         if (cornerRadius) node.cornerRadius = [cornerRadius doubleValue];
 
+        id fillWidth = props[@"fill_width"];
+        if (fillWidth) node.fillWidth = [fillWidth boolValue];
+
         id placeholderColor = props[@"placeholder_color"];
         if (placeholderColor) node.placeholderColor = color_from_argb((long)[placeholderColor longLongValue]);
 
@@ -348,6 +352,11 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
                 default:
                     break;
             }
+        }
+
+        id accessibilityId = props[@"accessibility_id"];
+        if ([accessibilityId isKindOfClass:[NSString class]]) {
+            node.accessibilityId = accessibilityId;
         }
     }
 
@@ -641,13 +650,26 @@ static ERL_NIF_TERM nif_share_text(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 // Device capability NIFs
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── Shared helper ──────────────────────────────────────────────────────────
+// ── Shared helpers ─────────────────────────────────────────────────────────
+
 // Build and send {atom1, atom2} to a pid from any thread.
-static void send2(ErlNifPid* pid, const char* a1, const char* a2) {
+static void mob_send2(const ErlNifPid* pid, const char* a1, const char* a2) {
     ErlNifEnv* e = enif_alloc_env();
     ERL_NIF_TERM msg = enif_make_tuple2(e, enif_make_atom(e,a1), enif_make_atom(e,a2));
-    enif_send(NULL, pid, e, msg);
+    enif_send(NULL, (ErlNifPid*)pid, e, msg);
     enif_free_env(e);
+}
+
+// Return the root view controller of the key window in the first active scene.
+static UIViewController* mob_root_vc(void) {
+    for (UIScene* scene in [UIApplication sharedApplication].connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindowScene* ws = (UIWindowScene*)scene;
+            UIWindow* w = ws.keyWindow ?: ws.windows.firstObject;
+            if (w.rootViewController) return w.rootViewController;
+        }
+    }
+    return nil;
 }
 
 // ── Launch notification global ─────────────────────────────────────────────
@@ -655,6 +677,11 @@ static void send2(ErlNifPid* pid, const char* a1, const char* a2) {
 // read and cleared by nif_take_launch_notification.
 static char* g_launch_notification_json = NULL;
 static ErlNifMutex* g_launch_notif_mutex = NULL;
+
+@interface MobNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
+@property (nonatomic) ErlNifPid screenPid;
+@end
+static MobNotificationDelegate* g_notif_delegate;
 
 // Called from AppDelegate didRegisterForRemoteNotificationsWithDeviceToken.
 // Sends {:push_token, :ios, token_hex_string} to the registered screen process.
@@ -709,25 +736,25 @@ static ERL_NIF_TERM nif_request_permission(ErlNifEnv* env, int argc, const ERL_N
             ? AVMediaTypeVideo : AVMediaTypeAudio;
         NSString* capStr = [NSString stringWithUTF8String:cap];
         [AVCaptureDevice requestAccessForMediaType:mtype completionHandler:^(BOOL granted) {
-            send2(&pid, "permission", granted ? "granted" : "denied");
+            mob_send2(&pid, "permission", granted ? "granted" : "denied");
         }];
     } else if (strcmp(cap, "photo_library") == 0) {
         [PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelReadWrite
             handler:^(PHAuthorizationStatus status) {
             BOOL ok = (status == PHAuthorizationStatusAuthorized ||
                        status == PHAuthorizationStatusLimited);
-            send2(&pid, "permission", ok ? "granted" : "denied");
+            mob_send2(&pid, "permission", ok ? "granted" : "denied");
         }];
     } else if (strcmp(cap, "location") == 0) {
         // Location permission is requested via CLLocationManager when get_once/start are called.
         // Here we just signal granted for iOS (the actual dialog shows at location call time).
-        send2(&pid, "permission", "granted");
+        mob_send2(&pid, "permission", "granted");
     } else if (strcmp(cap, "notifications") == 0) {
         UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
         [center requestAuthorizationWithOptions:
             UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
             completionHandler:^(BOOL granted, NSError* err) {
-            send2(&pid, "permission", granted ? "granted" : "denied");
+            mob_send2(&pid, "permission", granted ? "granted" : "denied");
         }];
     } else {
         return enif_make_badarg(env);
@@ -752,10 +779,10 @@ static ERL_NIF_TERM nif_biometric_authenticate(ErlNifEnv* env, int argc, const E
         if ([ctx canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&err]) {
             [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
                 localizedReason:reason reply:^(BOOL ok, NSError* e) {
-                send2(&pid, "biometric", ok ? "success" : "failure");
+                mob_send2(&pid, "biometric", ok ? "success" : "failure");
             }];
         } else {
-            send2(&pid, "biometric", "not_available");
+            mob_send2(&pid, "biometric", "not_available");
         }
     });
     return enif_make_atom(env, "ok");
@@ -902,7 +929,7 @@ static MobCameraDelegate* g_camera_delegate = nil;
 }
 - (void)imagePickerControllerDidCancel:(UIImagePickerController*)picker {
     [picker dismissViewControllerAnimated:YES completion:nil];
-    send2(&_pid, "camera", "cancelled");
+    mob_send2(&_pid, "camera", "cancelled");
     g_camera_delegate = nil;
 }
 @end
@@ -911,26 +938,21 @@ static void present_image_picker(ErlNifPid pid, UIImagePickerControllerSourceTyp
                                   UIImagePickerControllerCameraCaptureMode mode) {
     dispatch_async(dispatch_get_main_queue(), ^{
         if (![UIImagePickerController isSourceTypeAvailable:src]) {
-            send2(&pid, "camera", "not_available");
+            mob_send2(&pid, "camera", "not_available");
             return;
         }
         UIImagePickerController* picker = [[UIImagePickerController alloc] init];
         picker.sourceType  = src;
         picker.cameraCaptureMode = mode;
         if (mode == UIImagePickerControllerCameraCaptureModeVideo) {
-            picker.mediaTypes = @[(NSString*)kUTTypeMovie];
+            picker.mediaTypes = @[UTTypeMovie.identifier];
         }
         g_camera_delegate = [[MobCameraDelegate alloc] init];
         g_camera_delegate.pid    = pid;
         g_camera_delegate.isVideo = (mode == UIImagePickerControllerCameraCaptureModeVideo);
         picker.delegate    = g_camera_delegate;
 
-        UIViewController* root = [UIApplication sharedApplication]
-            .connectedScenes.allObjects.firstObject;
-        if ([root isKindOfClass:[UIWindowScene class]]) {
-            root = ((UIWindowScene*)root).windows.firstObject.rootViewController;
-        }
-        [root presentViewController:picker animated:YES completion:nil];
+        [mob_root_vc() presentViewController:picker animated:YES completion:nil];
     });
 }
 
@@ -963,7 +985,7 @@ static MobPhotosDelegate* g_photos_delegate = nil;
 - (void)picker:(PHPickerViewController*)picker didFinishPicking:(NSArray<PHPickerResult*>*)results {
     [picker dismissViewControllerAnimated:YES completion:nil];
     if (results.count == 0) {
-        send2(&_pid, "photos", "cancelled");
+        mob_send2(&_pid, "photos", "cancelled");
         g_photos_delegate = nil;
         return;
     }
@@ -1023,9 +1045,7 @@ static ERL_NIF_TERM nif_photos_pick(ErlNifEnv* env, int argc, const ERL_NIF_TERM
         g_photos_delegate.pid      = pid;
         g_photos_delegate.maxItems = max;
         vc.delegate = g_photos_delegate;
-        UIWindowScene* ws = (UIWindowScene*)[UIApplication sharedApplication]
-            .connectedScenes.allObjects.firstObject;
-        [ws.windows.firstObject.rootViewController presentViewController:vc animated:YES completion:nil];
+        [mob_root_vc() presentViewController:vc animated:YES completion:nil];
     });
     return enif_make_atom(env, "ok");
 }
@@ -1041,7 +1061,7 @@ static MobFilesDelegate* g_files_delegate = nil;
 @implementation MobFilesDelegate
 - (void)documentPicker:(UIDocumentPickerViewController*)ctrl
     didPickDocumentsAtURLs:(NSArray<NSURL*>*)urls {
-    if (urls.count == 0) { send2(&_pid, "files", "cancelled"); g_files_delegate = nil; return; }
+    if (urls.count == 0) { mob_send2(&_pid, "files", "cancelled"); g_files_delegate = nil; return; }
     ErlNifPid p = self.pid;
     g_files_delegate = nil;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -1071,7 +1091,7 @@ static MobFilesDelegate* g_files_delegate = nil;
     });
 }
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController*)ctrl {
-    send2(&_pid, "files", "cancelled");
+    mob_send2(&_pid, "files", "cancelled");
     g_files_delegate = nil;
 }
 @end
@@ -1081,14 +1101,12 @@ static ERL_NIF_TERM nif_files_pick(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     dispatch_async(dispatch_get_main_queue(), ^{
         UIDocumentPickerViewController* vc =
             [[UIDocumentPickerViewController alloc]
-                initWithDocumentTypes:@[@"public.item"] inMode:UIDocumentPickerModeImport];
+                initForOpeningContentTypes:@[UTTypeData] asCopy:YES];
         vc.allowsMultipleSelection = YES;
         g_files_delegate = [[MobFilesDelegate alloc] init];
         g_files_delegate.pid = pid;
         vc.delegate = g_files_delegate;
-        UIWindowScene* ws = (UIWindowScene*)[UIApplication sharedApplication]
-            .connectedScenes.allObjects.firstObject;
-        [ws.windows.firstObject.rootViewController presentViewController:vc animated:YES completion:nil];
+        [mob_root_vc() presentViewController:vc animated:YES completion:nil];
     });
     return enif_make_atom(env, "ok");
 }
@@ -1214,7 +1232,7 @@ static MobScannerVC* g_scanner_vc = nil;
     NSError* err = nil;
     AVCaptureDevice* dev = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
     AVCaptureDeviceInput* inp = [AVCaptureDeviceInput deviceInputWithDevice:dev error:&err];
-    if (!inp) { send2(&_pid, "scan", "not_available"); [self dismissViewControllerAnimated:YES completion:nil]; return; }
+    if (!inp) { mob_send2(&_pid, "scan", "not_available"); [self dismissViewControllerAnimated:YES completion:nil]; return; }
     self.session = [[AVCaptureSession alloc] init];
     [self.session addInput:inp];
     AVCaptureMetadataOutput* out = [[AVCaptureMetadataOutput alloc] init];
@@ -1245,7 +1263,7 @@ static MobScannerVC* g_scanner_vc = nil;
 }
 - (void)cancel {
     [self.session stopRunning];
-    send2(&_pid, "scan", "cancelled");
+    mob_send2(&_pid, "scan", "cancelled");
     [self dismissViewControllerAnimated:YES completion:nil];
     g_scanner_vc = nil;
 }
@@ -1284,21 +1302,12 @@ static ERL_NIF_TERM nif_scanner_scan(ErlNifEnv* env, int argc, const ERL_NIF_TER
         g_scanner_vc = [[MobScannerVC alloc] init];
         g_scanner_vc.pid = pid;
         g_scanner_vc.modalPresentationStyle = UIModalPresentationFullScreen;
-        UIWindowScene* ws = (UIWindowScene*)[UIApplication sharedApplication]
-            .connectedScenes.allObjects.firstObject;
-        [ws.windows.firstObject.rootViewController
-            presentViewController:g_scanner_vc animated:YES completion:nil];
+        [mob_root_vc() presentViewController:g_scanner_vc animated:YES completion:nil];
     });
     return enif_make_atom(env, "ok");
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────
-
-@interface MobNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
-@property (nonatomic) ErlNifPid screenPid;
-@end
-
-static MobNotificationDelegate* g_notif_delegate = nil;
 
 @implementation MobNotificationDelegate
 // Foreground delivery

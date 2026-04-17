@@ -1,7 +1,7 @@
 # Mob — Build Plan
 
 > A mobile framework for Elixir that runs the BEAM on-device.
-> Last updated: 2026-04-15
+> Last updated: 2026-04-16
 
 ---
 
@@ -16,11 +16,12 @@
 - ✅ Erlang distribution on iOS (simulator shares Mac network stack, reads `MOB_DIST_PORT` env)
 - ✅ Simultaneous Android + iOS connection — both nodes in one IEx cluster
 - ✅ Battery benchmarking — Nerves tuning flags (`+sbwt none +S 1:1` etc.) adopted as production default in `mob_beam.c`
-- ✅ `mob_nif:log/2` NIF + `Mob.AndroidLogger` OTP handler → Elixir Logger → mob_dev dashboard
+- ✅ `mob_nif:log/2` NIF + `Mob.NativeLogger` OTP handler → Elixir Logger → platform system log (logcat / NSLog) on both Android and iOS
 - ✅ Navigation stack — `push_screen`, `pop_screen`, `pop_to_root`, `pop_to`, `reset_to` in `Mob.Socket`
 - ✅ Animated transitions — `:push`, `:pop`, `:reset`, `:none` passed through renderer to NIF
 - ✅ Back buttons on all demo screens; `handle_info` catch-all guards against FunctionClauseError crash (added to all 6 mob_demo screens)
-- ✅ SELinux fix in deployer — `restorecon -RF` after `adb push` AND before `am start` in `restart_android` prevents MCS category mismatch on both initial deploy and APK reinstall
+- ✅ SELinux fix in deployer — `chcon -hR` (not `-R`) copies MCS category from app's own `files/` dir after push AND before restart, preventing category mismatch. `-h` flag prevents symlink dereferencing — critical because `mob_beam.c` symlinks `BINDIR/erl_child_setup → nativeLibDir/liberl_child_setup.so`, and `-R` would follow those symlinks and corrupt the native lib labels
+- ✅ Android 15 `apk_data_file` fix — streaming `adb install` on Android 15 labels ERTS helper `.so` files (`liberl_child_setup.so` etc.) as `app_data_file` (blocks `execute_no_trans`). `mix mob.deploy --native` now runs `fix_erts_helper_labels/2` after each APK install: uses `pm dump` to find native lib dir, then `chcon u:object_r:apk_data_file:s0` on the 3 helpers (rooted/emulator only — silently skipped on production builds)
 - ✅ `scroll` explicit wrapper — `axis: :vertical/:horizontal`, `show_indicator: false` (iOS); `HelloScreen`/`CounterScreen` wrap root column in scroll
 - ✅ `Mob.Style` struct — `%Mob.Style{props: map}` wraps reusable prop maps; merged by renderer at serialisation time
 - ✅ Style token system — atom tokens (`:primary`, `:xl`, `:gray_600`, etc.) resolved in `Mob.Renderer` before JSON serialisation; no runtime cost on the native side
@@ -31,15 +32,25 @@
 - ✅ `InputScreen` in mob_demo — exercises text_field / toggle / slider with live event feedback
 - ✅ `image` — `AsyncImage` (iOS built-in) + Coil (Android); `src`, `content_mode`, `width`, `height`, `corner_radius`, `placeholder_color` props
 - ✅ `lazy_list` — `LazyVStack` (iOS) + `LazyColumn` (Android); `on_end_reached` event for infinite scroll
-- ✅ `ListScreen` in mob_demo — 30 items initial, appends 20 on each end_reached
+- ✅ `Mob.List` — high-level list component wrapping `lazy_list`; `on_select`, `on_end_reached` events; default and custom renderers; event routing via `{:list, id, :select, index}` tuples intercepted in `Mob.Screen` and re-dispatched as `{:select, id, index}`
+- ✅ `ListScreen` in mob_demo — 30 items initial, appends 20 on each end_reached; both default and custom renderers exercised
+- ✅ `Mob.Test` — RPC-based app automation for programmatic testing: `screen/1`, `assigns/1`, `tap/2`, `find/2`, `inspect/1`; drives running apps without touching native UI; used for QA tour and regression testing
+
+### QA fixes (2026-04-16)
+- ✅ `renderer.ex` — `on_tap` with tuple tag (e.g. `{:list, id, :select, index}`) no longer crashes `Atom.to_string/1`; split into two clauses: atom tag includes `accessibility_id`, non-atom tag omits it
+- ✅ `tab_screen.ex` (mob_demo) — `text_size: "2xl"` (string) changed to `text_size: :"2xl"` (atom); renderer's token resolution requires atoms
+- ✅ `MobRootView.swift` — Tab content frame fixed: added `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)` to `MobNodeView` in `MobTabView` so content is top-aligned, not bottom-aligned
+- ✅ `MobRootView.swift` — Tab background fill fixed: `MobTabView` applies `child.backgroundColor` to the outer frame wrapper so the tab area background fills to the bottom, not just behind content
+- ✅ `device_screen.ex` (mob_demo) — Motion throttle fixed: `rem(data.timestamp, 5) == 0` is always true for 100ms-interval timestamps (all divisible by 5); corrected to `rem(div(data.timestamp, 100), 5) == 0`
 
 ### Toolchain (all published on Hex)
 - ✅ `mix mob.new APP_NAME` — generates full Android + iOS project from templates
 - ✅ `mix mob.install` — first-run: downloads pre-built OTP, generates icons, writes mob.exs
-- ✅ `mix mob.deploy [--native]` — compile + push BEAMs via adb/cp; `--native` also builds APK/app
+- ✅ `mix mob.deploy [--native]` — compile + push BEAMs via Erlang dist (no restart) when nodes are connected; falls back to adb/cp + restart when not; `--native` also builds APK/app bundle
 - ✅ `mix mob.push` — compile + hot-push changed modules via Erlang dist (no restart)
 - ✅ `mix mob.watch` — auto-push on file save via dist
 - ✅ `mix mob.watch_stop` — stops a running mob.watch process
+- ✅ `mix mob.routes` — validates all `push_screen`/`reset_to`/`pop_to` call targets against `Mob.Nav.Registry`; warns on unregistered destinations
 - ✅ `mix mob.connect` — tunnel + restart + wait for nodes + IEx
 - ✅ `mix mob.battery_bench` — A/B test BEAM scheduler configs with mAh measurements
 - ✅ `mix mob.icon` — regenerate icons (random robot or from source image)
@@ -54,6 +65,8 @@
 - ✅ Elixir Logger → dashboard (mob_nif:log/2 pipeline)
 - ✅ QR code in header — encodes LAN URL for opening dashboard on phone
 - ✅ `mix mob.server` — starts server, binds to 0.0.0.0:4040, prints QR in terminal
+- ✅ "Push on save" toggle in dashboard — `MobDev.Server.WatchWorker` GenServer; toggle in UI starts/stops file watching + dist push; shows last push time and module count
+- ✅ `HotPush` NIF tolerance — `on_load_failure` from `:code.load_binary` is silently ignored for NIF modules (`:mob_nif`, `Vix.Nif` etc.) that are already loaded and can't be re-initialized; prevents false deploy failures
 
 ---
 
@@ -276,22 +289,20 @@ iOS `MobRootView` already has `navTransition/1` and `navAnimation/1` helpers and
 
 iOS approach: keep `MobRootView` as-is but switch `ZStack` + `.transition()` to `withAnimation` around the `currentRoot` state update, paired with `.transition(.asymmetric(...))` on `MobNodeView`. This is already scaffolded in the current code; needs the transition to be applied to the `MobNodeView` level rather than the `ZStack` level.
 
-### 9. `mix mob.deploy` → dist
-**Goal:** Align implementation with architecture decision.
-Currently `mix mob.deploy` (non-native) uses `adb push` / `cp`. Change it to compile + push via Erlang dist when a node is reachable. Keep adb push as fallback for when dist isn't up.
+### ~~9. `mix mob.deploy` → dist~~ ✅ Done
 
-### 10. `mix mob.watch` in mob_dev dashboard
-**Goal:** "Push on save" toggle in the web UI — same logic as `mix mob.watch` but driven from the server.
-- `MobDev.Server.WatchWorker` GenServer — wraps the watch loop
-- Toggle switch in dashboard header starts/stops it
-- Status indicator: last push time, module count, errors
+**Shipped (2026-04-16):**
+`mix mob.deploy` now tries Erlang dist first (hot-loads with no restart); falls back to adb push + restart when no dist connection. NIF modules that fail hot-reload (`on_load_failure`) are silently tolerated.
 
-### 11. `mix mob.routes` validation
-**Goal:** Catch dead navigation references at compile/test time rather than at runtime.
-- Walk all `push_screen`, `reset_to`, `pop_to` calls in the app
-- Check each module atom against `Mob.Nav.Registry`
-- Print a warning (or error with `--strict`) listing unregistered destinations
-- Runs as part of `mix test` if `mix mob.routes` is in the test helpers
+### ~~10. `mix mob.watch` in mob_dev dashboard~~ ✅ Done
+
+**Shipped (2026-04-16):**
+`MobDev.Server.WatchWorker` GenServer wraps the watch loop. Toggle in dashboard UI starts/stops it with last-push-time and module-count status.
+
+### ~~11. `mix mob.routes` validation~~ ✅ Done
+
+**Shipped (2026-04-16):**
+`mix mob.routes` walks all `push_screen`/`reset_to`/`pop_to` call sites, checks targets against `Mob.Nav.Registry`, and warns on unregistered destinations.
 
 ### 12. KitchenSink screen
 All components exercised in one demo screen: `column`, `row`, `scroll`, `box`, `text`, `button`, `text_field`, `toggle`, `slider`, `divider`, `spacer`, `progress`, `image`, `lazy_list`.
@@ -299,9 +310,11 @@ Update after per-edge padding (item 5) and typography (item 6) land.
 
 ---
 
-## List component overhaul
+## List component overhaul ✅ Phase 1 shipped (2026-04-15)
 
-The current `lazy_list` requires the caller to `Enum.map` their data into pre-rendered node trees and pass them as children. The new `list` component gives Elixir developers something that behaves like a list out of the box, with full customisation available when needed.
+`Mob.List` Phase 1 is live. `lazy_list` stays for backward compat; `list` is the new component. Phase 2 items (swipe actions, sections, pull-to-refresh) are still pending.
+
+The current `lazy_list` requires the caller to `Enum.map` their data into pre-rendered node trees and pass them as children. The `list` component gives Elixir developers something that behaves like a list out of the box, with full customisation available when needed.
 
 ### Component and event model
 
@@ -802,6 +815,118 @@ SQLite via NIF. `Mob.Repo` with Elixir schema + migrations on app start. WAL mod
 
 ### User-defined style tokens
 `MyApp.Styles` module + `mob.exs` config key. Developer defines their own color palette, type scale, spacing scale as token maps. `Mob.Renderer` merges app tokens on top of the default set at compile time.
+
+---
+
+## Nice to have
+
+### Auth (`mix mob.gen.auth`)
+
+Inspired by `mix phx.gen.auth` — a generator that scaffolds a complete auth layer for the app based on what the developer wants. Uses Igniter for AST-aware code generation so it integrates cleanly with the existing project rather than overwriting files.
+
+**Generator interaction:**
+
+```
+$ mix mob.gen.auth
+
+Which auth strategies do you want? (select all that apply)
+  [x] Email + password
+  [x] Sign in with Apple
+  [x] Google Sign-In
+  [ ] Phone / SMS OTP
+  [ ] SSO (SAML / OIDC)
+
+Generate session persistence? (SQLite via Mob.Repo) [Y/n]: y
+
+This will create:
+  lib/my_app/auth.ex              — Mob.Auth behaviour + strategy dispatch
+  lib/my_app/screens/login.ex    — LoginScreen with selected providers
+  lib/my_app/screens/register.ex — RegisterScreen (email+password only)
+  priv/migrations/001_users.sql  — users table (if session persistence selected)
+  config/mob.exs                 — injects auth config
+```
+
+**What it generates:**
+
+- `LoginScreen` — pre-built screen with buttons for each selected provider, styled to platform conventions (Sign in with Apple button follows Apple HIG; Google button follows Material guidelines)
+- `MyApp.Auth` module — thin wrapper around `Mob.Auth` that routes to the right strategy and handles token exchange with the developer's backend (stubbed out, ready to fill in)
+- Session persistence schema if opted in — `users` table + `sessions` table via `Mob.Repo`
+- Nav wiring — injects `reset_to(LoginScreen)` guard pattern into the root screen and a `logout/1` helper
+
+**Supported strategies:**
+
+- **Email + password** — standard login/register/forgot-password screens; developer supplies the backend verify endpoint
+- **Sign in with Apple** — iOS: `ASAuthorizationAppleIDProvider`; Android: redirects to web OAuth (Apple doesn't provide a native Android SDK)
+- **Google Sign-In** — Android: `play-services-auth`; iOS: `GoogleSignIn-iOS` SDK
+- **Phone / SMS OTP** — Android: SMS Retriever API (auto-reads OTP, no permission); iOS: `ASAuthorizationPhoneNumberProvider`
+- **SSO (SAML / OIDC)** — opens an in-app browser (`SFSafariViewController` / `CustomTabsIntent`) to the IdP; receives callback via deep link. Works with Okta, Auth0, Azure AD, Google Workspace, etc. Deep link scheme configured in `mob.exs`.
+
+**Uniform Elixir API** (generated code calls these; underlying NIFs do the platform work):
+
+```elixir
+Mob.Auth.sign_in_with_apple(socket)
+Mob.Auth.sign_in_with_google(socket)
+Mob.Auth.sign_in_with_sso(socket, url: "https://login.corp.example.com/oauth/authorize?...")
+Mob.Auth.sign_in_with_phone(socket, "+16045551234")
+
+def handle_info({:auth, provider, %{token: jwt, ...}}, socket), do: ...
+def handle_info({:auth, :cancelled}, socket), do: ...
+def handle_info({:auth, :error, reason}, socket), do: ...
+```
+
+The generator is opinionated about the happy path but everything it produces is plain Elixir — developers can delete the generated screens and write their own, keeping just the `Mob.Auth` NIF calls.
+
+### In-app purchases
+- iOS: StoreKit 2 (`Product.purchase()`). Async purchase flow; `handle_info` delivers result.
+- Android: Google Play Billing Library (`BillingClient`).
+- Unified Elixir API: `Mob.IAP.products/2`, `Mob.IAP.purchase/2`, `Mob.IAP.restore/1`.
+- Consumables, non-consumables, and subscriptions all handled via same call; type is in the product definition.
+- Receipt validation (server-side) is out of scope — developer calls their own backend with the token.
+
+```elixir
+Mob.IAP.products(socket, ["premium_monthly", "lifetime_unlock"])
+def handle_info({:iap, :products, products}, socket), do: ...
+
+Mob.IAP.purchase(socket, "premium_monthly")
+def handle_info({:iap, :purchased, %{product_id: id, token: t}}, socket), do: ...
+def handle_info({:iap, :cancelled}, socket), do: ...
+def handle_info({:iap, :error, reason}, socket), do: ...
+```
+
+### Ad integration
+- iOS: Google Mobile Ads SDK (`GADMobileAds`). Banner (`GADBannerView`) and interstitial (`GADInterstitialAd`).
+- Android: Google Mobile Ads SDK (`com.google.android.gms:play-services-ads`). Same ad unit types.
+- `type: :ad_banner` component — renders a native banner ad view inline. Props: `ad_unit_id:`, `size: :banner | :large_banner | :medium_rectangle`.
+- Interstitials triggered imperatively: `Mob.Ads.show_interstitial(socket, ad_unit_id: "...")`.
+- Events: `{:ad, :loaded}`, `{:ad, :failed, reason}`, `{:ad, :closed}`, `{:ad, :impression}`.
+- Initialisation: `Mob.Ads.init(socket, app_id: "ca-app-pub-xxx")` called once at mount.
+
+### Crash reporting
+
+Two distinct layers, each handling a different class of failure:
+
+**BEAM-level crashes (pure Elixir)**
+
+Most "crashes" in a Mob app are BEAM process exits with a structured reason and stacktrace — OTP gives you this for free. These can be captured without any native SDK:
+
+- `Mob.Screen.terminate/2` is called on every screen process exit — hook in here to capture the reason + stacktrace
+- OTP `Logger` already receives supervision tree crash reports as `:error` level messages — `Mob.NativeLogger` captures these natively, a crash reporter can also forward them
+- A `Mob.CrashReporter` module (separate opt-in package) would collect these, batch them, and POST to a reporting backend over HTTP using `req` or `finch`
+
+**Native crashes (NIF segfault, OOM kill, OS signal)**
+
+These kill the process before the BEAM can do anything. Requires platform-native handling:
+
+- iOS: `PLCrashReporter` (open source) or Firebase Crashlytics SDK. Signal handler writes a minidump; on next launch the app ships it.
+- Android: `ApplicationExitInfo` API (Android 11+) lets you read the exit reason on next launch — covers ANRs and OOM kills without a separate SDK. For older Android + symbolicated native crashes, Crashlytics.
+
+**Backend options (for BEAM-level reporting)**
+
+- **Firebase Crashlytics** — free, dominant, good symbolication. Requires native SDKs on both platforms even for Elixir errors (SDK handles the upload transport). Adds native dependency weight.
+- **Sentry** — has mobile SDKs but can also accept events via plain HTTP API. A self-hosted Sentry instance is achievable with Elixir and keeps all crash data on your own infrastructure. `mob_crash` (planned Hex package) would wrap the Sentry event ingest API — no native SDK needed for BEAM-level errors.
+- **Custom backend** — `Mob.CrashReporter` posts structured JSON to any endpoint. Simplest for teams already running their own observability stack.
+
+**Batteries-included goal**: `mob_crash` Hex package that works out of the box with zero config for self-hosted Sentry, and an escape hatch to configure any HTTP endpoint. Developer opts in by adding `mob_crash` to deps and calling `Mob.CrashReporter.start_link(dsn: "https://...")` in their application supervisor. No native SDK required for BEAM-level crash capture; native crash handling documented as a separate optional step.
 
 ---
 

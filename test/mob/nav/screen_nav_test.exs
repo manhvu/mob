@@ -259,7 +259,6 @@ defmodule Mob.Nav.ScreenNavTest do
           :exit, reason -> reason
         end
 
-      refute is_nil(exit_reason)
       assert inspect(exit_reason) =~ "no_such_screen"
     end
   end

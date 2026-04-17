@@ -141,11 +141,15 @@ struct MobNodeView: View {
                 Button(action: { node.onTap?() }) {
                     Text(node.text ?? "")
                         .font(node.resolvedFont)
-                        .foregroundColor(node.textColor.map { Color($0) } ?? Color.accentColor)
-                        .frame(maxWidth: .infinity)
+                        .foregroundColor(node.textColor.map { Color($0) } ?? Color.clear)
+                        .frame(maxWidth: node.fillWidth ? .infinity : nil)
                 }
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: node.cornerRadius))
+                .ifLet(node.accessibilityId) { view, id in
+                    view.accessibilityIdentifier(id)
+                }
 
             case .scroll:
                 let isHorizontal = node.axis == "horizontal"
@@ -268,7 +272,10 @@ private struct MobTabView: View {
         )) {
             ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
                 if index < node.childNodes.count {
-                    MobNodeView(node: node.childNodes[index])
+                    let child = node.childNodes[index]
+                    MobNodeView(node: child)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .background(child.backgroundColor.map { Color($0) } ?? Color.clear)
                         .tabItem {
                             Label(
                                 tab["label"] as? String ?? "",

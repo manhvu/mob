@@ -82,6 +82,35 @@ app data directory (SELinux `app_data_file` blocks `execute_no_trans`). They are
 the APK as `lib*.so` in `jniLibs/arm64-v8a/` (gets `apk_data_file` label, which allows exec).
 `mob_beam.c` symlinks `BINDIR/<name>` → `<nativeLibraryDir>/lib<name>.so` before `erl_start`.
 
+## Device automation with Mob.Test
+
+After connecting via `mix mob.connect`, use `Mob.Test` to inspect and drive the
+running app without touching the native UI. Prefer this over screenshot-based
+inspection — it gives exact state, not a visual approximation.
+
+```elixir
+node = :"mob_demo_ios@127.0.0.1"   # or mob_demo_android@127.0.0.1
+
+# What screen is showing and what state is it in?
+Mob.Test.screen(node)    #=> MobDemo.NavScreen
+Mob.Test.assigns(node)   #=> %{depth: 0, safe_area: %{top: 62.0, ...}}
+
+# Find a node by visible text
+Mob.Test.find(node, "Device APIs")
+#=> [{[0, 0, 9], %{"type" => "button", ...}}]
+
+# Trigger a tap by the tag atom used in on_tap: {self(), tag}
+Mob.Test.tap(node, :open_device)
+
+# Full snapshot for debugging
+Mob.Test.inspect(node)
+# %{screen: MobDemo.NavScreen, assigns: ..., nav_history: [...], tree: ...}
+```
+
+Tag atoms come from `on_tap: {self(), :tag_atom}` in the render tree. Check the
+screen's `render/1` to find them. After a tap, call `Mob.Test.screen/1` again to
+confirm the navigation happened.
+
 ## Running tests
 
 ```bash

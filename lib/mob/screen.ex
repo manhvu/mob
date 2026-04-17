@@ -77,7 +77,6 @@ defmodule Mob.Screen do
   # ── GenServer wrapper ─────────────────────────────────────────────────────
 
   use GenServer
-  require Logger
 
   @doc """
   Start a screen process linked to the calling process.
@@ -205,8 +204,44 @@ defmodule Mob.Screen do
     end
   end
 
+  @doc """
+  Apply a navigation action directly. Used by `Mob.Test` to drive navigation
+  programmatically without needing a UI event. Synchronous — the caller blocks
+  until the navigation (and re-render, in production mode) completes.
+
+  Valid actions mirror the `Mob.Socket` navigation functions:
+  - `{:push, dest, params}` — push a new screen
+  - `{:pop}` — pop to the previous screen
+  - `{:pop_to, dest}` — pop to a specific screen in history
+  - `{:pop_to_root}` — pop to the root of the current stack
+  - `{:reset, dest, params}` — replace the entire nav stack
+  """
+  def handle_call({:navigate, nav_action}, _from, {module, socket, nav_history, render_mode}) do
+    socket = Mob.Socket.put_mob(socket, :nav_action, nav_action)
+    {new_module, new_socket, new_history, transition} =
+      apply_nav_action(module, socket, nav_history)
+    new_socket =
+      if render_mode == :render do
+        do_render(new_module, new_socket, transition)
+      else
+        new_socket
+      end
+    {:reply, :ok, {new_module, new_socket, new_history, render_mode}}
+  end
+
   def handle_call(:get_socket, _from, {_module, socket, _nav_history, _mode} = state) do
     {:reply, socket, state}
+  end
+
+  def handle_call(:inspect, _from, {module, socket, nav_history, _mode} = state) do
+    tree = module.render(socket.assigns)
+    info = %{
+      screen:      module,
+      assigns:     socket.assigns,
+      nav_history: Enum.map(nav_history, fn {mod, _} -> mod end),
+      tree:        tree,
+    }
+    {:reply, info, state}
   end
 
   def handle_call(:get_current_module, _from, {module, _socket, _nav_history, _mode} = state) do
@@ -215,6 +250,14 @@ defmodule Mob.Screen do
 
   def handle_call(:get_nav_history, _from, {_module, _socket, nav_history, _mode} = state) do
     {:reply, nav_history, state}
+  end
+
+  # Notification that launched the app from a killed state.
+  # Decoded from JSON and re-dispatched as the standard {:notification, map} message.
+  @impl GenServer
+  def handle_info({:mob_launch_notification, json}, {module, socket, nav_history, render_mode}) do
+    notif = decode_notification_json(json)
+    handle_info({:notification, notif}, {module, socket, nav_history, render_mode})
   end
 
   # Android file/camera/photo/scan results arrive as {:mob_file_result, event, sub, json_binary}.
@@ -244,21 +287,9 @@ defmodule Mob.Screen do
     handle_info(msg, state)
   end
 
-  defp to_atom_safe(nil), do: :qr
-  defp to_atom_safe(s) when is_binary(s), do: String.to_atom(s)
-  defp to_atom_safe(a) when is_atom(a), do: a
-
-  # Notification that launched the app from a killed state.
-  # Decoded from JSON and re-dispatched as the standard {:notification, map} message.
-  def handle_info({:mob_launch_notification, json}, {module, socket, nav_history, render_mode}) do
-    notif = decode_notification_json(json)
-    handle_info({:notification, notif}, {module, socket, nav_history, render_mode})
-  end
-
   # System back gesture (Android hardware/swipe, iOS edge-pan).
   # Handled here — before the user's handle_info — so every screen gets back
   # navigation for free without implementing anything.
-  @impl GenServer
   def handle_info({:mob, :back}, {module, socket, nav_history, render_mode}) do
     {module, new_socket, new_history, transition} =
       if nav_history == [] do
@@ -307,6 +338,10 @@ defmodule Mob.Screen do
     {:noreply, {module, new_socket, nav_history, render_mode}}
   end
 
+  defp to_atom_safe(nil), do: :qr
+  defp to_atom_safe(s) when is_binary(s), do: String.to_atom(s)
+  defp to_atom_safe(a) when is_atom(a), do: a
+
   @impl GenServer
   def terminate(reason, {module, socket, _nav_history, _render_mode}) do
     module.terminate(reason, socket)
@@ -324,7 +359,9 @@ defmodule Mob.Screen do
       {:push, dest, params} ->
         new_module = resolve_module(dest)
         platform = socket.__mob__.platform
-        new_base = Mob.Socket.new(new_module, platform: platform)
+        new_base =
+          Mob.Socket.new(new_module, platform: platform)
+          |> Mob.Socket.assign(:safe_area, socket.assigns.safe_area)
         {:ok, mounted} = new_module.mount(params, %{}, new_base)
         saved = {module, clear_nav_action(socket)}
         {new_module, mounted, [saved | nav_history], :push}
@@ -361,7 +398,9 @@ defmodule Mob.Screen do
       {:reset, dest, params} ->
         new_module = resolve_module(dest)
         platform = socket.__mob__.platform
-        new_base = Mob.Socket.new(new_module, platform: platform)
+        new_base =
+          Mob.Socket.new(new_module, platform: platform)
+          |> Mob.Socket.assign(:safe_area, socket.assigns.safe_area)
         {:ok, mounted} = new_module.mount(params, %{}, new_base)
         {new_module, mounted, [], :reset}
 
@@ -436,15 +475,26 @@ defmodule Mob.Screen do
   defp do_render(module, socket, transition \\ :none) do
     platform       = socket.__mob__.platform
     list_renderers = Map.get(socket.__mob__, :list_renderers, %{})
+    socket = ensure_safe_area(socket, platform)
     tree =
       module.render(socket.assigns)
       |> Mob.List.expand(list_renderers, self())
-    case Mob.Renderer.render(tree, platform, :mob_nif, transition) do
-      {:ok, token} ->
-        Mob.Socket.put_root_view(socket, token)
-      {:error, reason} ->
-        Logger.error("Mob.Screen render failed: #{inspect(reason)}")
-        socket
+    {:ok, token} = Mob.Renderer.render(tree, platform, :mob_nif, transition)
+    Mob.Socket.put_root_view(socket, token)
+  end
+
+  defp ensure_safe_area(socket, platform) do
+    if Map.has_key?(socket.assigns, :safe_area) do
+      socket
+    else
+      safe_area =
+        if platform == :ios do
+          {t, r, b, l} = :mob_nif.safe_area()
+          %{top: t, right: r, bottom: b, left: l}
+        else
+          %{top: 0.0, right: 0.0, bottom: 0.0, left: 0.0}
+        end
+      Mob.Socket.assign(socket, :safe_area, safe_area)
     end
   end
 end

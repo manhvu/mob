@@ -10,7 +10,9 @@ defmodule Mob.MixProject do
       deps: deps(),
       description: "BEAM-on-device mobile framework for Elixir",
       source_url: "https://github.com/genericjam/mob",
-      package: package()
+      homepage_url: "https://hexdocs.pm/mob",
+      package: package(),
+      docs: docs()
     ]
   end
 
@@ -19,6 +21,50 @@ defmodule Mob.MixProject do
       extra_applications: [:logger]
     ]
   end
+
+  defp docs do
+    [
+      main: "readme",
+      source_url: "https://github.com/genericjam/mob",
+      source_url_pattern: "https://github.com/genericjam/mob/blob/main/%{path}#L%{line}",
+      extras: [
+        "README.md": [title: "Mob"],
+        "guides/getting_started.md": [title: "Getting Started"],
+        "guides/architecture.md": [title: "Architecture & Prior Art"],
+        "guides/screen_lifecycle.md": [title: "Screen Lifecycle"],
+        "guides/components.md": [title: "Components"],
+        "guides/theming.md": [title: "Theming"],
+        "guides/navigation.md": [title: "Navigation"],
+        "guides/device_capabilities.md": [title: "Device Capabilities"],
+        "guides/testing.md": [title: "Testing"],
+      ],
+      groups_for_extras: [
+        Guides: ~r/guides\/.*/
+      ],
+      groups_for_modules: [
+        "Core": [Mob, Mob.App, Mob.Screen, Mob.Socket],
+        "UI": [Mob.UI, Mob.Style, Mob.Renderer, Mob.Theme, Mob.Theme.Obsidian, Mob.Theme.Citrus, Mob.Theme.Birch],
+        "Navigation": [Mob.Nav.Registry],
+        "Device APIs": [Mob.Haptic, Mob.Clipboard, Mob.Share, Mob.Permissions, Mob.Biometric, Mob.Location, Mob.Camera, Mob.Photos, Mob.Files, Mob.Audio, Mob.Motion, Mob.Scanner, Mob.Notify],
+        "Testing & Debugging": [Mob.Test],
+        "Internals": [Mob.Dist, Mob.NativeLogger, Mob.List, Mob.Sigil],
+      ],
+      before_closing_body_tag: &before_closing_body_tag/1,
+    ]
+  end
+
+  defp before_closing_body_tag(:html) do
+    """
+    <script>
+      // Ensure code blocks with language hints are highlighted
+      document.querySelectorAll("pre code").forEach(el => {
+        if (!el.className) el.className = "language-elixir";
+      });
+    </script>
+    """
+  end
+
+  defp before_closing_body_tag(_), do: ""
 
   defp package do
     [

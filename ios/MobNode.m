@@ -31,6 +31,7 @@
         _contentModeStr  = @"fit";
         _fixedWidth      = 0.0;
         _fixedHeight     = 0.0;
+        _fillWidth       = NO;
         _cornerRadius    = 0.0;
         _videoAutoplay = NO;
         _videoLoop     = NO;
