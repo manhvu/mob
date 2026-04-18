@@ -4,9 +4,10 @@ defmodule Mob.MixProject do
   def project do
     [
       app: :mob,
-      version: "0.3.3",
+      version: "0.3.4",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       description: "BEAM-on-device mobile framework for Elixir",
       source_url: "https://github.com/genericjam/mob",
@@ -69,6 +70,9 @@ defmodule Mob.MixProject do
   end
 
   defp before_closing_body_tag(_), do: ""
+
+  defp elixirc_paths(:test), do: ["lib", "test/onboarding", "test/onboarding/support"]
+  defp elixirc_paths(_),     do: ["lib"]
 
   defp package do
     [

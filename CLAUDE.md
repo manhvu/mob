@@ -121,6 +121,59 @@ confirm the navigation happened.
 mix test          # from ~/code/mob
 ```
 
+### Onboarding integration tests
+
+The `test/onboarding/` suite verifies the full first-run flow end-to-end: archive
+install, project generation, `mix mob.install`, `mix mob.doctor`, and failure modes.
+These tests are **excluded from `mix test` by default** (they take minutes and require
+Hex/network access). Run them explicitly:
+
+```bash
+# Fast subset — no simulator needed (~3 min, suitable for PR gating)
+MIX_ENV=test mix test --only generator
+
+# Failure-mode checks — no simulator needed (~2 min)
+MIX_ENV=test mix test --only pre_device
+
+# Everything above in one pass
+MIX_ENV=test mix test --only onboarding
+
+# Full suite including post-device tests (requires a booted iOS simulator)
+MIX_ENV=test mix test --only failure_modes
+```
+
+Run one file at a time with `--max-cases 1` to avoid workspace ID collisions between
+concurrent tests:
+
+```bash
+MIX_ENV=test mix test test/onboarding/generator_test.exs --only generator --max-cases 1
+MIX_ENV=test mix test test/onboarding/failure_modes_test.exs --only pre_device --max-cases 1
+```
+
+**What they test:**
+
+| Tag | File | Covers |
+|-----|------|--------|
+| `:generator` | `generator_test.exs` | Archive install, `mix mob.new`, `mix mob.install`, `mix mob.doctor` |
+| `:pre_device` | `failure_modes_test.exs` | Failure modes that don't need a running simulator |
+| `:post_device` | `failure_modes_test.exs` | Failures requiring a live iOS simulator |
+
+**Preserved workspaces:** When a test fails, its workspace is kept at
+`/tmp/mob_onboarding/run_<PID>/<test_id>/`. Inspect `logs/` for per-step output.
+Workspaces from passing tests are deleted automatically.
+
+**Known limitations (published `mob_dev 0.1.7`):**
+
+- `MOB_OTP_BASE_URL` is not respected — OTP download URL cannot be overridden for
+  failure injection. Network failure tests verify OTP reporting format instead.
+- `check_elixir` reads `System.version()` (the running BEAM) — PATH-based fake Elixir
+  versions have no effect. The Elixir version test verifies the check produces clear output.
+- `check_java` ignores exit code (`{out, _}` pattern) — a fake java always shows ✓.
+  The java test verifies the check is present and reports useful version info.
+- `xcrun` and `java` share `/usr/bin` with `dirname`/`basename` used by mise/asdf elixir
+  launcher scripts. Filtering `/usr/bin` from PATH crashes the subprocess. Tests for these
+  tools verify the success path format instead of injecting a missing-tool failure.
+
 ## Common pitfalls
 
 See [`common_fixes.md`](common_fixes.md) for a running log of diagnosed bugs and their
