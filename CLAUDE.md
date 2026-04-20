@@ -1,5 +1,10 @@
 # Mob — Agent Instructions
 
+See [`guides/agentic_coding.md`](guides/agentic_coding.md) for a full guide on the
+agent round-trip workflow: how to connect to the running Erlang node, when to use
+`Mob.Test` vs MCP platform tools, and how to avoid the instinct to reach for
+`xcrun simctl` screenshots.
+
 ## Standard debugging workflow
 
 The preferred tool is `mix mob.connect` (from `mob_dev` package):
@@ -85,6 +90,82 @@ ERTS helper binaries (`erl_child_setup`, `inet_gethost`, `epmd`) cannot be exec'
 app data directory (SELinux `app_data_file` blocks `execute_no_trans`). They are packaged in
 the APK as `lib*.so` in `jniLibs/arm64-v8a/` (gets `apk_data_file` label, which allows exec).
 `mob_beam.c` symlinks `BINDIR/<name>` → `<nativeLibraryDir>/lib<name>.so` before `erl_start`.
+
+## Agent round-trip workflow
+
+The standard loop for AI-assisted feature development or debugging. Use all three
+layers in order — BEAM state first, then visual verification only when needed.
+
+### 1. Edit and deploy
+
+```bash
+mix mob.push            # compile + push changed BEAMs to all connected nodes
+# or for a native rebuild (e.g. after NIF or Swift/Kotlin change):
+mix mob.deploy --native
+```
+
+### 2. Inspect BEAM state via IEx or Mob.Test
+
+Connect (or use an already-open IEx session from `mix mob.connect`):
+
+```bash
+mix mob.connect --no-iex   # sets up tunnels, prints node names, exits
+```
+
+Then from a separate IEx session or script:
+
+```elixir
+node = :"mob_demo_ios@127.0.0.1"
+Mob.Test.screen(node)    # which screen is showing?
+Mob.Test.assigns(node)   # live assigns — count, selected items, etc.
+Mob.Test.tap(node, :some_button)   # drive a tap programmatically
+Mob.Test.find(node, "Submit")      # locate a widget by visible text
+```
+
+This is the fastest path. BEAM state is exact and doesn't require image decoding.
+
+### 3. Visual verification via MCP tools
+
+When you need to confirm rendering, layout, or animations — use the platform MCP
+servers. These are available as tools in the agent environment.
+
+**iOS Simulator** (`mcp__ios-simulator__*`):
+
+| Tool | When to use |
+|------|-------------|
+| `screenshot` | Capture the current simulator frame |
+| `ui_tap` | Tap at x,y coordinates |
+| `ui_type` | Type text into focused input |
+| `ui_swipe` | Swipe gesture |
+| `ui_view` | Inspect the accessibility tree |
+| `ui_describe_point` | What element is at this coordinate? |
+| `ui_describe_all` | Full accessibility dump |
+| `record_video` / `stop_recording` | Record an interaction sequence |
+
+**Android** (`mcp__adb__*`):
+
+| Tool | When to use |
+|------|-------------|
+| `dump_image` | Screenshot from the connected device/emulator |
+| `inspect_ui` | XML accessibility dump of the current view |
+| `adb_shell` | Run arbitrary shell commands on the device |
+| `adb_logcat` | Tail logcat (Elixir logs appear under the `Elixir` tag) |
+
+### Typical round-trip
+
+```
+1. Edit Elixir code
+2. mix mob.push
+3. Mob.Test.screen(node)   ← confirm navigation / state
+4. mcp__ios-simulator__screenshot  ← visual sanity check
+5. Mob.Test.tap(node, :button)     ← drive interaction
+6. Mob.Test.assigns(node)  ← confirm state updated correctly
+7. repeat
+```
+
+Use `Mob.Test` for assertions (exact, fast, no image parsing). Use MCP screenshot/UI
+tools for layout checks, animation spot-checks, or when a bug is only visible
+in the rendered output.
 
 ## Device automation with Mob.Test
 

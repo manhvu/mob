@@ -917,6 +917,7 @@ Needs `iproxy` (from libimobiledevice) for USB dist port tunneling:
 - App must be signed with a development provisioning profile (free Apple account works for testing)
 - `--disable-jit` flag required in BEAM args (iOS enforces W^X; JIT is blocked on device, not simulator)
 - `mob_new` template needs an Xcode project or build script that accepts a signing identity
+- `mix mob.gen_xcodeproj` — generate a minimal `ios/MobApp.xcodeproj/project.pbxproj` from an EEx template using known inputs (mob_dir, OTP root, source files, bundle_id, development_team). `xcodebuild -allowProvisioningUpdates` then handles certificate/profile selection. Requires `development_team` in `mob.exs`. Would also unblock `mix mob.battery_bench_ios --native` on physical devices.
 
 ### Offline / local storage
 SQLite via NIF. `Mob.Repo` with Elixir schema + migrations on app start. WAL mode default.
@@ -983,6 +984,94 @@ App (on device)                     Update server (Elixir)
 
 ### User-defined style tokens
 `MyApp.Styles` module + `mob.exs` config key. Developer defines their own color palette, type scale, spacing scale as token maps. `Mob.Renderer` merges app tokens on top of the default set at compile time.
+
+---
+
+## Testing and Agentic Control Strategy
+
+The goal is full-stack observability from within the BEAM — every layer of the running
+app visible and drivable programmatically, with no dependency on screenshots or
+accessibility heuristics where avoidable. This serves both automated testing and
+AI-assisted development workflows equally.
+
+### What exists today
+
+`Mob.Test` provides RPC-based control over running apps via Erlang distribution:
+`screen/1`, `assigns/1`, `tap/2`, `find/2`, `navigate/2`, `select/3`,
+`send_message/2`, `inspect/1`. This is already significantly more capable than
+any standard mobile testing tool — exact state, no polling, no image parsing.
+
+### Layer 1 — BEAM state (done)
+
+Assigns, current screen, nav history, component tree. Fast, exact, no rendering
+required. The primary layer for assertions.
+
+### Layer 2 — Synthetic event injection (done)
+
+`Mob.Test.tap/2` fires events through the same path as a real touch, via the NIF
+bridge. Navigation functions are synchronous. Device API results (camera, location,
+biometric, notifications) injectable via `send_message/2`.
+
+### Layer 3 — Raw touch intercept / inject (planned)
+
+Read every touch event that reaches the app before it is processed — finger down,
+move, up, multi-touch — and expose them to the connected node. Symmetrically,
+inject synthetic `UITouch` (iOS) / `MotionEvent` (Android) at the platform level,
+indistinguishable from a real finger. This operates below the Mob component layer
+and works even for native subviews or embedded third-party UI components.
+
+Use cases:
+- Record real user interactions as semantic event logs
+- Replay recordings as regression tests stable across device sizes and OS versions
+- Agent-driven interaction with any visible element regardless of whether it has a tag
+
+### Layer 4 — Accessibility tree (planned)
+
+Expose the platform accessibility tree (iOS `UIAccessibility`, Android
+`AccessibilityNodeInfo`) to the connected node. Gives element positions, labels,
+roles, and enabled/disabled state without screenshots. Complements the component
+tree for native subviews and third-party UI that Mob's renderer doesn't own.
+
+```elixir
+Mob.Test.accessibility_tree(node)     # full tree
+Mob.Test.find_accessible(node, "Submit")  # element by accessibility label
+Mob.Test.bounds(node, :submit_button) # frame in screen coordinates
+```
+
+### Layer 5 — Visual (MCP, external)
+
+Screenshots and accessibility dumps via `mcp__ios-simulator__*` and `mcp__adb__*`.
+The layer of last resort — use when confirming layout, animations, or rendering
+details that don't exist in BEAM or accessibility state. Always prefer layers 1–4
+for assertions; use layer 5 for spot-checks.
+
+### Record and replay
+
+With layers 3 and 4 in place, a recording captures semantic intent rather than
+coordinates:
+
+```
+# recorded
+tap :submit  (screen: CheckoutScreen, assigns: %{form: %{valid: true}})
+
+# not this — brittle
+tap x:142 y:386
+```
+
+Recordings are dual-purpose:
+- **Replay as regression test** — re-run sequence, assert assigns at each step
+- **Export as ExUnit test file** — generated test a developer can commit and edit
+
+Removes the biggest barrier to test adoption: the cost of writing them.
+
+### Shared abstraction with Pegleg
+
+Layers 3 and 4 (touch intercept/inject and accessibility tree) are not Mob-specific —
+they operate at the NIF/platform level and apply to any iOS or Android app. When
+Pegleg is built, these layers should be extracted into a shared library that both
+Mob and Pegleg depend on, rather than duplicating the implementation. The Mob-specific
+parts (component tree, assigns, `Mob.Test` API) stay in Mob; the platform mechanics
+live in the shared layer.
 
 ---
 
