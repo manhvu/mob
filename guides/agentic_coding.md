@@ -23,6 +23,66 @@ exact state, not infer it from pixels.
 
 **The agent should connect to the running Erlang node and ask it directly.**
 
+## Setting up the MCP tools
+
+The Layer 2 visual tools require two MCP servers to be installed and registered with
+your AI agent.
+
+### ios-simulator-mcp
+
+Interacts with the iOS Simulator from outside the app: screenshots, taps, text input,
+accessibility tree queries.
+
+```bash
+npm install -g ios-simulator-mcp
+```
+
+GitHub: https://github.com/joshuayoes/ios-simulator-mcp
+
+Add to your Claude Code MCP config (`~/.claude.json`, under `mcpServers`):
+
+```json
+"ios-simulator": {
+  "type": "stdio",
+  "command": "ios-simulator-mcp",
+  "args": [],
+  "env": {}
+}
+```
+
+### adb-mcp
+
+Provides ADB-backed tools for Android: screenshots, UI dumps, shell access, logcat.
+
+```bash
+npm install -g adb-mcp
+```
+
+GitHub: https://github.com/srmorete/adb-mcp
+
+> **Note:** The npm package is marked deprecated but remains functional. It is the
+> current recommended option until a maintained alternative stabilises.
+
+Add to `~/.claude.json`:
+
+```json
+"adb": {
+  "type": "stdio",
+  "command": "npx",
+  "args": ["adb-mcp"],
+  "env": {}
+}
+```
+
+### Verifying the setup
+
+After adding both servers, restart Claude Code and check that the tools are available.
+In a conversation, the `mcp__ios-simulator__screenshot` and `mcp__adb__dump_image`
+tools should appear in the tool list. You can also ask the agent: *"List the MCP tools
+available to you"* — it should enumerate both server namespaces.
+
+---
+
 ## Prerequisites
 
 Before an agent can inspect the running app, tunnels must be established:

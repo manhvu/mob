@@ -4,7 +4,7 @@ defmodule Mob.MixProject do
   def project do
     [
       app: :mob,
-      version: "0.3.6",
+      version: "0.3.7",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -42,6 +42,7 @@ defmodule Mob.MixProject do
         "guides/device_capabilities.md": [title: "Device Capabilities"],
         "guides/testing.md": [title: "Testing"],
         "guides/troubleshooting.md": [title: "Troubleshooting"],
+        "guides/agentic_coding.md": [title: "Agentic Coding"],
       ],
       groups_for_extras: [
         Guides: ~r/guides\/.*/
