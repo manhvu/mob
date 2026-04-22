@@ -4,7 +4,7 @@ defmodule Mob.MixProject do
   def project do
     [
       app: :mob,
-      version: "0.3.7",
+      version: "0.3.8",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -78,7 +78,13 @@ defmodule Mob.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/genericjam/mob"}
+      links: %{"GitHub" => "https://github.com/genericjam/mob"},
+      files: ~w(
+        lib src priv
+        android ios
+        mix.exs mix.lock
+        README.md LICENSE
+      )
     ]
   end
 

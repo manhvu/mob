@@ -222,6 +222,44 @@ In the deployer, this runs automatically via `restart_android` (before `am start
 
 ---
 
+## `mix mob.deploy` code pushed but screen didn't update (dist hot-load needs re-render trigger)
+
+**Symptom**: `mix mob.deploy` reports `✓ (dist, no restart)` — code was pushed, no error —
+but the running app looks unchanged. Tapping a button or navigating away and back causes
+the new code to appear.
+
+**Root cause**: Erlang hot code loading (`code:load_binary`) replaces the module in the
+code server immediately, but does **not** cause any running process to re-execute. The
+`Mob.Screen` GenServer is sitting in its receive loop waiting for the next message. Until
+something sends it a message, `render/1` is never called again — so the display stays as-is
+even though the new code is live in memory. This is standard Erlang behaviour, not a bug in
+the BEAM, but it's non-obvious when you expect to see visual feedback immediately.
+
+The condition for this to occur: the iOS app is running with Erlang distribution active
+(which it always is after `mix mob.deploy --native`). iOS shares the Mac's network stack, so
+`mob_dev` can connect to the device node without any tunnel setup. When it connects, it
+prefers the dist hot-load path over the filesystem + restart path.
+
+Android is not affected by this issue in the same way — the Android dist path requires adb
+tunnels that the deployer doesn't set up, so Android always falls through to the filesystem
+push + restart path.
+
+**Fix**: After a successful dist push, `mob_dev` now sends `:__mob_hot_reload__` to the
+`:mob_screen` registered process on the device via `:rpc.call`:
+
+```elixir
+:rpc.call(node, :erlang, :send, [:mob_screen, :__mob_hot_reload__])
+```
+
+`Mob.Screen`'s `handle_info` catch-all receives it, delegates to the user module (which
+ignores unknown messages), then calls `do_render/2` with the current version of the screen
+module. The screen repaints immediately with no restart and no loss of GenServer state.
+
+**Fixed in**: `mob_dev/lib/mob_dev/deployer.ex` — `push_via_dist/2` now sends the
+re-render message after `HotPush.push_all/1` (2026-04-21).
+
+---
+
 ## Android "screen wipe" when backgrounding / resuming the app
 
 **Symptom**: When the app is backgrounded and then resumed, the screen briefly goes
