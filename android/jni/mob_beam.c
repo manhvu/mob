@@ -116,7 +116,6 @@ void mob_start_beam(const char* app_module) {
     // is computed here from getFilesDir() at runtime (the path includes the
     // Android user ID which is not predictable at compile time).
     setenv("MOB_BEAMS_DIR", beams_dir, 1);
-
     setenv("ERL_CRASH_DUMP",         crash_dump, 1);
     setenv("ERL_CRASH_DUMP_SECONDS", "30",       1);
 

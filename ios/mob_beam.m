@@ -27,8 +27,6 @@ void mob_start_beam(const char* app_module) {
     setenv("PROGNAME", "erl", 1);
     setenv("EMU",      "beam", 1);
     setenv("HOME",     "/tmp", 1);
-    setenv("ERL_CRASH_DUMP", "/tmp/mob_erl_crash.dump", 1);
-
     // Set MOB_DATA_DIR to the app's Documents directory — persistent storage
     // accessible to the app and backed up by iCloud. Used by the generated Repo
     // module to determine where to place the SQLite database file.
@@ -37,6 +35,7 @@ void mob_start_beam(const char* app_module) {
     NSArray *docs_paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *docs_dir = [docs_paths firstObject];
     setenv("MOB_DATA_DIR", docs_dir ? [docs_dir UTF8String] : "/tmp", 1);
+    setenv("ERL_CRASH_DUMP", "/tmp/mob_erl_crash.dump", 1);
     setenv("ERL_CRASH_DUMP_SECONDS", "30", 1);
 
     // Read dist port from MOB_DIST_PORT env var (set by mob_dev via xcrun simctl launch --setenv).
@@ -55,8 +54,6 @@ void mob_start_beam(const char* app_module) {
 
     char beams_dir[256];
     snprintf(beams_dir, sizeof(beams_dir), OTP_ROOT "/%s", app_module);
-    setenv("MOB_BEAMS_DIR", beams_dir, 1);
-
     // MOB_BEAMS_DIR — the directory where app BEAMs (and priv/) are deployed.
     //
     // Ecto.Migrator uses :code.priv_dir(app) to locate migration .exs files, but
