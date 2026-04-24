@@ -1248,7 +1248,7 @@ static ERL_NIF_TERM nif_storage_save_to_media_store(ErlNifEnv* env, int argc, co
 }
 
 static ERL_NIF_TERM nif_storage_external_files_dir(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    char type[32]; enif_get_atom(env, argv[0], type, sizeof(type), ERL_NIF_LATIN1);
+    char type[32] = {0}; enif_get_atom(env, argv[0], type, sizeof(type), ERL_NIF_LATIN1);
     int att; JNIEnv* jenv = get_jenv(&att);
     jstring jtype = (*jenv)->NewStringUTF(jenv, type);
     jstring result = (jstring)(*jenv)->CallStaticObjectMethod(jenv, Bridge.cls,
