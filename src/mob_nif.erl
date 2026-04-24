@@ -25,6 +25,8 @@
          %% Camera
          camera_capture_photo/1,
          camera_capture_video/1,
+         camera_start_preview/1,
+         camera_stop_preview/0,
          %% Photo library
          photos_pick/2,
          %% File picker
@@ -32,6 +34,10 @@
          %% Audio recording
          audio_start_recording/1,
          audio_stop_recording/0,
+         %% Audio playback
+         audio_play/2,
+         audio_stop_playback/0,
+         audio_set_volume/1,
          %% Motion sensors
          motion_start/2,
          motion_stop/0,
@@ -42,6 +48,16 @@
          notify_cancel/1,
          notify_register_push/0,
          take_launch_notification/0,
+         %% Storage
+         storage_dir/1,
+         storage_save_to_photo_library/1,
+         storage_save_to_media_store/2,
+         storage_external_files_dir/1,
+         %% WebView
+         webview_eval_js/1,
+         webview_post_message/1,
+         webview_can_go_back/0,
+         webview_go_back/0,
          %% Test harness — native UI inspection and interaction
          ui_tree/0,
          ui_debug/0,
@@ -73,10 +89,15 @@
        location_stop/0,
        camera_capture_photo/1,
        camera_capture_video/1,
+       camera_start_preview/1,
+       camera_stop_preview/0,
        photos_pick/2,
        files_pick/1,
        audio_start_recording/1,
        audio_stop_recording/0,
+       audio_play/2,
+       audio_stop_playback/0,
+       audio_set_volume/1,
        motion_start/2,
        motion_stop/0,
        scanner_scan/1,
@@ -93,7 +114,17 @@
        key_press/1,
        clear_text/0,
        long_press_xy/3,
-       swipe_xy/4]).
+       swipe_xy/4,
+       %% Storage
+       storage_dir/1,
+       storage_save_to_photo_library/1,
+       storage_save_to_media_store/2,
+       storage_external_files_dir/1,
+       %% WebView
+       webview_eval_js/1,
+       webview_post_message/1,
+       webview_can_go_back/0,
+       webview_go_back/0]).
 
 -on_load(init/0).
 
@@ -119,10 +150,15 @@ location_start(_Accuracy)         -> erlang:nif_error(not_loaded).
 location_stop()                   -> erlang:nif_error(not_loaded).
 camera_capture_photo(_Quality)    -> erlang:nif_error(not_loaded).
 camera_capture_video(_MaxDuration)-> erlang:nif_error(not_loaded).
+camera_start_preview(_OptsJson)   -> erlang:nif_error(not_loaded).
+camera_stop_preview()             -> erlang:nif_error(not_loaded).
 photos_pick(_Max, _Types)         -> erlang:nif_error(not_loaded).
 files_pick(_MimeTypes)            -> erlang:nif_error(not_loaded).
 audio_start_recording(_OptsJson)  -> erlang:nif_error(not_loaded).
 audio_stop_recording()            -> erlang:nif_error(not_loaded).
+audio_play(_Path, _OptsJson)      -> erlang:nif_error(not_loaded).
+audio_stop_playback()             -> erlang:nif_error(not_loaded).
+audio_set_volume(_Volume)         -> erlang:nif_error(not_loaded).
 motion_start(_Sensors, _Interval) -> erlang:nif_error(not_loaded).
 motion_stop()                     -> erlang:nif_error(not_loaded).
 scanner_scan(_FormatsJson)        -> erlang:nif_error(not_loaded).
@@ -140,3 +176,11 @@ key_press(_Key)                   -> erlang:nif_error(not_loaded).
 clear_text()                      -> erlang:nif_error(not_loaded).
 long_press_xy(_X, _Y, _Ms)        -> erlang:nif_error(not_loaded).
 swipe_xy(_X1, _Y1, _X2, _Y2)     -> erlang:nif_error(not_loaded).
+storage_dir(_Location)                      -> erlang:nif_error(not_loaded).
+storage_save_to_photo_library(_Path)        -> erlang:nif_error(not_loaded).
+storage_save_to_media_store(_Path, _Type)   -> erlang:nif_error(not_loaded).
+storage_external_files_dir(_Type)           -> erlang:nif_error(not_loaded).
+webview_eval_js(_Code)                      -> erlang:nif_error(not_loaded).
+webview_post_message(_Json)                 -> erlang:nif_error(not_loaded).
+webview_can_go_back()                       -> erlang:nif_error(not_loaded).
+webview_go_back()                           -> erlang:nif_error(not_loaded).

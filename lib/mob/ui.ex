@@ -46,4 +46,53 @@ defmodule Mob.UI do
       children: []
     }
   end
+
+  @doc """
+  Returns a `:webview` component node. Renders a native web view inline.
+
+  The JS bridge is injected automatically — the page can call `window.mob.send(data)`
+  to deliver messages to `handle_info({:webview, :message, data}, socket)`, and
+  Elixir can push to JS via `Mob.WebView.post_message/2`.
+
+  Props:
+    * `:url` — URL to load (required)
+    * `:allow` — list of URL prefixes that navigation is permitted to (default: allow all).
+      Blocked attempts arrive as `{:webview, :blocked, url}` in `handle_info`.
+    * `:show_url` — show a native URL label above the WebView (default: false)
+    * `:title` — static title label above the WebView; overrides `:show_url`
+    * `:width`, `:height` — dimensions in dp/pts; omit to fill parent
+  """
+  @spec webview(keyword() | map()) :: map()
+  def webview(props \\ [])
+  def webview(props) when is_list(props), do: webview(Map.new(props))
+  def webview(%{} = props) do
+    allow_str = (props[:allow] || []) |> Enum.join(",")
+    node_props =
+      %{url: props[:url] || "", allow: allow_str, show_url: props[:show_url] || false}
+      |> then(fn p -> if props[:title], do: Map.put(p, :title, props[:title]), else: p end)
+      |> then(fn p -> if props[:width],  do: Map.put(p, :width,  props[:width]),  else: p end)
+      |> then(fn p -> if props[:height], do: Map.put(p, :height, props[:height]), else: p end)
+    %{type: :webview, props: node_props, children: []}
+  end
+
+  @doc """
+  Returns a `:camera_preview` component node. Renders a live camera feed inline.
+
+  Call `Mob.Camera.start_preview/2` before mounting this component, and
+  `Mob.Camera.stop_preview/1` when done.
+
+  Props:
+    * `:facing` — `:back` (default) or `:front`
+    * `:width`, `:height` — dimensions in dp/pts; omit to fill parent
+  """
+  @spec camera_preview(keyword() | map()) :: map()
+  def camera_preview(props \\ [])
+  def camera_preview(props) when is_list(props), do: camera_preview(Map.new(props))
+  def camera_preview(%{} = props) do
+    %{
+      type:     :camera_preview,
+      props:    Map.take(props, [:facing, :width, :height]),
+      children: []
+    }
+  end
 end

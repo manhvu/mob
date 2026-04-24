@@ -236,9 +236,11 @@ defmodule Mob.Renderer do
   end
 
   @doc "Return the full color palette map (token → ARGB integer)."
+  @spec colors() :: %{atom() => non_neg_integer()}
   def colors, do: @colors
 
   @doc "Return the text-size scale map (token → float sp)."
+  @spec text_sizes() :: %{atom() => float()}
   def text_sizes, do: @text_sizes
 
   # ── Tree preparation ──────────────────────────────────────────────────────

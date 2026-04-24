@@ -4,21 +4,33 @@ defmodule Mob.DistTest do
   # Distribution tests must run serially — starting/stopping :net_kernel affects
   # the whole VM. async: false ensures no interference with other test modules.
 
+  setup_all do
+    # epmd must be running for Node.start to succeed. Start it as a daemon if
+    # it isn't already up; -daemon is idempotent when epmd is already running.
+    System.cmd("epmd", ["-daemon"], stderr_to_stdout: true)
+    :ok
+  end
+
+  # Attempts to start distribution. Returns :ok on success or skips the test
+  # with a clear message if epmd is unavailable in this environment.
+  defp ensure_distributed(name) do
+    case Node.start(name, :longnames) do
+      {:ok, _} -> :ok
+      {:error, {:already_started, _}} -> :ok
+      {:error, reason} -> flunk("Node.start failed (#{inspect(reason)}) — is epmd running?")
+    end
+  end
+
   describe "stop/0" do
     test "returns :ok when distribution is not running" do
-      # Baseline: if this node is not distributed, stop/0 should be a no-op
       if not Node.alive?() do
         assert Mob.Dist.stop() == :ok
       end
     end
 
     test "stops a running distribution node and returns :ok" do
-      # Start distribution on an arbitrary local name if not already running
       was_alive = Node.alive?()
-
-      unless was_alive do
-        Node.start(:"mob_dist_test@127.0.0.1", :longnames)
-      end
+      unless was_alive, do: ensure_distributed(:"mob_dist_test@127.0.0.1")
 
       assert Node.alive?()
       assert Mob.Dist.stop() == :ok
@@ -26,17 +38,14 @@ defmodule Mob.DistTest do
     end
 
     test "is idempotent — calling stop/0 twice is safe" do
-      unless Node.alive?() do
-        Node.start(:"mob_dist_test_idempotent@127.0.0.1", :longnames)
-      end
+      unless Node.alive?(), do: ensure_distributed(:"mob_dist_test_idempotent@127.0.0.1")
 
       assert Mob.Dist.stop() == :ok
       assert Mob.Dist.stop() == :ok
     end
 
     test "disconnects connected nodes before stopping" do
-      # Start two nodes and connect them, then verify stop/0 cleans up
-      Node.start(:"mob_dist_test_disconnect@127.0.0.1", :longnames)
+      ensure_distributed(:"mob_dist_test_disconnect@127.0.0.1")
       Node.set_cookie(:test_cookie)
 
       # We can't connect to a real second node in a unit test, but we can

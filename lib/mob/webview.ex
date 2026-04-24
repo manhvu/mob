@@ -1,0 +1,46 @@
+defmodule Mob.WebView do
+  @moduledoc """
+  Bidirectional JS bridge for the native WebView component.
+
+  Use `Mob.UI.webview/1` to embed the component, then call these functions
+  from `handle_info` to communicate with the page.
+
+  JS side — inject `window.mob` is injected automatically by the native layer:
+
+      // Send a message to Elixir
+      window.mob.send({ event: "clicked", id: 42 })
+
+      // Receive a message from Elixir
+      window.mob.onMessage(function(data) { console.log(data) })
+
+  Elixir side:
+
+      def handle_info({:webview, :message, %{"event" => "clicked", "id" => id}}, socket) do
+        {:noreply, socket}
+      end
+
+      def handle_info({:webview, :blocked, url}, socket) do
+        # A navigation attempt was blocked by the allow: whitelist
+        {:noreply, socket}
+      end
+  """
+
+  @doc """
+  Evaluate arbitrary JavaScript in the current WebView and return the result
+  asynchronously via `handle_info({:webview, :eval_result, result}, socket)`.
+  """
+  def eval_js(socket, code) when is_binary(code) do
+    :mob_nif.webview_eval_js(code)
+    socket
+  end
+
+  @doc """
+  Push a message from Elixir into the WebView page. Calls `window.mob._dispatch(json)`
+  in JS, which delivers the data to all `window.mob.onMessage` handlers.
+  """
+  def post_message(socket, data) do
+    json = :json.encode(data)
+    :mob_nif.webview_post_message(json)
+    socket
+  end
+end

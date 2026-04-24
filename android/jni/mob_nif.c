@@ -37,10 +37,19 @@ static struct {
     jmethodID location_stop;
     jmethodID camera_capture_photo;
     jmethodID camera_capture_video;
+    jmethodID camera_start_preview;
+    jmethodID camera_stop_preview;
+    jmethodID webview_eval_js;
+    jmethodID webview_post_message;
+    jmethodID webview_can_go_back;
+    jmethodID webview_go_back;
     jmethodID photos_pick;
     jmethodID files_pick;
     jmethodID audio_start_recording;
     jmethodID audio_stop_recording;
+    jmethodID audio_play;
+    jmethodID audio_stop_playback;
+    jmethodID audio_set_volume;
     jmethodID motion_start;
     jmethodID motion_stop;
     jmethodID scanner_scan;
@@ -48,6 +57,9 @@ static struct {
     jmethodID notify_cancel;
     jmethodID notify_register_push;
     jmethodID take_launch_notification;
+    jmethodID storage_dir;
+    jmethodID storage_save_to_media_store;
+    jmethodID storage_external_files_dir;
     // Cached before nif_load (used during BEAM startup before NIFs are loaded)
     jmethodID set_startup_phase;
     jmethodID set_startup_error;
@@ -651,6 +663,35 @@ void mob_deliver_motion(jlong jpid, double ax, double ay, double az,
     enif_free_env(e);
 }
 
+// Deliver a {:webview, tag, binary} message. When jpid==0, looks up :mob_screen.
+static void deliver_webview_binary(jlong jpid, const char* tag, const char* utf8) {
+    ErlNifEnv* e = enif_alloc_env();
+    ErlNifPid pid;
+    if (jpid != 0) {
+        pid = pid_from_long(jpid);
+    } else if (!enif_whereis_pid(e, enif_make_atom(e, "mob_screen"), &pid)) {
+        enif_free_env(e); return;
+    }
+    size_t len = strlen(utf8);
+    ErlNifBinary bin;
+    enif_alloc_binary(len, &bin);
+    memcpy(bin.data, utf8, len);
+    ERL_NIF_TERM msg = enif_make_tuple3(e,
+        enif_make_atom(e, "webview"),
+        enif_make_atom(e, tag),
+        enif_make_binary(e, &bin));
+    enif_send(NULL, &pid, e, msg);
+    enif_free_env(e);
+}
+
+void mob_deliver_webview_message(jlong jpid, const char* json) {
+    deliver_webview_binary(jpid, "message", json);
+}
+
+void mob_deliver_webview_blocked(jlong jpid, const char* url) {
+    deliver_webview_binary(jpid, "blocked", url);
+}
+
 void mob_deliver_file_result(jlong jpid, const char* event, // "camera","photos","files","audio","scan"
                               const char* sub,               // "photo","video","picked","recorded","result","cancelled"
                               const char* json_items) {       // JSON array of item maps, or NULL for cancelled
@@ -757,6 +798,26 @@ static ERL_NIF_TERM nif_camera_capture_video(ErlNifEnv* env, int argc, const ERL
     return call_bridge_pid_str(env, Bridge.camera_capture_video, pid, dur_str);
 }
 
+static ERL_NIF_TERM nif_camera_start_preview(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    char* json = malloc(bin.size + 1);
+    memcpy(json, bin.data, bin.size); json[bin.size] = 0;
+    ErlNifPid pid; enif_self(env, &pid);
+    ERL_NIF_TERM result = call_bridge_pid_str(env, Bridge.camera_start_preview, pid, json);
+    free(json);
+    return result;
+}
+
+static ERL_NIF_TERM nif_camera_stop_preview(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.camera_stop_preview);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
 static ERL_NIF_TERM nif_photos_pick(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     int max = 1; enif_get_int(env, argv[0], &max);
     ErlNifPid pid; enif_self(env, &pid);
@@ -793,6 +854,41 @@ static ERL_NIF_TERM nif_audio_start_recording(ErlNifEnv* env, int argc, const ER
 static ERL_NIF_TERM nif_audio_stop_recording(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     int att; JNIEnv* jenv = get_jenv(&att);
     (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.audio_stop_recording);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_audio_play(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary path_bin, opts_bin;
+    if (!enif_inspect_binary(env, argv[0], &path_bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &path_bin)) return enif_make_badarg(env);
+    if (!enif_inspect_binary(env, argv[1], &opts_bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[1], &opts_bin)) return enif_make_badarg(env);
+    char* path = malloc(path_bin.size + 1);
+    memcpy(path, path_bin.data, path_bin.size); path[path_bin.size] = 0;
+    char* opts = malloc(opts_bin.size + 1);
+    memcpy(opts, opts_bin.data, opts_bin.size); opts[opts_bin.size] = 0;
+    ErlNifPid pid; enif_self(env, &pid);
+    ERL_NIF_TERM result = call_bridge_pid_str2(env, Bridge.audio_play, pid, path, opts);
+    free(path); free(opts);
+    return result;
+}
+
+static ERL_NIF_TERM nif_audio_stop_playback(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.audio_stop_playback);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_audio_set_volume(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    double vol = 1.0;
+    enif_get_double(env, argv[0], &vol);
+    char vol_str[32]; snprintf(vol_str, sizeof(vol_str), "%.6f", vol);
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jvol = (*jenv)->NewStringUTF(jenv, vol_str);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.audio_set_volume, jvol);
+    (*jenv)->DeleteLocalRef(jenv, jvol);
     if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
     return enif_make_atom(env, "ok");
 }
@@ -1112,6 +1208,118 @@ static ERL_NIF_TERM nif_swipe_xy(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
                                       enif_make_atom(env, "dispatch_failed"));
 }
 
+// ── Storage ───────────────────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_storage_dir(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char loc[32]; enif_get_atom(env, argv[0], loc, sizeof(loc), ERL_NIF_LATIN1);
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jloc = (*jenv)->NewStringUTF(jenv, loc);
+    jstring result = (jstring)(*jenv)->CallStaticObjectMethod(jenv, Bridge.cls, Bridge.storage_dir, jloc);
+    (*jenv)->DeleteLocalRef(jenv, jloc);
+    ERL_NIF_TERM ret;
+    if (result) {
+        const char* utf8 = (*jenv)->GetStringUTFChars(jenv, result, NULL);
+        ErlNifBinary bin; size_t len = strlen(utf8);
+        enif_alloc_binary(len, &bin); memcpy(bin.data, utf8, len);
+        (*jenv)->ReleaseStringUTFChars(jenv, result, utf8);
+        (*jenv)->DeleteLocalRef(jenv, result);
+        ret = enif_make_binary(env, &bin);
+    } else {
+        ret = enif_make_atom(env, "nil");
+    }
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return ret;
+}
+
+static ERL_NIF_TERM nif_storage_save_to_media_store(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin)) return enif_make_badarg(env);
+    char* path = malloc(bin.size + 1);
+    memcpy(path, bin.data, bin.size); path[bin.size] = 0;
+    char type[16] = "auto"; enif_get_atom(env, argv[1], type, sizeof(type), ERL_NIF_LATIN1);
+    ErlNifPid pid; enif_self(env, &pid);
+    ERL_NIF_TERM result = call_bridge_pid_str2(env, Bridge.storage_save_to_media_store, pid, path, type);
+    free(path);
+    return result;
+}
+
+static ERL_NIF_TERM nif_storage_external_files_dir(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char type[32]; enif_get_atom(env, argv[0], type, sizeof(type), ERL_NIF_LATIN1);
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jtype = (*jenv)->NewStringUTF(jenv, type);
+    jstring result = (jstring)(*jenv)->CallStaticObjectMethod(jenv, Bridge.cls,
+                                                              Bridge.storage_external_files_dir, jtype);
+    (*jenv)->DeleteLocalRef(jenv, jtype);
+    ERL_NIF_TERM ret;
+    if (result) {
+        const char* utf8 = (*jenv)->GetStringUTFChars(jenv, result, NULL);
+        ErlNifBinary bin; size_t len = strlen(utf8);
+        enif_alloc_binary(len, &bin); memcpy(bin.data, utf8, len);
+        (*jenv)->ReleaseStringUTFChars(jenv, result, utf8);
+        (*jenv)->DeleteLocalRef(jenv, result);
+        ret = enif_make_binary(env, &bin);
+    } else {
+        ret = enif_make_atom(env, "nil");
+    }
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return ret;
+}
+
+static ERL_NIF_TERM nif_storage_save_to_photo_library(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    return enif_make_tuple2(env, enif_make_atom(env, "error"), enif_make_atom(env, "not_supported"));
+}
+
+// ── WebView ────────────────────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_webview_eval_js(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    char* code = malloc(bin.size + 1);
+    memcpy(code, bin.data, bin.size);
+    code[bin.size] = '\0';
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jcode = (*jenv)->NewStringUTF(jenv, code);
+    free(code);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.webview_eval_js, jcode);
+    (*jenv)->DeleteLocalRef(jenv, jcode);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_webview_post_message(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    char* json = malloc(bin.size + 1);
+    memcpy(json, bin.data, bin.size);
+    json[bin.size] = '\0';
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jstring jjson = (*jenv)->NewStringUTF(jenv, json);
+    free(json);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.webview_post_message, jjson);
+    (*jenv)->DeleteLocalRef(jenv, jjson);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_webview_can_go_back(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    jboolean result = (*jenv)->CallStaticBooleanMethod(jenv, Bridge.cls, Bridge.webview_can_go_back);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, result ? "true" : "false");
+}
+
+static ERL_NIF_TERM nif_webview_go_back(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.webview_go_back);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
 // ── NIF table & load ──────────────────────────────────────────────────────────
 
 static ErlNifFunc nif_funcs[] = {
@@ -1147,17 +1355,30 @@ static ErlNifFunc nif_funcs[] = {
     {"location_stop",             0, nif_location_stop,             0},
     {"camera_capture_photo",      1, nif_camera_capture_photo,      0},
     {"camera_capture_video",      1, nif_camera_capture_video,      0},
+    {"camera_start_preview",      1, nif_camera_start_preview,      0},
+    {"camera_stop_preview",       0, nif_camera_stop_preview,       0},
     {"photos_pick",               2, nif_photos_pick,               0},
     {"files_pick",                1, nif_files_pick,                0},
     {"audio_start_recording",     1, nif_audio_start_recording,     0},
     {"audio_stop_recording",      0, nif_audio_stop_recording,      0},
+    {"audio_play",                2, nif_audio_play,                0},
+    {"audio_stop_playback",       0, nif_audio_stop_playback,       0},
+    {"audio_set_volume",          1, nif_audio_set_volume,          0},
     {"motion_start",              2, nif_motion_start,              0},
     {"motion_stop",               0, nif_motion_stop,               0},
     {"scanner_scan",              1, nif_scanner_scan,              0},
     {"notify_schedule",           1, nif_notify_schedule,           0},
     {"notify_cancel",             1, nif_notify_cancel,             0},
     {"notify_register_push",      0, nif_notify_register_push,      0},
-    {"take_launch_notification",  0, nif_take_launch_notification,  0},
+    {"take_launch_notification",       0, nif_take_launch_notification,       0},
+    {"storage_dir",                    1, nif_storage_dir,                    0},
+    {"storage_save_to_media_store",    2, nif_storage_save_to_media_store,    0},
+    {"storage_external_files_dir",     1, nif_storage_external_files_dir,     0},
+    {"storage_save_to_photo_library",  1, nif_storage_save_to_photo_library,  0},
+    {"webview_eval_js",     1, nif_webview_eval_js,     0},
+    {"webview_post_message",1, nif_webview_post_message,0},
+    {"webview_can_go_back", 0, nif_webview_can_go_back, 0},
+    {"webview_go_back",     0, nif_webview_go_back,     0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
@@ -1201,11 +1422,23 @@ static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     CACHE(location_stop,          "()V")
     CACHE(camera_capture_photo,   "(JLjava/lang/String;)V")
     CACHE(camera_capture_video,   "(JLjava/lang/String;)V")
+    CACHE(camera_start_preview,   "(JLjava/lang/String;)V")
+    CACHE(camera_stop_preview,    "()V")
     CACHE(photos_pick,            "(JLjava/lang/String;)V")
     CACHE(files_pick,             "(JLjava/lang/String;)V")
     CACHE(audio_start_recording,  "(JLjava/lang/String;)V")
     CACHE(audio_stop_recording,   "()V")
-    CACHE(motion_start,           "(JLjava/lang/String;)V")
+    CACHE(audio_play,             "(JLjava/lang/String;Ljava/lang/String;)V")
+    CACHE(audio_stop_playback,    "()V")
+    CACHE(audio_set_volume,             "(Ljava/lang/String;)V")
+    CACHE(storage_dir,                  "(Ljava/lang/String;)Ljava/lang/String;")
+    CACHE(storage_save_to_media_store,  "(JLjava/lang/String;Ljava/lang/String;)V")
+    CACHE(storage_external_files_dir,   "(Ljava/lang/String;)Ljava/lang/String;")
+    CACHE(webview_eval_js,              "(Ljava/lang/String;)V")
+    CACHE(webview_post_message,         "(Ljava/lang/String;)V")
+    CACHE(webview_can_go_back,          "()Z")
+    CACHE(webview_go_back,              "()V")
+    CACHE(motion_start,                 "(JLjava/lang/String;)V")
     CACHE(motion_stop,            "()V")
     CACHE(scanner_scan,           "(JLjava/lang/String;)V")
     CACHE(notify_schedule,        "(JLjava/lang/String;)V")

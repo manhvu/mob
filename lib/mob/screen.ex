@@ -278,7 +278,10 @@ defmodule Mob.Screen do
       {:camera, :cancelled} -> {:camera, :cancelled}
       {:photos, :picked}  -> {:photos, :picked,  items}
       {:files,  :picked}  -> {:files,  :picked,  items}
-      {:audio,  :recorded}-> {:audio,  :recorded, List.first(items) || %{}}
+      {:audio,   :recorded}       -> {:audio,  :recorded, List.first(items) || %{}}
+      {:storage, :saved_to_library} ->
+        item = List.first(items) || %{}
+        {:storage, :saved_to_library, item[:path]}
       {:scan,   :result}  ->
         item = List.first(items) || %{}
         {:scan, :result, %{type: item[:type] |> to_atom_safe(), value: item[:value]}}
@@ -290,23 +293,30 @@ defmodule Mob.Screen do
   # System back gesture (Android hardware/swipe, iOS edge-pan).
   # Handled here — before the user's handle_info — so every screen gets back
   # navigation for free without implementing anything.
+  # If a WebView is present and has internal history, navigate within it first
+  # before popping the Mob nav stack.
   def handle_info({:mob, :back}, {module, socket, nav_history, render_mode}) do
-    {module, new_socket, new_history, transition} =
-      if nav_history == [] do
-        if render_mode == :render, do: :mob_nif.exit_app()
-        {module, socket, [], :none}
-      else
-        apply_nav_action(module, Mob.Socket.put_mob(socket, :nav_action, {:pop}), nav_history)
-      end
+    if render_mode == :render && :mob_nif.webview_can_go_back() do
+      :mob_nif.webview_go_back()
+      {:noreply, {module, socket, nav_history, render_mode}}
+    else
+      {module, new_socket, new_history, transition} =
+        if nav_history == [] do
+          if render_mode == :render, do: :mob_nif.exit_app()
+          {module, socket, [], :none}
+        else
+          apply_nav_action(module, Mob.Socket.put_mob(socket, :nav_action, {:pop}), nav_history)
+        end
 
-    new_socket =
-      if render_mode == :render do
-        do_render(module, new_socket, transition)
-      else
-        new_socket
-      end
+      new_socket =
+        if render_mode == :render do
+          do_render(module, new_socket, transition)
+        else
+          new_socket
+        end
 
-    {:noreply, {module, new_socket, new_history, render_mode}}
+      {:noreply, {module, new_socket, new_history, render_mode}}
+    end
   end
 
   # List row selected — intercept before the user's handle_info and convert to

@@ -6,6 +6,14 @@
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
+#import <AVFoundation/AVFoundation.h>
+#import <WebKit/WebKit.h>
+
+// Shared camera preview session — set by nif_camera_start/stop_preview, read by MobRootView.
+extern AVCaptureSession* _Nullable g_preview_session;
+
+// Shared WebView — set by MobWebView when created, read by webview NIFs.
+extern WKWebView* _Nullable g_webview;
 
 typedef NS_ENUM(NSInteger, MobNodeType) {
     MobNodeTypeColumn,
@@ -24,6 +32,8 @@ typedef NS_ENUM(NSInteger, MobNodeType) {
     MobNodeTypeLazyList,
     MobNodeTypeTabBar,
     MobNodeTypeVideo,
+    MobNodeTypeCameraPreview,
+    MobNodeTypeWebView,
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -107,6 +117,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL videoAutoplay;
 @property (nonatomic) BOOL videoLoop;
 @property (nonatomic) BOOL videoControls;
+
+// Camera preview
+@property (nonatomic, copy, nonnull) NSString* cameraFacing;  // "back" | "front"
+
+// WebView
+@property (nonatomic, copy, nullable) NSString* webViewUrl;    // URL to load
+@property (nonatomic, copy, nullable) NSString* webViewAllow;  // comma-separated allowed URL prefixes
+@property (nonatomic)                 BOOL       webViewShowUrl;
+@property (nonatomic, copy, nullable) NSString*  webViewTitle; // static title label; overrides show_url
 
 // Accessibility — set from the tap tag atom name; read by XCTest / ui_describe_all
 @property (nonatomic, copy, nullable) NSString* accessibilityId;

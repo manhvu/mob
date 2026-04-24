@@ -40,4 +40,25 @@ defmodule Mob.Camera do
     :mob_nif.camera_capture_video(max_duration)
     socket
   end
+
+  @doc """
+  Start a live camera preview session. Pair with a `:camera_preview` component
+  in your render tree to display the feed.
+
+  Options:
+    - `facing: :back | :front` (default `:back`)
+  """
+  @spec start_preview(Mob.Socket.t(), keyword()) :: Mob.Socket.t()
+  def start_preview(socket, opts \\ []) do
+    facing = Keyword.get(opts, :facing, :back) |> Atom.to_string()
+    :mob_nif.camera_start_preview(:json.encode(%{"facing" => facing}))
+    socket
+  end
+
+  @doc "Stop the active camera preview session."
+  @spec stop_preview(Mob.Socket.t()) :: Mob.Socket.t()
+  def stop_preview(socket) do
+    :mob_nif.camera_stop_preview()
+    socket
+  end
 end

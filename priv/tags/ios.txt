@@ -20,3 +20,5 @@ Text
 TextField
 Toggle
 Video
+CameraPreview
+WebView

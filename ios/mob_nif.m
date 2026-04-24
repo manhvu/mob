@@ -210,7 +210,9 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
     else if ([type isEqualToString:@"image"])      node.nodeType = MobNodeTypeImage;
     else if ([type isEqualToString:@"lazy_list"])  node.nodeType = MobNodeTypeLazyList;
     else if ([type isEqualToString:@"tab_bar"])    node.nodeType = MobNodeTypeTabBar;
-    else if ([type isEqualToString:@"video"])      node.nodeType = MobNodeTypeVideo;
+    else if ([type isEqualToString:@"video"])          node.nodeType = MobNodeTypeVideo;
+    else if ([type isEqualToString:@"camera_preview"]) node.nodeType = MobNodeTypeCameraPreview;
+    else if ([type isEqualToString:@"webview"])        node.nodeType = MobNodeTypeWebView;
 
     NSDictionary* props = dict[@"props"];
     if ([props isKindOfClass:[NSDictionary class]]) {
@@ -354,6 +356,19 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
         if (videoLoop) node.videoLoop = [videoLoop boolValue];
         id videoControls = props[@"controls"];
         if (videoControls) node.videoControls = [videoControls boolValue];
+
+        id cameraFacing = props[@"facing"];
+        if ([cameraFacing isKindOfClass:[NSString class]]) node.cameraFacing = cameraFacing;
+
+        // webview props
+        id webViewUrl = props[@"url"];
+        if ([webViewUrl isKindOfClass:[NSString class]]) node.webViewUrl = webViewUrl;
+        id webViewAllow = props[@"allow"];
+        if ([webViewAllow isKindOfClass:[NSString class]]) node.webViewAllow = webViewAllow;
+        id webViewShowUrl = props[@"show_url"];
+        if (webViewShowUrl) node.webViewShowUrl = [webViewShowUrl boolValue];
+        id webViewTitle = props[@"title"];
+        if ([webViewTitle isKindOfClass:[NSString class]]) node.webViewTitle = webViewTitle;
 
         id onEndReached = props[@"on_end_reached"];
         if (onEndReached && [onEndReached isKindOfClass:[NSNumber class]]) {
@@ -1000,6 +1015,51 @@ static ERL_NIF_TERM nif_camera_capture_video(ErlNifEnv* env, int argc, const ERL
     return enif_make_atom(env, "ok");
 }
 
+// ── Camera preview ────────────────────────────────────────────────────────
+
+AVCaptureSession* g_preview_session = nil;
+
+static ERL_NIF_TERM nif_camera_start_preview(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    NSString* facing = @"back";
+    if (enif_inspect_binary(env, argv[0], &bin) || enif_inspect_iolist_as_binary(env, argv[0], &bin)) {
+        NSString* json = [[NSString alloc] initWithBytes:bin.data length:bin.size encoding:NSUTF8StringEncoding];
+        NSDictionary* opts = [NSJSONSerialization JSONObjectWithData:[json dataUsingEncoding:NSUTF8StringEncoding]
+                                                             options:0 error:nil];
+        if ([opts[@"facing"] isEqualToString:@"front"]) facing = @"front";
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_preview_session) {
+            [g_preview_session stopRunning];
+            g_preview_session = nil;
+        }
+        AVCaptureDevicePosition position = [facing isEqualToString:@"front"]
+            ? AVCaptureDevicePositionFront
+            : AVCaptureDevicePositionBack;
+        AVCaptureDevice* device = [AVCaptureDevice defaultDeviceWithDeviceType:AVCaptureDeviceTypeBuiltInWideAngleCamera
+                                                                     mediaType:AVMediaTypeVideo
+                                                                      position:position];
+        if (!device) return;
+        AVCaptureDeviceInput* input = [AVCaptureDeviceInput deviceInputWithDevice:device error:nil];
+        if (!input) return;
+        AVCaptureSession* session = [[AVCaptureSession alloc] init];
+        session.sessionPreset = AVCaptureSessionPresetHigh;
+        if ([session canAddInput:input]) [session addInput:input];
+        [session startRunning];
+        g_preview_session = session;
+    });
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_camera_stop_preview(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [g_preview_session stopRunning];
+        g_preview_session = nil;
+    });
+    return enif_make_atom(env, "ok");
+}
+
 // ── Photo library picker ──────────────────────────────────────────────────
 
 @interface MobPhotosDelegate : NSObject <PHPickerViewControllerDelegate>
@@ -1189,6 +1249,133 @@ static ERL_NIF_TERM nif_audio_stop_recording(ErlNifEnv* env, int argc, const ERL
             enif_send(NULL, &p, e, msg);
             enif_free_env(e);
         });
+    });
+    return enif_make_atom(env, "ok");
+}
+
+// ── Audio playback ────────────────────────────────────────────────────────
+
+@interface MobAudioPlayerDelegate : NSObject <AVAudioPlayerDelegate>
+@end
+
+static AVAudioPlayer* g_audio_player = nil;
+static ErlNifPid      g_playback_pid;
+static NSString*      g_playback_path = nil;
+static MobAudioPlayerDelegate* g_player_delegate = nil;
+
+@implementation MobAudioPlayerDelegate
+- (void)audioPlayerDidFinishPlaying:(AVAudioPlayer*)player successfully:(BOOL)flag {
+    NSString* path = g_playback_path;
+    ErlNifPid p = g_playback_pid;
+    g_audio_player = nil;
+    g_playback_path = nil;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        ErlNifEnv* e = enif_alloc_env();
+        const char* cpath = path.UTF8String;
+        ErlNifBinary pb; enif_alloc_binary(strlen(cpath), &pb); memcpy(pb.data, cpath, strlen(cpath));
+        ERL_NIF_TERM keys[1] = {enif_make_atom(e, "path")};
+        ERL_NIF_TERM vals[1] = {enif_make_binary(e, &pb)};
+        ERL_NIF_TERM map; enif_make_map_from_arrays(e, keys, vals, 1, &map);
+        ERL_NIF_TERM msg = enif_make_tuple3(e, enif_make_atom(e, "audio"),
+                                               enif_make_atom(e, "playback_finished"), map);
+        enif_send(NULL, &p, e, msg);
+        enif_free_env(e);
+    });
+}
+- (void)audioPlayerDecodeErrorDidOccur:(AVAudioPlayer*)player error:(NSError*)error {
+    ErlNifPid p = g_playback_pid;
+    NSString* reason = error ? error.localizedDescription : @"decode_error";
+    g_audio_player = nil;
+    g_playback_path = nil;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        ErlNifEnv* e = enif_alloc_env();
+        const char* cr = reason.UTF8String;
+        ErlNifBinary rb; enif_alloc_binary(strlen(cr), &rb); memcpy(rb.data, cr, strlen(cr));
+        ERL_NIF_TERM keys[1] = {enif_make_atom(e, "reason")};
+        ERL_NIF_TERM vals[1] = {enif_make_binary(e, &rb)};
+        ERL_NIF_TERM map; enif_make_map_from_arrays(e, keys, vals, 1, &map);
+        ERL_NIF_TERM msg = enif_make_tuple3(e, enif_make_atom(e, "audio"),
+                                               enif_make_atom(e, "playback_error"), map);
+        enif_send(NULL, &p, e, msg);
+        enif_free_env(e);
+    });
+}
+@end
+
+static ERL_NIF_TERM nif_audio_play(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary path_bin, opts_bin;
+    if (!enif_inspect_binary(env, argv[0], &path_bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &path_bin)) return enif_make_badarg(env);
+    if (!enif_inspect_binary(env, argv[1], &opts_bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[1], &opts_bin)) return enif_make_badarg(env);
+
+    NSString* path = [[NSString alloc] initWithBytes:path_bin.data length:path_bin.size encoding:NSUTF8StringEncoding];
+    NSString* opts = [[NSString alloc] initWithBytes:opts_bin.data length:opts_bin.size encoding:NSUTF8StringEncoding];
+
+    ErlNifPid pid; enif_self(env, &pid);
+    g_playback_pid  = pid;
+    g_playback_path = path;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSDictionary* o = [NSJSONSerialization
+            JSONObjectWithData:[opts dataUsingEncoding:NSUTF8StringEncoding]
+            options:0 error:nil];
+        BOOL loop      = [o[@"loop"]   boolValue];
+        double volume  = o[@"volume"] ? [o[@"volume"] doubleValue] : 1.0;
+
+        [g_audio_player stop];
+        g_audio_player = nil;
+
+        NSURL* url = [NSURL fileURLWithPath:path];
+        NSError* err = nil;
+        AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&err];
+        if (!player || err) {
+            NSString* reason = err ? err.localizedDescription : @"open_failed";
+            ErlNifPid p = g_playback_pid;
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                ErlNifEnv* e = enif_alloc_env();
+                const char* cr = reason.UTF8String;
+                ErlNifBinary rb; enif_alloc_binary(strlen(cr), &rb); memcpy(rb.data, cr, strlen(cr));
+                ERL_NIF_TERM keys[1] = {enif_make_atom(e, "reason")};
+                ERL_NIF_TERM vals[1] = {enif_make_binary(e, &rb)};
+                ERL_NIF_TERM map; enif_make_map_from_arrays(e, keys, vals, 1, &map);
+                ERL_NIF_TERM msg = enif_make_tuple3(e, enif_make_atom(e, "audio"),
+                                                       enif_make_atom(e, "playback_error"), map);
+                enif_send(NULL, &p, e, msg);
+                enif_free_env(e);
+            });
+            return;
+        }
+
+        if (!g_player_delegate) g_player_delegate = [[MobAudioPlayerDelegate alloc] init];
+        player.delegate      = g_player_delegate;
+        player.volume        = (float)volume;
+        player.numberOfLoops = loop ? -1 : 0;
+
+        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
+        [[AVAudioSession sharedInstance] setActive:YES error:nil];
+
+        g_audio_player = player;
+        [player play];
+    });
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_audio_stop_playback(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [g_audio_player stop];
+        g_audio_player  = nil;
+        g_playback_path = nil;
+        [[AVAudioSession sharedInstance] setActive:NO error:nil];
+    });
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_audio_set_volume(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    double vol = 1.0;
+    enif_get_double(env, argv[0], &vol);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        g_audio_player.volume = (float)vol;
     });
     return enif_make_atom(env, "ok");
 }
@@ -2863,6 +3050,174 @@ static ERL_NIF_TERM nif_swipe_xy(ErlNifEnv *env, int argc, const ERL_NIF_TERM ar
 }
 
 
+// ── Storage ───────────────────────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_storage_dir(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char loc[32];
+    enif_get_atom(env, argv[0], loc, sizeof(loc), ERL_NIF_LATIN1);
+
+    NSString* path = nil;
+    NSFileManager* fm = [NSFileManager defaultManager];
+    if (strcmp(loc, "temp") == 0) {
+        path = NSTemporaryDirectory();
+    } else if (strcmp(loc, "documents") == 0) {
+        path = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    } else if (strcmp(loc, "cache") == 0) {
+        path = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject];
+    } else if (strcmp(loc, "app_support") == 0) {
+        path = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES) firstObject];
+        [fm createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:nil];
+    } else if (strcmp(loc, "icloud") == 0) {
+        NSURL* url = [fm URLForUbiquityContainerIdentifier:nil];
+        if (url) {
+            path = [url URLByAppendingPathComponent:@"Documents"].path;
+            [fm createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+    }
+
+    if (!path) return enif_make_atom(env, "nil");
+    const char* cpath = path.UTF8String;
+    ErlNifBinary bin; enif_alloc_binary(strlen(cpath), &bin);
+    memcpy(bin.data, cpath, strlen(cpath));
+    return enif_make_binary(env, &bin);
+}
+
+static ERL_NIF_TERM nif_storage_save_to_photo_library(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    NSString* path = [[NSString alloc] initWithBytes:bin.data length:bin.size encoding:NSUTF8StringEncoding];
+    ErlNifPid pid; enif_self(env, &pid);
+
+    [PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelAddOnly
+                                               handler:^(PHAuthorizationStatus status) {
+        if (status != PHAuthorizationStatusAuthorized && status != PHAuthorizationStatusLimited) {
+            ErlNifEnv* e = enif_alloc_env();
+            ERL_NIF_TERM msg = enif_make_tuple4(e,
+                enif_make_atom(e, "storage"), enif_make_atom(e, "error"),
+                enif_make_atom(e, "save_to_library"), enif_make_atom(e, "permission_denied"));
+            enif_send(NULL, &pid, e, msg);
+            enif_free_env(e);
+            return;
+        }
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            NSURL* url = [NSURL fileURLWithPath:path];
+            NSString* ext = path.pathExtension.lowercaseString;
+            BOOL isVideo = [@[@"mp4", @"mov", @"m4v"] containsObject:ext];
+            if (isVideo) [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
+            else         [PHAssetChangeRequest creationRequestForAssetFromImageAtFileURL:url];
+        } completionHandler:^(BOOL success, NSError* err) {
+            ErlNifEnv* e = enif_alloc_env();
+            ERL_NIF_TERM msg;
+            if (success) {
+                const char* cpath = path.UTF8String;
+                ErlNifBinary pb; enif_alloc_binary(strlen(cpath), &pb);
+                memcpy(pb.data, cpath, strlen(cpath));
+                msg = enif_make_tuple3(e,
+                    enif_make_atom(e, "storage"),
+                    enif_make_atom(e, "saved_to_library"),
+                    enif_make_binary(e, &pb));
+            } else {
+                msg = enif_make_tuple4(e,
+                    enif_make_atom(e, "storage"), enif_make_atom(e, "error"),
+                    enif_make_atom(e, "save_to_library"), enif_make_atom(e, "save_failed"));
+            }
+            enif_send(NULL, &pid, e, msg);
+            enif_free_env(e);
+        }];
+    }];
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_storage_save_to_media_store(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    return enif_make_tuple2(env, enif_make_atom(env, "error"), enif_make_atom(env, "not_supported"));
+}
+
+static ERL_NIF_TERM nif_storage_external_files_dir(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    return enif_make_atom(env, "nil");
+}
+
+// ── WebView ───────────────────────────────────────────────────────────────────
+// g_webview is set by MobWebView (MobRootView.swift) when the component is created.
+// mob_deliver_webview_message / _blocked are called from Swift (via bridging header).
+
+static void deliver_webview_binary(const char* tag, const char* utf8) {
+    ErlNifEnv* env = enif_alloc_env();
+    ErlNifPid pid;
+    if (!enif_whereis_pid(env, enif_make_atom(env, "mob_screen"), &pid)) {
+        enif_free_env(env); return;
+    }
+    size_t len = strlen(utf8);
+    ErlNifBinary bin;
+    enif_alloc_binary(len, &bin);
+    memcpy(bin.data, utf8, len);
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "webview"),
+        enif_make_atom(env, tag),
+        enif_make_binary(env, &bin));
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
+void mob_deliver_webview_message(const char* json_utf8) {
+    deliver_webview_binary("message", json_utf8);
+}
+
+void mob_deliver_webview_blocked(const char* url_utf8) {
+    deliver_webview_binary("blocked", url_utf8);
+}
+
+WKWebView* g_webview = nil;
+
+
+static ERL_NIF_TERM nif_webview_eval_js(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    NSString* code = [[NSString alloc] initWithBytes:bin.data length:bin.size encoding:NSUTF8StringEncoding];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [g_webview evaluateJavaScript:code completionHandler:nil];
+    });
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_webview_post_message(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin) &&
+        !enif_inspect_iolist_as_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+    NSString* json = [[NSString alloc] initWithBytes:bin.data length:bin.size encoding:NSUTF8StringEncoding];
+    // Escape for single-quoted JS string: backslash then apostrophe
+    NSString* escaped = [json stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"];
+    escaped = [escaped stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+    NSString* js = [NSString stringWithFormat:@"window.mob&&window.mob._dispatch('%@')", escaped];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [g_webview evaluateJavaScript:js completionHandler:nil];
+    });
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_webview_can_go_back(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // dispatch_sync blocks this BEAM scheduler thread until the main queue drains.
+    // Intentional — the caller (Mob.Screen back handler) needs the boolean before deciding
+    // whether to pop the nav stack. Same pattern as clipboard_get and safe_area.
+    // The main thread is expected to be idle during a back gesture.
+    __block BOOL result = NO;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        result = g_webview ? [g_webview canGoBack] : NO;
+    });
+    return enif_make_atom(env, result ? "true" : "false");
+}
+
+static ERL_NIF_TERM nif_webview_go_back(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [g_webview goBack];
+    });
+    return enif_make_atom(env, "ok");
+}
+
 // ── NIF table & load ──────────────────────────────────────────────────────────
 
 static ErlNifFunc nif_funcs[] = {
@@ -2898,10 +3253,15 @@ static ErlNifFunc nif_funcs[] = {
     {"location_stop",             0, nif_location_stop,             0},
     {"camera_capture_photo",      1, nif_camera_capture_photo,      0},
     {"camera_capture_video",      1, nif_camera_capture_video,      0},
+    {"camera_start_preview",      1, nif_camera_start_preview,      0},
+    {"camera_stop_preview",       0, nif_camera_stop_preview,       0},
     {"photos_pick",               2, nif_photos_pick,               0},
     {"files_pick",                1, nif_files_pick,                0},
     {"audio_start_recording",     1, nif_audio_start_recording,     0},
     {"audio_stop_recording",      0, nif_audio_stop_recording,      0},
+    {"audio_play",                2, nif_audio_play,                0},
+    {"audio_stop_playback",       0, nif_audio_stop_playback,       0},
+    {"audio_set_volume",          1, nif_audio_set_volume,          0},
     {"motion_start",              2, nif_motion_start,              0},
     {"motion_stop",               0, nif_motion_stop,               0},
     {"scanner_scan",              1, nif_scanner_scan,              0},
@@ -2909,6 +3269,14 @@ static ErlNifFunc nif_funcs[] = {
     {"notify_cancel",             1, nif_notify_cancel,             0},
     {"notify_register_push",      0, nif_notify_register_push,      0},
     {"take_launch_notification",  0, nif_take_launch_notification,  0},
+    {"storage_dir",                    1, nif_storage_dir,                    0},
+    {"storage_save_to_photo_library",  1, nif_storage_save_to_photo_library,  0},
+    {"storage_save_to_media_store",    2, nif_storage_save_to_media_store,    0},
+    {"storage_external_files_dir",     1, nif_storage_external_files_dir,     0},
+    {"webview_eval_js",     1, nif_webview_eval_js,     0},
+    {"webview_post_message",1, nif_webview_post_message,0},
+    {"webview_can_go_back", 0, nif_webview_can_go_back, 0},
+    {"webview_go_back",     0, nif_webview_go_back,     0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {

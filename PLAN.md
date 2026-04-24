@@ -1,7 +1,7 @@
 # Mob — Build Plan
 
 > A mobile framework for Elixir that runs the BEAM on-device.
-> Last updated: 2026-04-16
+> Last updated: 2026-04-24
 
 ---
 
@@ -1323,13 +1323,13 @@ Both platforms use the same column/row layout model (Compose `Column`/`Row`, Swi
 Three features requested by users: WebView, Camera preview, Audio playback. Camera recording and audio recording NIFs already exist — gaps are the camera preview component and audio playback.
 
 ### Suggested order
-1. **Audio playback** — smallest scope, self-contained, no new UI component needed
-2. **Camera preview** — builds on existing capture NIFs, adds one new UI component
+1. **Audio playback** ✅ Done (2026-04-24)
+2. **Camera preview** ✅ Done (2026-04-24)
 3. **WebView** — largest (new component + bidirectional JS bridge), do last
 
 ---
 
-### Audio playback ⬜ Planned
+### Audio playback ✅ Done (2026-04-24)
 
 Recording already exists (`Mob.Audio.start_recording/2`, `stop_recording/1`, result `{:audio, :recorded, %{path, duration}}`). Need playback.
 
@@ -1359,7 +1359,7 @@ Mob.Audio.set_volume(socket, 0.0..1.0)     # live volume control
 
 ---
 
-### Camera preview ⬜ Planned
+### Camera preview ✅ Done (2026-04-24)
 
 Capture already exists (`Mob.Camera.capture_photo/2`, `capture_video/2`). Need a live camera feed as a UI component.
 
@@ -1390,47 +1390,502 @@ Mob.UI.camera_preview(facing: :back)
 
 ---
 
-### WebView ⬜ Planned
+### Mob.Storage ✅ Done (2026-04-24)
 
-Fully new: UI component + bidirectional JS bridge.
+Platform-agnostic file management. `dir/1` is the only NIF (path resolution); all other
+operations delegate to `File.*` which works fine on the device's native FS.
 
-**Elixir API (`lib/mob/webview.ex` — new file):**
+**`lib/mob/storage.ex`** — cross-platform:
 ```elixir
-# JS bridge (device capability pattern)
-Mob.WebView.eval_js(socket, "document.title")
-Mob.WebView.post_message(socket, %{event: "data", payload: payload})
-# Results:
-# {:webview, :message, %{"data" => data}}   ← JS called window.MobBridge.postMessage(...)
-# {:webview, :eval_result, result}           ← eval callback
-
-# UI component
-Mob.UI.webview(url: "https://...", js_enabled: true, user_agent: nil)
+Mob.Storage.dir(:temp | :documents | :cache | :app_support)  # → absolute path string
+Mob.Storage.list(path_or_atom)   # → {:ok, [full_paths]} | {:error, :enoent}
+Mob.Storage.stat(path)           # → {:ok, %{name:, path:, size:, modified_at:}} | error
+Mob.Storage.read(path)           # → {:ok, binary} | {:error, reason}
+Mob.Storage.write(path, data)    # → {:ok, path} | {:error, reason}
+Mob.Storage.delete(path)         # → :ok | {:error, reason}
+Mob.Storage.copy(src, dest)      # dest may be atom location or full path → {:ok, dest}
+Mob.Storage.move(src, dest)      # dest may be atom location or full path → {:ok, dest}
+Mob.Storage.extension(path)      # → ".mp4" | "" — explicit, zero I/O cost
 ```
 
-**Component registration:**
-- Add `WebView` to `priv/tags/ios.txt` and `priv/tags/android.txt`
-- Add `MobNodeTypeWebView`, `webViewUrl`, `webViewJsEnabled` to `ios/MobNode.h`
+No `type` field in `stat` — platforms don't record content type as a file attribute for sandbox files. Use `extension/1` explicitly instead.
 
-**NIF stubs:** `webview_eval_js/1`, `webview_post_message/1`
+**`lib/mob/storage/apple.ex`** — iOS/iPadOS-specific:
+```elixir
+Mob.Storage.Apple.dir(:temp | :documents | :cache | :app_support | :icloud)
+# Returns nil for :icloud when iCloud Drive is not configured
 
-**iOS (`ios/mob_nif.m` + `ios/MobRootView.swift`):**
-- `WKWebView` in `UIViewRepresentable`
-- `WKScriptMessageHandler` for JS→Elixir: JS calls `window.webkit.messageHandlers.mob.postMessage(data)` → NIF `enif_send` → `handle_info({:webview, :message, data}, socket)`
-- `evaluateJavaScript:completionHandler:` for `eval_js`
-- Store `WKWebView` ref + PID in globals
+Mob.Storage.Apple.save_to_photo_library(socket, path)
+# Uses PHPhotoLibrary + PHAccessLevelAddOnly (no full library read permission needed)
+# Result via handle_info: {:storage, :saved_to_library, path} | {:storage, :error, :save_to_library, reason}
+```
 
-**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
-- `android.webkit.WebView` + `WebViewClient` via Compose `AndroidView`
-- `@JavascriptInterface` on a bridge object: JS calls `Android.postMessage(data)` → JNI callback → `enif_send`
-- `evaluateJavascript(code, callback)` for `eval_js`
+**`lib/mob/storage/android.ex`** — Android-specific:
+```elixir
+Mob.Storage.Android.external_files_dir(:documents | :pictures | :music | :movies | :downloads | :dcim)
+# Maps to Environment.DIRECTORY_* constants via getExternalFilesDir — no permission needed
 
-**Component vocabulary table addition:**
-| `webview` | `WebView` | `WKWebView` | ⬜ planned |
-| `camera_preview` | `PreviewView` | `AVCapturePreviewLayer` | ⬜ planned |
+Mob.Storage.Android.save_to_media_store(socket, path, :auto | :image | :video | :audio)
+# Uses ContentValues + IS_PENDING pattern (API 29+, no permission needed for own files)
+# Result via handle_info: {:storage, :saved_to_library, path} | {:storage, :error, :save_to_library, reason}
+```
+
+**`mix mob.enable` integration:** `file_sharing` feature adds `UIFileSharingEnabled` (iOS) and `FileProvider` (Android) to manifests. `photo_library` adds `NSPhotoLibraryAddUsageDescription` (iOS) / no permission needed (Android 29+).
+
+**Tests:** `test/mob/storage_test.exs` — 21 tests covering all public functions except `dir/1` (NIF-dependent). Uses real temp directories with `on_exit` cleanup. No mocks.
 
 ---
 
-## Hex packages
+### WebView ✅ Done (2026-04-24)
+
+Fully new: UI component + bidirectional JS bridge. Two distinct use cases:
+1. **Standalone WebView** — point at any external URL (company intranet, third-party service)
+2. **LiveView mode** — point at a local Phoenix endpoint for server-rendered UI with near-zero latency
+
+**Elixir API (`lib/mob/webview.ex` — new file):**
+```elixir
+# UI component
+Mob.UI.webview(
+  url:      "https://...",
+  allow:    ["https://example.com", "https://api.example.com"],  # URL whitelist
+  show_url: false,    # show native URL label above webview (default: false)
+  title:    nil       # static title label above webview (overrides show_url)
+)
+
+# JS bridge — eval and message passing
+Mob.WebView.eval_js(socket, "document.title")
+Mob.WebView.post_message(socket, %{event: "data", payload: payload})
+# Results via handle_info:
+# {:webview, :message, %{"event" => "...", ...}}   ← JS called window.mob.send(data)
+# {:webview, :eval_result, result}                  ← eval callback
+# {:webview, :blocked, url}                         ← blocked URL navigation attempt
+```
+
+**URL whitelist:**
+- `allow:` prop encodes permitted origins in node props
+- Enforced natively in `WKNavigationDelegate` (iOS) / `WebViewClient` (Android)
+- Blocked URLs fire `{:webview, :blocked, url}` via `handle_info`; page stays on current URL
+- Empty `allow:` list = allow everything (default)
+
+**History-aware back navigation:**
+- Two new NIFs: `webview_can_go_back/0` → boolean, `webview_go_back/0`
+- `Mob.Screen` default back handler checks `webview_can_go_back()` first; navigates WebView history before popping Mob nav stack
+- Native back gesture (iOS edge swipe, Android back button) respects WebView internal history automatically
+- No special handling needed for dead views — works with normal `Mob.Screen` back behavior
+
+**URL bar visibility:**
+- No native browser chrome by default — URL bar hidden, nav buttons hidden
+- `show_url: true` adds a native label above the WebView showing current URL
+- `title: "My App"` adds a static label (takes precedence over `show_url`)
+- Users cannot accidentally navigate away unless explicitly enabled
+
+**JS bridge — platform-identical via LiveView WebSocket:**
+- Do NOT use `window.webkit.messageHandlers` (iOS-only) or `window.MobBridge` (Android-only)
+- Instead: inject a tiny shim that uses `this.pushEvent` / `this.handleEvent` (LiveView hooks) over the existing WebSocket connection
+- Bridge is 100% platform-identical — no conditional code in user's JS
+- Works for both standalone WebView (shim injected into page) and LiveView mode (hooks native)
+
+```javascript
+// Injected shim (same on both platforms):
+window.mob = {
+  send: (data) => liveViewHook.pushEvent("webview_message", data),
+  onMessage: (handler) => liveViewHook.handleEvent("webview_push", handler)
+};
+```
+
+**NIF stubs:** `webview_eval_js/1`, `webview_post_message/1`, `webview_can_go_back/0`, `webview_go_back/0`
+
+**iOS (`ios/mob_nif.m` + `ios/MobRootView.swift`):**
+- `WKWebView` in `UIViewRepresentable`
+- `WKNavigationDelegate` enforces `allow:` whitelist, fires blocked event
+- `evaluateJavaScript:completionHandler:` for `eval_js`
+- Store `WKWebView` ref + PID in globals; `webViewCanGoBack/webViewGoBack` read from global ref
+
+**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+- `android.webkit.WebView` + `WebViewClient` via Compose `AndroidView`
+- `WebViewClient.shouldOverrideUrlLoading` enforces whitelist, fires blocked event
+- `evaluateJavascript(code, callback)` for `eval_js`
+- `webView.canGoBack()` / `webView.goBack()` for history NIFs
+
+**Component vocabulary table addition:**
+| `webview` | `WebView` | `WKWebView` | ✅ done |
+| `camera_preview` | `PreviewView` | `AVCapturePreviewLayer` | ✅ done |
+
+---
+
+### LiveView mode ✅ Done
+
+**The idea:** BEAM is already on the device → start a local Phoenix endpoint → WebView points
+at `http://localhost:PORT` → full LiveView with near-zero latency (loopback, no network).
+
+Web developers can ship a mobile app by writing zero native UI code. Phoenix generators
+work unchanged. The JS bridge via LiveView WebSocket means the same hooks work on both
+platforms identically.
+
+**Enabling LiveView mode:**
+```bash
+# New project (generates Phoenix project with Mob sidecar)
+mix mob.new myapp --mode liveview
+
+# Add to existing Phoenix project
+mix mob.enable liveview
+```
+
+**What `mix mob.enable liveview` does:**
+- Adds `mob` to `mix.exs` deps
+- Generates `lib/myapp/mob.ex` — `Mob.LiveView` supervision module that starts Phoenix endpoint + Mob runtime
+- Adds `MobScreen` to `application.ex` children
+- Injects JS bridge shim into `assets/js/app.js` (LiveView hook registration)
+- Writes `mob.exs` with `mode: :liveview` and `port: 4001`
+
+**Architecture:**
+```
+Device BEAM → Phoenix.Endpoint (localhost:4001) → LiveView WebSocket
+                                                 → WebView (Mob UI component)
+```
+
+The WebView renders the Phoenix app. LiveView updates propagate over WebSocket with sub-5ms latency (loopback). No Cloudflare, no network.
+
+**Weight analysis:**
+- Phoenix framework: ~3MB of .beam files (hot-pushed, not bundled in APK)
+- Cowboy HTTP server: ~1MB
+- Total overhead vs bare Mob: ~4-5MB of .beam files
+- APK/IPA size: same (BEAMs are pushed at runtime, not bundled)
+- Worth it for teams already writing Phoenix — zero new concepts
+
+**Phoenix generators in LiveView mode:**
+- Standard `mix phx.gen.live` generators work unchanged — they generate regular LiveViews
+- Mob adds two new generators for Mob-specific integration:
+  - `mix mob.gen.live_screen` — generates a LiveView that's aware of the Mob WebView lifecycle (safe area, back gesture, etc.)
+  - `mix mob.gen.sync` — generates a GenServer + migration for PostgreSQL→SQLite sync (see below)
+- No reason to change what Phoenix generators do — user's server and app share the same LiveView code
+
+**Dead views:** Work fine. A LiveView rendered in a Mob WebView behaves like any LiveView. The only special case is WebView internal history vs Mob nav stack — solved by `webview_can_go_back` NIF (see WebView section).
+
+**PostgreSQL→SQLite sync story:**
+- Server stays on PostgreSQL (all users)
+- Device SQLite starts empty on first launch
+- On login: sync the logged-in user's data slice from PostgreSQL → SQLite
+- `mix mob.gen.sync` generates the sync GenServer + Ecto schemas for both databases
+- This is NOT a migration — it's a one-user data copy at session start
+- Offline reads use SQLite; writes go to the server + update SQLite optimistically
+- Only makes sense for apps with well-bounded per-user data (warehouse inventory per user, not social feeds)
+
+---
+
+### `mix mob.enable` — multi-feature task ✅ Done
+
+Currently `mix mob.enable` takes a single feature. Should accept multiple:
+
+```bash
+mix mob.enable camera photo_library file_sharing liveview
+```
+
+**What it does per feature:**
+
+| Feature | iOS (Info.plist) | Android (AndroidManifest.xml) |
+|---|---|---|
+| `camera` | `NSCameraUsageDescription` (prompts for string) | `<uses-permission android:name="android.permission.CAMERA"/>` |
+| `photo_library` | `NSPhotoLibraryAddUsageDescription` (prompts for string) | none needed (API 29+) |
+| `file_sharing` | `UIFileSharingEnabled`, `LSSupportsOpeningDocumentsInPlace` | `<provider android:name="FileProvider">` |
+| `location` | `NSLocationWhenInUseUsageDescription` (prompts for string) | `ACCESS_FINE_LOCATION` or `ACCESS_COARSE_LOCATION` |
+| `notifications` | runtime only (no plist key) | `POST_NOTIFICATIONS` (API 33+) |
+| `media_store` | n/a | none needed (API 29+ own files) |
+| `liveview` | (handled separately — see LiveView mode) | (same) |
+
+**Implementation:**
+- iOS: structured XML editing of `Info.plist` using regex or `xmerl` — idempotent, won't duplicate existing entries; prompts developer for usage description strings if not already set
+- Android: line-by-line insert of `<uses-permission>` before `</manifest>` close — idempotent check for existing entries first
+- All selections stored in `mob.exs` under `:capabilities` key (same as capability wizard design)
+- Task validates that requested features are known; warns on unknown atoms
+
+---
+
+## Feature parity — Flutter / React Native gaps
+
+Features that Flutter and React Native ship out of the box that Mob is missing. Grouped by area; ordered roughly by how badly a missing item blocks a real app.
+
+---
+
+### Overlays & feedback
+
+**`alert` ⬜**
+Native system alert dialog with title, message, and buttons. `UIAlertController` (iOS) / `AlertDialog` (Android). Every app needs this — confirmation dialogs, error messages, destructive-action prompts.
+```elixir
+Mob.Alert.show(socket, title: "Delete?", message: "This cannot be undone",
+  buttons: [ok: "Delete", cancel: "Cancel"])
+def handle_info({:alert, :ok},     socket), do: ...
+def handle_info({:alert, :cancel}, socket), do: ...
+```
+
+**`bottom_sheet` ⬜**
+Modal sheet that slides up from the bottom. iOS: `UISheetPresentationController` (half/full detents). Android: `ModalBottomSheet`. Used for contextual actions, pickers, secondary flows.
+```elixir
+Mob.Sheet.show(socket, detents: [:medium, :large]) do
+  # rendered as a Mob screen tree
+end
+```
+
+**`action_sheet` ⬜**
+List of labelled actions presented as a sheet (iOS) or bottom dialog (Android). For "Share / Edit / Delete" menus. Shares the `Mob.Sheet` or `Mob.Alert` namespace.
+```elixir
+Mob.ActionSheet.show(socket, title: "Options",
+  actions: [share: "Share", edit: "Edit", delete: [label: "Delete", destructive: true]])
+def handle_info({:action_sheet, :delete}, socket), do: ...
+```
+
+**`toast` / snackbar ⬜**
+Brief ephemeral message overlaid on content, auto-dismissed after N seconds. Android: `Snackbar`. iOS: no native equivalent — custom implementation needed.
+```elixir
+Mob.Toast.show(socket, "Saved!", duration: :short)               # fire and forget
+Mob.Toast.show(socket, "Undo?", action: [label: "Undo", tag: :undo])
+def handle_info({:toast, :undo}, socket), do: ...
+```
+
+**`activity_indicator` (circular spinner) ⬜**
+Circular indefinite progress spinner. `UIActivityIndicatorView` (iOS) / `CircularProgressIndicator` (Android). Linear `progress` already exists; circular is just as common.
+```elixir
+%{type: :spinner, props: %{size: :large, color: :primary}}
+```
+
+---
+
+### Inputs
+
+**`date_picker` / `time_picker` ⬜**
+Native date and time selection UI. iOS: `UIDatePicker` (wheel or inline calendar). Android: `DatePickerDialog` / `TimePickerDialog`. Both platforms have strong, expected visual conventions.
+```elixir
+%{type: :date_picker, props: %{value: assigns.date, mode: :date, on_change: {self(), :date}}}
+# mode: :date | :time | :datetime
+def handle_info({:change, :date, ~D[2026-01-15]}, socket), do: ...
+```
+
+**`picker` / `select` ⬜**
+Single-value selection from a list. iOS: spinning wheel (`UIPickerView`). Android: dropdown (`DropdownMenu` / `Spinner`). Essential for any form with enumerated choices.
+```elixir
+%{type: :picker, props: %{
+  options: [{"Red", :red}, {"Green", :green}],
+  value: assigns.color,
+  on_change: {self(), :color}
+}}
+```
+
+**`checkbox` ⬜**
+Boolean input with tri-state support (checked / unchecked / indeterminate). Semantically different from `toggle` — multi-select lists, terms-and-conditions, etc.
+```elixir
+%{type: :checkbox, props: %{checked: assigns.agreed, label: "I agree", on_change: {self(), :agreed}}}
+```
+
+**`segmented_control` / `radio` ⬜**
+Mutually exclusive selection from 2–5 options. iOS: `UISegmentedControl`. Android: `RadioGroup` or segmented `FilterChip`. Common for filter bars, view-mode switchers.
+```elixir
+%{type: :segmented_control, props: %{
+  options: [{"Day", :day}, {"Week", :week}, {"Month", :month}],
+  value: assigns.period,
+  on_change: {self(), :period}
+}}
+```
+
+**`search_bar` ⬜**
+Native search input. iOS: `UISearchController` with a very specific appearance that users expect (integrated with navigation bar). Android: `SearchView` or Material search bar.
+```elixir
+%{type: :search_bar, props: %{placeholder: "Search...", value: assigns.query, on_change: {self(), :query}}}
+```
+
+**Multiline `text_field` ⬜**
+Current `text_field` is single-line. Text area / multiline input needed for notes, messages, descriptions. Both platforms support this via the same component — just a `multiline: true` prop and a `min_height` / `max_height`.
+```elixir
+%{type: :text_field, props: %{multiline: true, min_height: 80, max_lines: 10}}
+```
+
+---
+
+### App lifecycle & system integration
+
+**App foreground / background events ⬜**
+`UIApplicationDelegate` (iOS) / `ProcessLifecycleObserver` (Android) → `handle_info` events. Essential for: pausing audio/video on background, refreshing auth tokens on foreground, saving drafts.
+```elixir
+def handle_info({:app, :background}, socket), do: ...
+def handle_info({:app, :foreground}, socket), do: ...
+def handle_info({:app, :inactive},   socket), do: ...   # iOS only (incoming call, etc.)
+```
+
+**Deep linking / URL scheme handling ⬜**
+App receives a URL (custom scheme `myapp://` or universal link `https://myapp.com/...`) and routes to the correct screen. Essential for OAuth redirects, push notification taps, share links, QR-code-to-app flows.
+```elixir
+# In mob.exs: url_scheme: "myapp"
+def handle_info({:deep_link, "myapp://items/42"}, socket), do: ...
+```
+iOS: `UIApplicationDelegate.application(_:open:options:)` + Associated Domains for universal links.
+Android: `<intent-filter>` with `android:scheme` in `AndroidManifest.xml`.
+
+**Keyboard avoidance ⬜**
+When the software keyboard appears over a `text_field`, content below it gets obscured. Without automatic avoidance, form screens are unusable on many device sizes. React Native: `KeyboardAvoidingView`. Flutter: `Scaffold.resizeToAvoidBottomInset`.
+
+iOS: `NotificationCenter` `keyboardWillShowNotification` → adjust scroll offset or bottom padding.
+Android: `WindowCompat.setDecorFitsSystemWindows(false)` + `ViewCompat.setOnApplyWindowInsetsListener` → adjust bottom inset.
+BEAM receives `{:keyboard, :will_show, %{height: h}}` / `{:keyboard, :will_hide}` so screens can adjust layout.
+
+---
+
+### Device state
+
+**Network connectivity ⬜**
+Online/offline status and connection type (WiFi / cellular / none). Needed for offline-first apps, showing "no connection" banners, gating network calls.
+```elixir
+Mob.Network.start(socket)   # subscribe to changes
+def handle_info({:network, :online,  :wifi},     socket), do: ...
+def handle_info({:network, :online,  :cellular}, socket), do: ...
+def handle_info({:network, :offline},             socket), do: ...
+```
+iOS: `NWPathMonitor`. Android: `ConnectivityManager` + `NetworkCallback`.
+
+**Device info ⬜**
+Synchronous read of static device properties. Needed constantly for analytics, layout decisions (tablet vs phone), locale-aware formatting.
+```elixir
+Mob.Device.info()
+# %{model: "iPhone 16 Pro", os: :ios, os_version: "18.4", locale: "en-CA",
+#   timezone: "America/Vancouver", screen: %{width: 393, height: 852, scale: 3.0},
+#   form_factor: :phone | :tablet}
+```
+
+---
+
+### Layout
+
+**Flex / expand (fill available space) ⬜**
+A child that stretches to fill remaining space in a `column` or `row`. The single most common layout primitive after basic stacking. Currently Mob only has fixed-size `spacer`.
+```elixir
+%{type: :row, children: [
+  %{type: :text, props: %{text: "Label"}},
+  %{type: :spacer},                            # flex: 1 — fills remaining width
+  %{type: :button, props: %{text: "Action"}}
+]}
+```
+iOS: `Spacer()` in HStack already does this; need to wire `spacer` with no `size` prop to it.
+Android: `Modifier.weight(1f)` on the child composable.
+
+**`wrap` layout ⬜**
+A row that wraps children to the next line when they overflow. Used for tag chips, filter pills, multi-select badge lists.
+```elixir
+%{type: :wrap, props: %{spacing: 8, run_spacing: 8}, children: tag_chips}
+```
+iOS: `FlowLayout` (iOS 16+) or manual `GeometryReader` + `LazyVGrid` workaround.
+Android: `FlowRow` (Compose 1.5+).
+
+**Absolute positioning ⬜**
+Position a child at exact coordinates within a `box` (ZStack). Needed for overlay badges, floating action buttons, custom tooltips, notification dots on icons.
+```elixir
+%{type: :box, children: [
+  content_node,
+  %{type: :text, props: %{text: "3", position: %{top: 0, right: 0}}}
+]}
+```
+Both platforms: already have ZStack / Box — just need `position:` prop wired through.
+
+**`badge` ⬜**
+Numeric or dot badge overlaid on a tab bar item or icon. Native `TabBar` badge on iOS; Compose `BadgedBox` on Android. Also achievable with absolute positioning, but platform-native badges match OS conventions exactly.
+```elixir
+# In tab_bar tabs list:
+%{id: :inbox, label: "Inbox", icon: :envelope, badge: assigns.unread_count}
+```
+
+---
+
+### Gestures
+
+**Long press on arbitrary nodes ⬜**
+`on_long_press:` prop analogous to `on_tap:`. Needed for context menus, drag-to-reorder initiation, custom interactions. Fire-and-forget from native → `{:long_press, tag}` in `handle_info`.
+```elixir
+%{type: :button, props: %{text: "Hold me", on_long_press: {self(), :hold}}}
+def handle_info({:long_press, :hold}, socket), do: ...
+```
+
+**Pinch / pan gestures ⬜**
+Scale and translate gestures. Needed for zoomable images, custom drawing surfaces, map-like UIs. Delivered as continuous events with scale factor and translation delta.
+```elixir
+%{type: :image, props: %{src: "...", on_pinch: {self(), :zoom}, on_pan: {self(), :pan}}}
+def handle_info({:pinch, :zoom, %{scale: 1.4}}, socket), do: ...
+def handle_info({:pan,   :pan,  %{dx: 10.0, dy: 0.0}}, socket), do: ...
+```
+
+**Drag and drop / reorderable lists ⬜**
+List items that can be reordered by dragging. iOS: `onMove` modifier on `List`. Android: `ReorderableLazyColumn` (Compose). Delivered as `{:reorder, id, from_index, to_index}`.
+
+---
+
+### Media & graphics
+
+**Map component ⬜**
+Embed a native map with pins and overlays. iOS: `MapKit` (no API key required). Android: Google Maps SDK or OpenStreetMap / MapLibre (no mandatory Google dependency).
+```elixir
+%{type: :map, props: %{
+  region: %{lat: 49.28, lon: -123.12, span_lat: 0.05, span_lon: 0.05},
+  pins: [%{lat: 49.28, lon: -123.12, title: "HQ", tag: :hq}],
+  on_pin_tap: {self(), :pin}
+}}
+def handle_info({:tap, {:pin, :hq}}, socket), do: ...
+```
+
+**SVG rendering ⬜**
+Render vector graphics from SVG source. Needed for design-system icons, charts, illustrations. iOS: no built-in SVG renderer — requires a third-party library (e.g. SVGKit or a WKWebView trick). Android: `VectorDrawable` or `AndroidSVG`.
+
+**Lottie animations ⬜**
+JSON-based animation files from Adobe After Effects. Very common for onboarding screens, empty states, success/error animations. Both platforms have official Lottie SDKs.
+```elixir
+%{type: :lottie, props: %{src: "priv/animations/success.json", loop: false, autoplay: true}}
+```
+
+**Canvas / custom painting ⬜**
+Low-level 2D drawing API. Flutter's strongest suit (`CustomPainter`). Needed for charts, custom gauges, drawing apps, anything that doesn't fit the component model. iOS: `CoreGraphics` via `UIViewRepresentable`. Android: `Canvas` via `drawBehind` modifier or `AndroidView`.
+
+---
+
+### Lists (Phase 2 unblocks)
+
+These are already noted as Phase 2 in the list component section but called out here for completeness since they're table-stakes in Flutter/RN:
+
+- **Pull to refresh** — `on_refresh` + `refreshing:` props on `list`; `SwipeRefresh` (Android) / `.refreshable` (iOS)
+- **Swipe actions** — `swipe_left` / `swipe_right` on `list_item`
+- **List sections** — `list_section` with sticky headers
+- **Lazy grid** — `lazy_grid` component; `LazyVerticalGrid` (Android) / `LazyVGrid` (iOS). Photo galleries, product grids.
+
+---
+
+### Rich text
+
+**Inline text spans ⬜**
+Bold a word within a sentence, inline links, mixed colors/sizes in one block. iOS: `AttributedString`. Android: `AnnotatedString`. Needed for chat messages, formatted content, markdown rendering.
+```elixir
+%{type: :rich_text, spans: [
+  %{text: "Hello ", weight: :regular},
+  %{text: "world",  weight: :bold, color: :primary},
+  %{text: "!"}
+]}
+```
+
+**Selectable text ⬜**
+Allow users to select and copy text. Mobile default is non-selectable. iOS: `.textSelection(.enabled)`. Android: `SelectionContainer`. Needed for any content the user might want to copy (addresses, codes, logs).
+
+---
+
+### Platform conventions
+
+**Dark mode ⬜**
+Dynamic color based on system appearance (`UIUserInterfaceStyle` / `isSystemInDarkTheme()`). Apps that ignore dark mode look unfinished to iOS/Android users. Two approaches:
+- Semantic color tokens (`:primary`, `:background`) resolve to different ARGB values in light vs dark — preferred, no code change at the screen level
+- `Mob.Theme.mode/0` → `:light | :dark` for manual branching
+
+**Accessibility labels ⬜**
+`accessibility_label:`, `accessibility_hint:`, `accessibility_role:` props on all interactive nodes. Required for VoiceOver (iOS) and TalkBack (Android). Also needed for `Mob.Test.find/2` to work reliably on elements without visible text.
+
+**Dynamic type ⬜**
+iOS scales all text with the user's preferred font size setting (`UIFontMetrics`). Android does the same (`sp` units already scale, but line heights and container sizes need to adapt). Ignoring this is an accessibility gap — text becomes unreadably small or layout breaks for users who have increased their system font size.
+
+**RTL layout ⬜**
+Right-to-left language support (Arabic, Hebrew, Farsi, Urdu). Start/end instead of left/right for padding, alignment, and icon placement. iOS and Android both handle most RTL automatically when the locale is RTL — Mob needs to pass semantic direction through rather than hardcoding pixel directions.
+
+---
 
 - `mob` v0.4.0 — github.com/genericjam/mob, MIT
 - `mob_dev` v0.2.x — github.com/genericjam/mob_dev, MIT

@@ -3,6 +3,7 @@
 
 import SwiftUI
 import AVKit
+import WebKit
 
 extension View {
     @ViewBuilder
@@ -252,6 +253,18 @@ struct MobNodeView: View {
                         .padding(node.paddingEdgeInsets)
                 }
 
+            case .cameraPreview:
+                MobCameraPreviewView(facing: node.cameraFacing)
+                    .ifLet(node.fixedWidth  > 0 ? node.fixedWidth  : nil) { v, w in v.frame(width:  CGFloat(w)) }
+                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
+                    .padding(node.paddingEdgeInsets)
+
+            case .webView:
+                MobWebView(node: node)
+                    .ifLet(node.fixedWidth  > 0 ? node.fixedWidth  : nil) { v, w in v.frame(width:  CGFloat(w)) }
+                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
+                    .padding(node.paddingEdgeInsets)
+
             @unknown default:
                 EmptyView()
             }
@@ -323,6 +336,134 @@ private struct MobVideoPlayer: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: AVPlayerViewController, context: Context) {}
+}
+
+// ── Camera preview ────────────────────────────────────────────────────────
+
+private struct MobCameraPreviewView: UIViewRepresentable {
+    let facing: String
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .black
+        attachPreviewLayer(to: view, coordinator: context.coordinator)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        let coordinator = context.coordinator
+        // Reattach when the session has changed (e.g. front↔back swap via camera_start_preview).
+        if coordinator.previewLayer?.session !== g_preview_session {
+            coordinator.previewLayer?.removeFromSuperlayer()
+            coordinator.previewLayer = nil
+            attachPreviewLayer(to: view, coordinator: coordinator)
+        }
+        coordinator.previewLayer?.frame = view.bounds
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    private func attachPreviewLayer(to view: UIView, coordinator: Coordinator) {
+        guard let session = g_preview_session else { return }
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        layer.frame = view.bounds
+        view.layer.addSublayer(layer)
+        coordinator.previewLayer = layer
+    }
+
+    class Coordinator: NSObject {
+        var previewLayer: AVCaptureVideoPreviewLayer?
+    }
+}
+
+// ── WebView ───────────────────────────────────────────────────────────────────
+
+private let kMobJsShimSwift =
+    "(function(){" +
+    "if(window.mob)return;" +
+    "var _h=[];" +
+    "window.mob={" +
+      "send:function(d){window.webkit.messageHandlers.mob.postMessage(JSON.stringify(d));}," +
+      "onMessage:function(h){_h.push(h);return function(){_h=_h.filter(function(x){return x!==h;});};}," +
+      "_dispatch:function(j){try{var d=JSON.parse(j);_h.forEach(function(h){h(d);});}catch(e){}}" +
+    "};" +
+    "})();"
+
+private struct MobWebView: View {
+    let node: MobNode
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let title = node.webViewTitle {
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            MobWKWebView(node: node)
+        }
+    }
+}
+
+private struct MobWKWebView: UIViewRepresentable {
+    let node: MobNode
+
+    func makeCoordinator() -> Coordinator { Coordinator(node: node) }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.userContentController.add(context.coordinator, name: "mob")
+        let shim = WKUserScript(source: kMobJsShimSwift,
+                                injectionTime: .atDocumentStart,
+                                forMainFrameOnly: true)
+        config.userContentController.addUserScript(shim)
+        let wv = WKWebView(frame: .zero, configuration: config)
+        wv.navigationDelegate = context.coordinator
+        g_webview = wv
+        if let urlStr = node.webViewUrl, let url = URL(string: urlStr) {
+            wv.load(URLRequest(url: url))
+        }
+        return wv
+    }
+
+    func updateUIView(_ wv: WKWebView, context: Context) {
+        g_webview = wv
+        context.coordinator.node = node
+    }
+
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        var node: MobNode
+        init(node: MobNode) { self.node = node }
+
+        // JS → Elixir: window.mob.send(data) arrives here.
+        // Delegates to mob_deliver_webview_message() in mob_nif.m.
+        func userContentController(_ ucc: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            guard message.name == "mob", let json = message.body as? String else { return }
+            mob_deliver_webview_message(json)
+        }
+
+        // URL whitelist enforcement.
+        func webView(_ wv: WKWebView,
+                     decidePolicyFor action: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = action.request.url?.absoluteString else {
+                decisionHandler(.allow); return
+            }
+            let allowStr = node.webViewAllow ?? ""
+            let allowList = allowStr.split(separator: ",").map(String.init).filter { !$0.isEmpty }
+            guard !allowList.isEmpty else { decisionHandler(.allow); return }
+            if allowList.contains(where: { url.hasPrefix($0) }) {
+                decisionHandler(.allow)
+            } else {
+                decisionHandler(.cancel)
+                mob_deliver_webview_blocked(url)
+            }
+        }
+    }
 }
 
 // ── Input component views ──────────────────────────────────────────────────
