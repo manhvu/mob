@@ -1316,8 +1316,122 @@ Both platforms use the same column/row layout model (Compose `Column`/`Row`, Swi
 
 ---
 
+---
+
+## User-requested features (2026-04-23)
+
+Three features requested by users: WebView, Camera preview, Audio playback. Camera recording and audio recording NIFs already exist — gaps are the camera preview component and audio playback.
+
+### Suggested order
+1. **Audio playback** — smallest scope, self-contained, no new UI component needed
+2. **Camera preview** — builds on existing capture NIFs, adds one new UI component
+3. **WebView** — largest (new component + bidirectional JS bridge), do last
+
+---
+
+### Audio playback ⬜ Planned
+
+Recording already exists (`Mob.Audio.start_recording/2`, `stop_recording/1`, result `{:audio, :recorded, %{path, duration}}`). Need playback.
+
+**Elixir additions to `lib/mob/audio.ex`:**
+```elixir
+Mob.Audio.play(socket, path, opts \\ [])   # opts: loop: false, volume: 1.0
+Mob.Audio.stop_playback(socket)
+Mob.Audio.set_volume(socket, 0.0..1.0)     # live volume control
+# Results via handle_info:
+# {:audio, :playback_finished, %{path: path}}
+# {:audio, :playback_error, %{reason: reason}}
+```
+
+**NIF stubs to add in `src/mob_nif.erl`:**
+- `audio_play/2` (path, opts_json)
+- `audio_stop_playback/0`
+- `audio_set_volume/1`
+
+**iOS (`ios/mob_nif.m`):**
+- `AVAudioPlayer` for local files, `AVPlayer` for URLs/streaming
+- Store player + PID in globals; `audioPlayerDidFinishPlaying:` delegate sends `{:audio, :playback_finished, map}` via `enif_send`
+- `AVAudioSession` category: `.playback` when playing, `.record` when recording, `.playAndRecord` when both
+
+**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+- `MediaPlayer` for local files (ExoPlayer for streaming — already referenced in Video stub)
+- `setOnCompletionListener` callback sends result via JNI → `enif_send`
+
+---
+
+### Camera preview ⬜ Planned
+
+Capture already exists (`Mob.Camera.capture_photo/2`, `capture_video/2`). Need a live camera feed as a UI component.
+
+**Elixir API (`lib/mob/camera.ex` additions):**
+```elixir
+Mob.Camera.start_preview(socket, opts \\ [])  # opts: facing: :back | :front
+Mob.Camera.stop_preview(socket)
+# UI component:
+Mob.UI.camera_preview(facing: :back)
+```
+
+**Component registration:**
+- Add `CameraPreview` to `priv/tags/ios.txt` and `priv/tags/android.txt`
+- Add `MobNodeTypeCameraPreview` to `ios/MobNode.h`
+
+**NIF stubs:** `camera_start_preview/1`, `camera_stop_preview/0`
+
+**iOS (`ios/mob_nif.m` + `ios/MobRootView.swift`):**
+- `AVCaptureSession` + `AVCaptureVideoPreviewLayer` wrapped in `UIViewRepresentable`
+- Session managed in `mob_nif.m`; SwiftUI renders via `MobNodeTypeCameraPreview` case in `MobRootView`
+- `start_preview` NIF configures + starts session; component renders the preview layer
+- Permissions: requires `NSCameraUsageDescription` in `Info.plist` (already in generated template)
+
+**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+- CameraX `PreviewView` embedded via Compose `AndroidView`
+- `ProcessCameraProvider` binds preview use case in `MobBridge`
+- NIF calls JNI bridge to start/stop
+
+---
+
+### WebView ⬜ Planned
+
+Fully new: UI component + bidirectional JS bridge.
+
+**Elixir API (`lib/mob/webview.ex` — new file):**
+```elixir
+# JS bridge (device capability pattern)
+Mob.WebView.eval_js(socket, "document.title")
+Mob.WebView.post_message(socket, %{event: "data", payload: payload})
+# Results:
+# {:webview, :message, %{"data" => data}}   ← JS called window.MobBridge.postMessage(...)
+# {:webview, :eval_result, result}           ← eval callback
+
+# UI component
+Mob.UI.webview(url: "https://...", js_enabled: true, user_agent: nil)
+```
+
+**Component registration:**
+- Add `WebView` to `priv/tags/ios.txt` and `priv/tags/android.txt`
+- Add `MobNodeTypeWebView`, `webViewUrl`, `webViewJsEnabled` to `ios/MobNode.h`
+
+**NIF stubs:** `webview_eval_js/1`, `webview_post_message/1`
+
+**iOS (`ios/mob_nif.m` + `ios/MobRootView.swift`):**
+- `WKWebView` in `UIViewRepresentable`
+- `WKScriptMessageHandler` for JS→Elixir: JS calls `window.webkit.messageHandlers.mob.postMessage(data)` → NIF `enif_send` → `handle_info({:webview, :message, data}, socket)`
+- `evaluateJavaScript:completionHandler:` for `eval_js`
+- Store `WKWebView` ref + PID in globals
+
+**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+- `android.webkit.WebView` + `WebViewClient` via Compose `AndroidView`
+- `@JavascriptInterface` on a bridge object: JS calls `Android.postMessage(data)` → JNI callback → `enif_send`
+- `evaluateJavascript(code, callback)` for `eval_js`
+
+**Component vocabulary table addition:**
+| `webview` | `WebView` | `WKWebView` | ⬜ planned |
+| `camera_preview` | `PreviewView` | `AVCapturePreviewLayer` | ⬜ planned |
+
+---
+
 ## Hex packages
 
-- `mob` v0.2.0 — github.com/genericjam/mob, MIT
-- `mob_dev` v0.2.2 — github.com/genericjam/mob_dev, MIT
-- `mob_new` v0.1.6 — archive, `mix archive.install hex mob_new`
+- `mob` v0.4.0 — github.com/genericjam/mob, MIT
+- `mob_dev` v0.2.x — github.com/genericjam/mob_dev, MIT
+- `mob_new` v0.1.x — archive, `mix archive.install hex mob_new`
