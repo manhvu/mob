@@ -34,6 +34,7 @@ typedef NS_ENUM(NSInteger, MobNodeType) {
     MobNodeTypeVideo,
     MobNodeTypeCameraPreview,
     MobNodeTypeWebView,
+    MobNodeTypeNativeView,
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -126,6 +127,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString* webViewAllow;  // comma-separated allowed URL prefixes
 @property (nonatomic)                 BOOL       webViewShowUrl;
 @property (nonatomic, copy, nullable) NSString*  webViewTitle; // static title label; overrides show_url
+
+// NativeView — rendered by MobNativeViewRegistry
+@property (nonatomic, copy, nullable) NSString*     nativeViewModule;  // registry key (e.g. "MyApp_ChartComponent")
+@property (nonatomic, copy, nullable) NSString*     nativeViewId;      // user-assigned id
+@property (nonatomic)                 int            nativeViewHandle;  // NIF component handle for event callbacks
+@property (nonatomic, strong, nullable) NSDictionary* nativeViewProps;  // full props dict forwarded to the factory
 
 // Accessibility — set from the tap tag atom name; read by XCTest / ui_describe_all
 @property (nonatomic, copy, nullable) NSString* accessibilityId;

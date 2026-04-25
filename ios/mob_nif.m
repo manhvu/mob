@@ -212,7 +212,8 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
     else if ([type isEqualToString:@"tab_bar"])    node.nodeType = MobNodeTypeTabBar;
     else if ([type isEqualToString:@"video"])          node.nodeType = MobNodeTypeVideo;
     else if ([type isEqualToString:@"camera_preview"]) node.nodeType = MobNodeTypeCameraPreview;
-    else if ([type isEqualToString:@"webview"])        node.nodeType = MobNodeTypeWebView;
+    else if ([type isEqualToString:@"web_view"])       node.nodeType = MobNodeTypeWebView;
+    else if ([type isEqualToString:@"native_view"])    node.nodeType = MobNodeTypeNativeView;
 
     NSDictionary* props = dict[@"props"];
     if ([props isKindOfClass:[NSDictionary class]]) {
@@ -369,6 +370,15 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
         if (webViewShowUrl) node.webViewShowUrl = [webViewShowUrl boolValue];
         id webViewTitle = props[@"title"];
         if ([webViewTitle isKindOfClass:[NSString class]]) node.webViewTitle = webViewTitle;
+
+        // native_view props
+        id nativeViewModule = props[@"module"];
+        if ([nativeViewModule isKindOfClass:[NSString class]]) node.nativeViewModule = nativeViewModule;
+        id nativeViewId = props[@"id"];
+        if ([nativeViewId isKindOfClass:[NSString class]]) node.nativeViewId = nativeViewId;
+        id nativeViewHandle = props[@"component_handle"];
+        if (nativeViewHandle) node.nativeViewHandle = [nativeViewHandle intValue];
+        if (node.nodeType == MobNodeTypeNativeView) node.nativeViewProps = props;
 
         id onEndReached = props[@"on_end_reached"];
         if (onEndReached && [onEndReached isKindOfClass:[NSNumber class]]) {
@@ -1029,11 +1039,10 @@ static ERL_NIF_TERM nif_camera_start_preview(ErlNifEnv* env, int argc, const ERL
         if ([opts[@"facing"] isEqualToString:@"front"]) facing = @"front";
     }
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (g_preview_session) {
-            [g_preview_session stopRunning];
-            g_preview_session = nil;
-        }
+    // Session setup and startRunning must run on a background queue (Apple requirement).
+    // After the session is running, update the shared global and notify the preview view
+    // on the main queue so SwiftUI can safely read g_preview_session.
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         AVCaptureDevicePosition position = [facing isEqualToString:@"front"]
             ? AVCaptureDevicePositionFront
             : AVCaptureDevicePositionBack;
@@ -1047,15 +1056,26 @@ static ERL_NIF_TERM nif_camera_start_preview(ErlNifEnv* env, int argc, const ERL
         session.sessionPreset = AVCaptureSessionPresetHigh;
         if ([session canAddInput:input]) [session addInput:input];
         [session startRunning];
-        g_preview_session = session;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (g_preview_session) [g_preview_session stopRunning];
+            g_preview_session = session;
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:@"MobCameraSessionChanged" object:nil];
+        });
     });
     return enif_make_atom(env, "ok");
 }
 
 static ERL_NIF_TERM nif_camera_stop_preview(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        [g_preview_session stopRunning];
+        AVCaptureSession* old = g_preview_session;
         g_preview_session = nil;
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:@"MobCameraSessionChanged" object:nil];
+        // Stop the session off the main queue so we don't block the UI.
+        if (old) dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [old stopRunning];
+        });
     });
     return enif_make_atom(env, "ok");
 }
@@ -1259,6 +1279,8 @@ static ERL_NIF_TERM nif_audio_stop_recording(ErlNifEnv* env, int argc, const ERL
 @end
 
 static AVAudioPlayer* g_audio_player = nil;
+static AVPlayer*      g_av_player    = nil;
+static id             g_av_observer  = nil;
 static ErlNifPid      g_playback_pid;
 static NSString*      g_playback_path = nil;
 static MobAudioPlayerDelegate* g_player_delegate = nil;
@@ -1323,9 +1345,54 @@ static ERL_NIF_TERM nif_audio_play(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
         BOOL loop      = [o[@"loop"]   boolValue];
         double volume  = o[@"volume"] ? [o[@"volume"] doubleValue] : 1.0;
 
+        // Stop any in-flight players.
         [g_audio_player stop];
         g_audio_player = nil;
+        if (g_av_observer) { [[NSNotificationCenter defaultCenter] removeObserver:g_av_observer]; g_av_observer = nil; }
+        [g_av_player pause];
+        g_av_player = nil;
 
+        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
+        [[AVAudioSession sharedInstance] setActive:YES error:nil];
+
+        BOOL isRemote = [path hasPrefix:@"http://"] || [path hasPrefix:@"https://"];
+        if (isRemote) {
+            // Remote URL — use AVPlayer (AVAudioPlayer cannot stream HTTP).
+            NSURL* url = [NSURL URLWithString:path];
+            AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
+            AVPlayer* player = [AVPlayer playerWithPlayerItem:item];
+            player.volume = (float)volume;
+            g_av_player = player;
+
+            ErlNifPid p = g_playback_pid;
+            NSString* pPath = path;
+            g_av_observer = [[NSNotificationCenter defaultCenter]
+                addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
+                            object:item queue:nil
+                        usingBlock:^(NSNotification* n) {
+                if (loop) {
+                    [g_av_player seekToTime:kCMTimeZero];
+                    [g_av_player play];
+                } else {
+                    g_av_player = nil;
+                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                        ErlNifEnv* e = enif_alloc_env();
+                        const char* cp = pPath.UTF8String;
+                        ErlNifBinary pb; enif_alloc_binary(strlen(cp), &pb); memcpy(pb.data, cp, strlen(cp));
+                        ERL_NIF_TERM keys[1] = {enif_make_atom(e, "path")};
+                        ERL_NIF_TERM vals[1] = {enif_make_binary(e, &pb)};
+                        ERL_NIF_TERM map; enif_make_map_from_arrays(e, keys, vals, 1, &map);
+                        enif_send(NULL, &p, e, enif_make_tuple3(e,
+                            enif_make_atom(e, "audio"), enif_make_atom(e, "playback_finished"), map));
+                        enif_free_env(e);
+                    });
+                }
+            }];
+            [player play];
+            return;
+        }
+
+        // Local file — use AVAudioPlayer.
         NSURL* url = [NSURL fileURLWithPath:path];
         NSError* err = nil;
         AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&err];
@@ -1339,9 +1406,8 @@ static ERL_NIF_TERM nif_audio_play(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
                 ERL_NIF_TERM keys[1] = {enif_make_atom(e, "reason")};
                 ERL_NIF_TERM vals[1] = {enif_make_binary(e, &rb)};
                 ERL_NIF_TERM map; enif_make_map_from_arrays(e, keys, vals, 1, &map);
-                ERL_NIF_TERM msg = enif_make_tuple3(e, enif_make_atom(e, "audio"),
-                                                       enif_make_atom(e, "playback_error"), map);
-                enif_send(NULL, &p, e, msg);
+                enif_send(NULL, &p, e, enif_make_tuple3(e,
+                    enif_make_atom(e, "audio"), enif_make_atom(e, "playback_error"), map));
                 enif_free_env(e);
             });
             return;
@@ -1351,10 +1417,6 @@ static ERL_NIF_TERM nif_audio_play(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
         player.delegate      = g_player_delegate;
         player.volume        = (float)volume;
         player.numberOfLoops = loop ? -1 : 0;
-
-        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
-        [[AVAudioSession sharedInstance] setActive:YES error:nil];
-
         g_audio_player = player;
         [player play];
     });
@@ -1365,6 +1427,9 @@ static ERL_NIF_TERM nif_audio_stop_playback(ErlNifEnv* env, int argc, const ERL_
     dispatch_async(dispatch_get_main_queue(), ^{
         [g_audio_player stop];
         g_audio_player  = nil;
+        if (g_av_observer) { [[NSNotificationCenter defaultCenter] removeObserver:g_av_observer]; g_av_observer = nil; }
+        [g_av_player pause];
+        g_av_player     = nil;
         g_playback_path = nil;
         [[AVAudioSession sharedInstance] setActive:NO error:nil];
     });
@@ -1376,6 +1441,7 @@ static ERL_NIF_TERM nif_audio_set_volume(ErlNifEnv* env, int argc, const ERL_NIF
     enif_get_double(env, argv[0], &vol);
     dispatch_async(dispatch_get_main_queue(), ^{
         g_audio_player.volume = (float)vol;
+        g_av_player.volume    = (float)vol;
     });
     return enif_make_atom(env, "ok");
 }
@@ -3384,6 +3450,70 @@ static ERL_NIF_TERM nif_webview_go_back(ErlNifEnv* env, int argc, const ERL_NIF_
 
 // ── NIF table & load ──────────────────────────────────────────────────────────
 
+// ── Native view component registry ───────────────────────────────────────────
+// Persistent handle table — not cleared between renders (unlike tap handles).
+// register_component/1 allocates a slot; deregister_component/1 frees it.
+// mob_send_component_event is called from Swift when the native view fires an event.
+
+#define MAX_COMPONENT_HANDLES 64
+
+typedef struct {
+    ErlNifPid pid;
+    int       active;
+} ComponentHandle;
+
+static ComponentHandle component_handles[MAX_COMPONENT_HANDLES];
+static ErlNifMutex*    component_mutex = NULL;
+
+static ERL_NIF_TERM nif_register_component(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifPid pid;
+    if (!enif_get_local_pid(env, argv[0], &pid))
+        return enif_make_badarg(env);
+
+    enif_mutex_lock(component_mutex);
+    for (int i = 0; i < MAX_COMPONENT_HANDLES; i++) {
+        if (!component_handles[i].active) {
+            component_handles[i].pid    = pid;
+            component_handles[i].active = 1;
+            enif_mutex_unlock(component_mutex);
+            return enif_make_int(env, i);
+        }
+    }
+    enif_mutex_unlock(component_mutex);
+    return enif_make_badarg(env);
+}
+
+static ERL_NIF_TERM nif_deregister_component(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int handle;
+    if (!enif_get_int(env, argv[0], &handle) || handle < 0 || handle >= MAX_COMPONENT_HANDLES)
+        return enif_make_badarg(env);
+
+    enif_mutex_lock(component_mutex);
+    component_handles[handle].active = 0;
+    enif_mutex_unlock(component_mutex);
+    return enif_make_atom(env, "ok");
+}
+
+void mob_send_component_event(int handle, const char* event, const char* payload_json) {
+    if (handle < 0 || handle >= MAX_COMPONENT_HANDLES) return;
+
+    enif_mutex_lock(component_mutex);
+    if (!component_handles[handle].active) {
+        enif_mutex_unlock(component_mutex);
+        return;
+    }
+    ErlNifPid pid = component_handles[handle].pid;
+    enif_mutex_unlock(component_mutex);
+
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "component_event"),
+        enif_make_string(env, event,        ERL_NIF_LATIN1),
+        enif_make_string(env, payload_json, ERL_NIF_LATIN1));
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
 static ErlNifFunc nif_funcs[] = {
     // ── Test harness (listed first to survive linker dead-code stripping) ──────
     {"ui_tree",          0, nif_ui_tree,          0},
@@ -3444,12 +3574,16 @@ static ErlNifFunc nif_funcs[] = {
     {"webview_post_message",1, nif_webview_post_message,0},
     {"webview_can_go_back", 0, nif_webview_can_go_back, 0},
     {"webview_go_back",     0, nif_webview_go_back,     0},
+    {"register_component",   1, nif_register_component,   0},
+    {"deregister_component", 1, nif_deregister_component, 0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     LOGI(@"nif_load: initialising mob_nif (iOS/SwiftUI JSON backend)");
     tap_mutex = enif_mutex_create("mob_tap_mutex");
     if (!tap_mutex) { LOGE(@"nif_load: failed to create tap mutex"); return -1; }
+    component_mutex = enif_mutex_create("mob_component_mutex");
+    if (!component_mutex) { LOGE(@"nif_load: failed to create component mutex"); return -1; }
     g_launch_notif_mutex = enif_mutex_create("mob_launch_notif_mutex");
     if (!g_launch_notif_mutex) { LOGE(@"nif_load: failed to create launch notif mutex"); return -1; }
     LOGI(@"nif_load: mob_nif ready");

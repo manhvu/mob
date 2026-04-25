@@ -133,6 +133,23 @@ Mob.Test.send_message(node, {:push_token, :ios, "abc123"})
 Mob.Test.send_message(node, {:biometric, :success})
 Mob.Test.send_message(node, {:scan, :result, %{type: :qr, value: "https://example.com"}})
 
+# Audio recording
+Mob.Test.send_message(node, {:audio, :recorded, %{path: "/tmp/rec.aac", duration: 3.2}})
+Mob.Test.send_message(node, {:audio, :error, :permission_denied})
+
+# Audio playback
+Mob.Test.send_message(node, {:audio, :playback_finished, %{path: "/tmp/clip.m4a"}})
+Mob.Test.send_message(node, {:audio, :playback_error, %{reason: :file_not_found}})
+
+# WebView
+Mob.Test.send_message(node, {:webview, :message, %{"event" => "clicked", "id" => 42}})
+Mob.Test.send_message(node, {:webview, :blocked, "https://blocked.example.com"})
+Mob.Test.send_message(node, {:webview, :eval_result, "Page Title"})
+
+# Alert / action sheet
+Mob.Test.send_message(node, {:alert, :confirmed_delete})
+Mob.Test.send_message(node, {:alert, :dismiss})
+
 # Custom
 Mob.Test.send_message(node, {:my_event, %{key: "value"}})
 ```

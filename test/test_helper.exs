@@ -1,1 +1,1 @@
-ExUnit.start(exclude: [:onboarding])
+ExUnit.start(exclude: [:onboarding, :on_device])

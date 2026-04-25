@@ -335,6 +335,17 @@ defmodule Mob.Screen do
     {:noreply, {module, new_socket, nav_history, render_mode}}
   end
 
+  # A component's state changed — re-render so the native view gets fresh props.
+  def handle_info({:component_changed, _id, _module}, {module, socket, nav_history, render_mode}) do
+    new_socket =
+      if render_mode == :render do
+        do_render(module, socket)
+      else
+        socket
+      end
+    {:noreply, {module, new_socket, nav_history, render_mode}}
+  end
+
   def handle_info(message, {module, socket, nav_history, render_mode}) do
     {:noreply, new_socket} = module.handle_info(message, socket)
     {module, new_socket, nav_history, transition} =
@@ -486,9 +497,11 @@ defmodule Mob.Screen do
     platform       = socket.__mob__.platform
     list_renderers = Map.get(socket.__mob__, :list_renderers, %{})
     socket = ensure_safe_area(socket, platform)
-    tree =
+    {tree, active_component_keys} =
       module.render(socket.assigns)
       |> Mob.List.expand(list_renderers, self())
+      |> Mob.Component.expand(self(), platform)
+    Mob.ComponentRegistry.reconcile(self(), active_component_keys)
     {:ok, token} = Mob.Renderer.render(tree, platform, :mob_nif, transition)
     Mob.Socket.put_root_view(socket, token)
   end

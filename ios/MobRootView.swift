@@ -5,6 +5,43 @@ import SwiftUI
 import AVKit
 import WebKit
 
+// ── Native view component registry ───────────────────────────────────────────
+// Register platform-native views by name at app startup. The name is the
+// Elixir module with "Elixir." stripped and "." replaced with "_":
+//   MyApp.ChartComponent → "MyApp_ChartComponent"
+//
+//   MobNativeViewRegistry.shared.register("MyApp_ChartComponent") { props, send in
+//       AnyView(ChartView(data: props["data"]) { index in
+//           send("tapped", ["index": index])
+//       })
+//   }
+
+public typealias MobNativeSend = (_ event: String, _ payload: [String: Any]) -> Void
+public typealias MobNativeViewFactory = (_ props: [String: Any], _ send: @escaping MobNativeSend) -> AnyView
+
+public final class MobNativeViewRegistry {
+    public static let shared = MobNativeViewRegistry()
+    private var factories: [String: MobNativeViewFactory] = [:]
+
+    public func register(_ name: String, factory: @escaping MobNativeViewFactory) {
+        factories[name] = factory
+    }
+
+    func view(for node: MobNode) -> AnyView? {
+        guard let name = node.nativeViewModule,
+              let factory = factories[name],
+              let props = node.nativeViewProps as? [String: Any] else { return nil }
+        let handle = node.nativeViewHandle
+        let send: MobNativeSend = { event, payload in
+            if let data = try? JSONSerialization.data(withJSONObject: payload),
+               let json = String(data: data, encoding: .utf8) {
+                mob_send_component_event(handle, event, json)
+            }
+        }
+        return factory(props, send)
+    }
+}
+
 extension View {
     @ViewBuilder
     func ifLet<T>(_ value: T?, transform: (Self, T) -> some View) -> some View {
@@ -265,6 +302,11 @@ struct MobNodeView: View {
                     .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
                     .padding(node.paddingEdgeInsets)
 
+            case .nativeView:
+                if let view = MobNativeViewRegistry.shared.view(for: node) {
+                    view.padding(node.paddingEdgeInsets)
+                }
+
             @unknown default:
                 EmptyView()
             }
@@ -340,41 +382,55 @@ private struct MobVideoPlayer: UIViewControllerRepresentable {
 
 // ── Camera preview ────────────────────────────────────────────────────────
 
+// Custom UIView whose backing layer is an AVCaptureVideoPreviewLayer.
+// UIKit automatically keeps the layer frame in sync with the view bounds —
+// no manual frame management required.
+private class CameraPreviewUIView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+    var cameraLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+}
+
 private struct MobCameraPreviewView: UIViewRepresentable {
     let facing: String
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> CameraPreviewUIView {
+        let view = CameraPreviewUIView()
         view.backgroundColor = .black
-        attachPreviewLayer(to: view, coordinator: context.coordinator)
+        view.cameraLayer.videoGravity = .resizeAspectFill
+        // Connect immediately if the session is already running.
+        view.cameraLayer.session = g_preview_session
+        // Observe future session changes (start, stop, facing swap).
+        context.coordinator.startObserving(view: view)
         return view
     }
 
-    func updateUIView(_ view: UIView, context: Context) {
-        let coordinator = context.coordinator
-        // Reattach when the session has changed (e.g. front↔back swap via camera_start_preview).
-        if coordinator.previewLayer?.session !== g_preview_session {
-            coordinator.previewLayer?.removeFromSuperlayer()
-            coordinator.previewLayer = nil
-            attachPreviewLayer(to: view, coordinator: coordinator)
-        }
-        coordinator.previewLayer?.frame = view.bounds
-    }
+    func updateUIView(_ view: CameraPreviewUIView, context: Context) {}
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    private func attachPreviewLayer(to view: UIView, coordinator: Coordinator) {
-        guard let session = g_preview_session else { return }
-        let layer = AVCaptureVideoPreviewLayer(session: session)
-        layer.videoGravity = .resizeAspectFill
-        layer.frame = view.bounds
-        view.layer.addSublayer(layer)
-        coordinator.previewLayer = layer
-    }
-
     class Coordinator: NSObject {
-        var previewLayer: AVCaptureVideoPreviewLayer?
+        private var observer: NSObjectProtocol?
+        private weak var hostView: CameraPreviewUIView?
+
+        func startObserving(view: CameraPreviewUIView) {
+            hostView = view
+            observer = NotificationCenter.default.addObserver(
+                forName: .mobCameraSessionChanged,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.hostView?.cameraLayer.session = g_preview_session
+            }
+        }
+
+        deinit {
+            if let obs = observer { NotificationCenter.default.removeObserver(obs) }
+        }
     }
+}
+
+extension Notification.Name {
+    static let mobCameraSessionChanged = Notification.Name("MobCameraSessionChanged")
 }
 
 // ── WebView ───────────────────────────────────────────────────────────────────

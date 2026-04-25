@@ -97,6 +97,39 @@ static int          tap_handle_next = 0;
 static ErlNifMutex* tap_mutex       = NULL;
 static char         g_transition[16] = "none";  // set by set_transition/1, read+reset by set_root/1
 
+// ── Component handle registry ─────────────────────────────────────────────────
+// Persistent (not cleared between renders). Each slot maps an integer handle to
+// a component process pid. register_component/1 allocates; deregister_component/1 frees.
+
+#define MAX_COMPONENT_HANDLES 64
+
+typedef struct {
+    ErlNifPid pid;
+    int       active;
+} ComponentHandle;
+
+static ComponentHandle component_handles[MAX_COMPONENT_HANDLES];
+static ErlNifMutex*   component_mutex = NULL;
+
+void mob_send_component_event(int handle, const char* event, const char* payload_json) {
+    if (handle < 0 || handle >= MAX_COMPONENT_HANDLES) return;
+    enif_mutex_lock(component_mutex);
+    if (!component_handles[handle].active) {
+        enif_mutex_unlock(component_mutex);
+        return;
+    }
+    ErlNifPid pid = component_handles[handle].pid;
+    enif_mutex_unlock(component_mutex);
+
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "component_event"),
+        enif_make_string(env, event,        ERL_NIF_LATIN1),
+        enif_make_string(env, payload_json, ERL_NIF_LATIN1));
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
 // Called from the app's Java_..._MobBridge_nativeSendTap JNI stub
 // (declared in mob_beam.h, defined here).
 void mob_send_tap(int handle) {
@@ -1432,6 +1465,37 @@ static ERL_NIF_TERM nif_webview_go_back(ErlNifEnv* env, int argc, const ERL_NIF_
     return enif_make_atom(env, "ok");
 }
 
+// ── Native view component NIFs ────────────────────────────────────────────────
+
+static ERL_NIF_TERM nif_register_component(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifPid pid;
+    if (!enif_get_local_pid(env, argv[0], &pid))
+        return enif_make_badarg(env);
+
+    enif_mutex_lock(component_mutex);
+    for (int i = 0; i < MAX_COMPONENT_HANDLES; i++) {
+        if (!component_handles[i].active) {
+            component_handles[i].pid    = pid;
+            component_handles[i].active = 1;
+            enif_mutex_unlock(component_mutex);
+            return enif_make_int(env, i);
+        }
+    }
+    enif_mutex_unlock(component_mutex);
+    return enif_make_badarg(env);
+}
+
+static ERL_NIF_TERM nif_deregister_component(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int handle;
+    if (!enif_get_int(env, argv[0], &handle) || handle < 0 || handle >= MAX_COMPONENT_HANDLES)
+        return enif_make_badarg(env);
+
+    enif_mutex_lock(component_mutex);
+    component_handles[handle].active = 0;
+    enif_mutex_unlock(component_mutex);
+    return enif_make_atom(env, "ok");
+}
+
 // ── NIF table & load ──────────────────────────────────────────────────────────
 
 static ErlNifFunc nif_funcs[] = {
@@ -1494,6 +1558,8 @@ static ErlNifFunc nif_funcs[] = {
     {"webview_post_message",1, nif_webview_post_message,0},
     {"webview_can_go_back", 0, nif_webview_can_go_back, 0},
     {"webview_go_back",     0, nif_webview_go_back,     0},
+    {"register_component",   1, nif_register_component,   0},
+    {"deregister_component", 1, nif_deregister_component, 0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
@@ -1502,6 +1568,8 @@ static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
 
     tap_mutex = enif_mutex_create("mob_tap_mutex");
     if (!tap_mutex) { LOGE("nif_load: failed to create tap mutex"); return -1; }
+    component_mutex = enif_mutex_create("mob_component_mutex");
+    if (!component_mutex) { LOGE("nif_load: failed to create component mutex"); return -1; }
 
     int att; JNIEnv* jenv = get_jenv(&att);
     Bridge.set_root = (*jenv)->GetStaticMethodID(jenv, Bridge.cls,

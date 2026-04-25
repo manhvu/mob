@@ -72,7 +72,7 @@ defmodule Mob.UI do
       |> then(fn p -> if props[:title], do: Map.put(p, :title, props[:title]), else: p end)
       |> then(fn p -> if props[:width],  do: Map.put(p, :width,  props[:width]),  else: p end)
       |> then(fn p -> if props[:height], do: Map.put(p, :height, props[:height]), else: p end)
-    %{type: :webview, props: node_props, children: []}
+    %{type: :web_view, props: node_props, children: []}
   end
 
   @doc """
@@ -94,5 +94,26 @@ defmodule Mob.UI do
       props:    Map.take(props, [:facing, :width, :height]),
       children: []
     }
+  end
+
+  @doc """
+  Returns a `:native_view` node that renders a platform-native component.
+
+  `module` must implement the `Mob.Component` behaviour and be registered
+  on the native side via `MobNativeViewRegistry`. The `:id` must be unique
+  per screen — a duplicate raises at render time.
+
+  All other props are passed to `mount/2` and `update/2` on the component.
+
+  ## Example
+
+      Mob.UI.native_view(MyApp.ChartComponent, id: :revenue_chart, data: @points)
+
+  """
+  @spec native_view(module(), keyword() | map()) :: map()
+  def native_view(module, props \\ [])
+  def native_view(module, props) when is_list(props), do: native_view(module, Map.new(props))
+  def native_view(module, %{} = props) when is_atom(module) do
+    %{type: :native_view, props: Map.put(props, :module, module), children: []}
   end
 end

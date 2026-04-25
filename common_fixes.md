@@ -304,3 +304,191 @@ visually disappears and snaps back.
 
 **Fixed in**: `mob_demo/android/app/src/main/res/values/styles.xml` (created) and
 `mob_demo/android/app/src/main/AndroidManifest.xml` — theme + configChanges (2026-04-15).
+
+---
+
+## iOS BEAM crashes when `Mob.Test.pop` / `pop_to_root` is called via distribution
+
+**Symptom**: `Mob.Test.pop(node)`, `Mob.Test.pop_to(node, ...)`, or
+`Mob.Test.pop_to_root(node)` causes the iOS node to crash immediately. The node
+goes offline; `Node.list/0` no longer shows it.
+
+**Root cause**: The pop NIFs (`nif_nav_pop`, `nif_nav_pop_to_root`) mutate the
+SwiftUI `NavigationPath` from the Erlang distribution thread. SwiftUI requires all
+state mutations to happen on the main thread. The push path runs on the main thread
+(guarded by a `DispatchQueue.main.async` block); the pop path does not.
+
+**Status**: Not yet fixed. Push navigation (`navigate/3`) is safe.
+
+**Workaround**:
+- Use `Mob.Test.navigate(node, SomeScreen)` to drive the app forward instead of back.
+- Drive backward navigation via native UI tap using the MCP simulator tools
+  (`mcp__ios_simulator__ui_tap` on the Back button) rather than `Mob.Test.pop`.
+- In automated tests, structure flows so pop is unnecessary — navigate forward to
+  reset state, or restart the app.
+
+---
+
+## arm32 Android OTP: `asn1rt_nif.a` not built by cross-compile
+
+**Symptom**: CMake/ninja build fails with:
+
+```
+ninja: error: '.../erts-16.3/lib/asn1rt_nif.a', needed by 'libsmoketest.so', missing
+```
+
+Only happens for `armeabi-v7a` (arm32) targets. arm64 and iOS builds are unaffected.
+
+**Root cause**: OTP's build system emits `asn1rt_nif.a` for arm64 and iOS cross-compile
+targets but silently skips it for arm32 (`arm-unknown-linux-androideabi`). The static
+NIF table in `driver_tab_android.c` references the symbol `asn1rt_nif_nif_init`, which
+must come from this library.
+
+**Critical detail**: The file must be compiled with `-DSTATIC_ERLANG_NIF_LIBNAME=asn1rt_nif`.
+Without this flag the init symbol is `nif_init`, not `asn1rt_nif_nif_init`, and the linker
+will fail with an undefined symbol at link time even though the `.a` file exists.
+
+**Fix**: Compile manually and place at `erts-<vsn>/lib/asn1rt_nif.a` in the tarball:
+
+```bash
+NDK=~/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin
+OTP_SRC=~/code/otp
+
+$NDK/armv7a-linux-androideabi21-clang \
+  -march=armv7-a -mfloat-abi=softfp -mthumb \
+  -fvisibility=hidden -fno-common -fno-strict-aliasing \
+  -fstack-protector-strong -O2 \
+  -I "$OTP_SRC/erts/arm-unknown-linux-androideabi" \
+  -I "$OTP_SRC/erts/include/arm-unknown-linux-androideabi" \
+  -I "$OTP_SRC/erts/emulator/beam" \
+  -I "$OTP_SRC/erts/include" \
+  -DHAVE_CONFIG_H \
+  -DSTATIC_ERLANG_NIF_LIBNAME=asn1rt_nif \
+  -c "$OTP_SRC/lib/asn1/c_src/asn1_erl_nif.c" \
+  -o /tmp/asn1rt_nif_arm32.o
+
+$NDK/llvm-ar rc /tmp/asn1rt_nif_arm32.a /tmp/asn1rt_nif_arm32.o
+$NDK/llvm-ranlib /tmp/asn1rt_nif_arm32.a
+```
+
+**Fixed in**: `mob_dev/build_release.md` — documents the arm32 compilation requirement
+and the correct compile command (2026-04-25).
+
+---
+
+## macOS `tar` inserts `._` Apple Double sidecar files into archives
+
+**Symptom**: When pushing OTP or BEAM files to an Android device, Toybox tar on the
+device prints a stream of errors like:
+
+```
+tar: chown 501:20 '._.': Operation not permitted
+tar: chown 501:20 '._liberl_child_setup.so': Operation not permitted
+```
+
+The `._<filename>` entries are macOS Apple Double metadata files that macOS `tar`
+silently inserts into archives. On Android, Toybox tar tries to restore the macOS
+owner (UID 501, GID 20) and fails because the device doesn't have those users.
+
+**Root cause**: macOS `tar` writes AppleDouble sidecar files by default when archiving
+on HFS+/APFS. The environment variable `COPYFILE_DISABLE=1` disables this behaviour.
+
+**Fix**: Set `COPYFILE_DISABLE=1` in the environment of every macOS `tar` create call:
+
+```elixir
+System.cmd("tar", ["czf", out, ...], env: [{"COPYFILE_DISABLE", "1"}])
+```
+
+**Fixed in**: `mob_dev/lib/mob_dev/deployer.ex` and `mob_dev/lib/mob_dev/native_build.ex`
+— all `tar` archive creation calls now pass `env: [{"COPYFILE_DISABLE", "1"}]` (2026-04-25).
+
+---
+
+## Toybox tar on Android 10 exits 1 on chown failure even when extraction succeeds
+
+**Symptom**: `run-as <pkg> tar xf ...` exits with code 1, causing `mob_dev` to report
+an error. But the files are actually present and intact on the device.
+
+**Root cause**: Android 10 ships Toybox tar (not GNU tar). Toybox tar exits 1 when it
+cannot restore file ownership from the archive, even if all files were extracted
+correctly. Archives created on macOS embed owner UID 501 / GID 20; the `run-as`
+sandbox cannot `chown` to those values, so every file triggers a non-fatal error that
+still sets the exit code to 1.
+
+**Fix**: Append `2>/dev/null; true` to all device-side extraction commands so the
+non-zero exit code and stderr noise are suppressed:
+
+```elixir
+adb.(["shell", "run-as #{bundle_id} sh -c 'tar xf ... 2>/dev/null; true'"])
+```
+
+**Fixed in**: `mob_dev/lib/mob_dev/deployer.ex` and `mob_dev/lib/mob_dev/native_build.ex`
+— all device-side `tar xf` invocations now append `2>/dev/null; true` (2026-04-25).
+
+---
+
+## Toybox tar on Android 10 does not support `--strip-components`
+
+**Symptom**: OTP or BEAM push fails with:
+
+```
+run-as tar failed: tar: Unknown option strip-components=1
+```
+
+**Root cause**: GNU tar's `--strip-components=N` flag strips leading path components
+during extraction. Toybox tar (shipped on Android 10 and some Android 11 devices) does
+not implement this flag.
+
+**Fix**: Change the archive structure so no stripping is needed. Instead of archiving a
+named wrapper directory and stripping it on extraction, archive the contents directly:
+
+```bash
+# Instead of:
+tar czf archive.tar.gz -C /parent wrapper_dir/    # extracts as wrapper_dir/file
+# Use:
+tar czf archive.tar.gz -C /parent/wrapper_dir .   # extracts as ./file
+```
+
+On the device side, simply `tar xf archive.tar.gz` with no `--strip-components`.
+
+**Fixed in**: `mob_dev/lib/mob_dev/deployer.ex` — `push_beams_android_runas/2` changed
+archive creation to `tar cf -C tmp_dir .` (2026-04-25).
+
+---
+
+## `mob.exs` bundle_id mismatch silently skips OTP push
+
+**Symptom**: `mix mob.deploy` completes without error but the app crashes on launch.
+The deploy log shows:
+
+```
+⚠ ZY22CRLMWK: com.mob.mobqa not installed — skipping OTP push
+```
+
+The OTP runtime is never pushed to the device, so the BEAM starts but can't find the
+app module. `erl_crash.dump` on the device contains:
+
+```
+Slogan: {undef,[{smoke_test,start,[],[]}]}
+```
+
+**Root cause**: `mob.exs` contains a `bundle_id` that doesn't match the package name
+in `android/app/build.gradle`. The deployer checks for the installed package using
+`pm list packages <bundle_id>` before pushing OTP. If the IDs don't match, it skips
+the push with a warning rather than failing hard.
+
+`mob.exs` is gitignored and machine-specific. It's easy for it to drift from the
+project's actual bundle ID, especially when the same file was copied from another
+project.
+
+**Fix**: Ensure `bundle_id` in `mob.exs` exactly matches `applicationId` in
+`android/app/build.gradle`.
+
+**Diagnosis**:
+```bash
+# What mob.exs thinks the bundle ID is:
+grep bundle_id mob.exs
+
+# What the APK actually uses:
+grep applicationId android/app/build.gradle
+```

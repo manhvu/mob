@@ -65,4 +65,8 @@ void mob_set_launch_notification(const char* json);
 // Called from beam_jni.c when a dialog button is tapped.
 void mob_deliver_alert_action(const char* action);
 
+// Deliver {:component_event, event, payload_json} to a native view component process.
+// Called from beam_jni.c when Kotlin fires a component event via the send callback.
+void mob_send_component_event(int handle, const char* event, const char* payload_json);
+
 #endif // MOB_BEAM_H

@@ -284,6 +284,32 @@ Mob.Dist.ensure_started(node: :"my_app_android@127.0.0.1", cookie: :mob_secret, 
 
 ---
 
+## iOS: `Mob.Test.pop` / `pop_to_root` crashes the BEAM
+
+**Symptom:** Calling `Mob.Test.pop(node)`, `Mob.Test.pop_to(node, ...)`, or
+`Mob.Test.pop_to_root(node)` causes the iOS BEAM node to crash immediately.
+Logcat shows a signal or the node goes offline.
+
+**Cause:** The pop NIF calls SwiftUI's navigation stack from an Erlang distribution
+thread. SwiftUI requires all UI mutations to happen on the main thread. The push
+path is guarded correctly; the pop path is not yet.
+
+**Workaround:** Drive backward navigation using platform taps instead:
+
+```elixir
+# Instead of: Mob.Test.pop_to_root(node)
+
+# iOS — tap the native Back button via MCP:
+mcp__ios_simulator__ui_tap(x: 20, y: 60)
+
+# Or navigate forward to the desired screen and reset:
+Mob.Test.navigate(node, MyApp.HomeScreen)
+```
+
+`Mob.Test.navigate/3` (push) is safe — it does not trigger the crash.
+
+---
+
 ## iOS simulator: node connects but RPC calls fail
 
 **Symptom:** `Node.connect/1` returns `true`, `Node.list/0` shows the device

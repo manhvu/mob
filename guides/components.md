@@ -323,6 +323,64 @@ def handle_info({:change, :volume_changed, value}, socket) do
 end
 ```
 
+## Native view components
+
+### `:webview`
+
+Embeds a native web view. Communicates bidirectionally with JS via the `window.mob` bridge. See [WebView](device_capabilities.md#webview) for the full message-passing API.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `url` | string | Initial URL to load (required) |
+| `allow` | list of strings | URL prefixes that are allowed to navigate; others are blocked and delivered as `{:webview, :blocked, url}` |
+| `show_url` | boolean | Show the native URL bar |
+| `title` | string | Static title label, overrides `show_url` |
+| `width` | number | Fixed width in dp/pt |
+| `height` | number | Fixed height in dp/pt |
+| `weight` | float | Flex weight inside a `:row` or `:column` |
+
+```elixir
+~MOB"""
+<WebView url="https://example.com"
+         allow={["https://example.com"]}
+         show_url={true}
+         weight={1} />
+"""
+```
+
+### `:camera_preview`
+
+Displays a live camera feed inline. Requires an active preview session — call `Mob.Camera.start_preview/2` before rendering and `Mob.Camera.stop_preview/1` in `terminate/2`. No OS permission dialog is shown for preview alone.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `facing` | `:back` / `:front` | Camera to use |
+| `weight` | float | Flex weight inside a `:row` or `:column` |
+| `width` | number | Fixed width in dp/pt |
+| `height` | number | Fixed height in dp/pt |
+
+```elixir
+def mount(_params, _session, socket) do
+  socket = Mob.Camera.start_preview(socket, facing: :back)
+  {:ok, socket}
+end
+
+def render(assigns) do
+  flip_tap = {self(), :flip}
+  ~MOB"""
+  <Column>
+    <CameraPreview facing={:back} weight={1} />
+    <Button text="Flip" on_tap={flip_tap} />
+  </Column>
+  """
+end
+
+def terminate(_reason, socket) do
+  Mob.Camera.stop_preview(socket)
+  :ok
+end
+```
+
 ## Using `Mob.Style` for reusable styles
 
 Define shared styles as module attributes and attach them via the `:style` prop. Inline props override style values:

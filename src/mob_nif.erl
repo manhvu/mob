@@ -62,6 +62,9 @@
          webview_post_message/1,
          webview_can_go_back/0,
          webview_go_back/0,
+         %% Native view components
+         register_component/1,
+         deregister_component/1,
          %% Test harness — native UI inspection and interaction
          ui_tree/0,
          ui_debug/0,
@@ -132,7 +135,10 @@
        webview_eval_js/1,
        webview_post_message/1,
        webview_can_go_back/0,
-       webview_go_back/0]).
+       webview_go_back/0,
+       %% Native view components
+       register_component/1,
+       deregister_component/1]).
 
 -on_load(init/0).
 
@@ -195,3 +201,5 @@ webview_eval_js(_Code)                      -> erlang:nif_error(not_loaded).
 webview_post_message(_Json)                 -> erlang:nif_error(not_loaded).
 webview_can_go_back()                       -> erlang:nif_error(not_loaded).
 webview_go_back()                           -> erlang:nif_error(not_loaded).
+register_component(_Pid)                    -> erlang:nif_error(not_loaded).
+deregister_component(_Handle)              -> erlang:nif_error(not_loaded).

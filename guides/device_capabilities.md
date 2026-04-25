@@ -138,19 +138,73 @@ end
 > **Platform note:** `types` uses iOS UTI strings on iOS (`"public.pdf"`) and MIME type strings on Android (`"application/pdf"`). To support both platforms with the same call, pass both forms — the platform ignores strings it doesn't recognise. See [Platform-specific props](components.md#platform-specific-props) for a cleaner pattern.
 ```
 
+## Camera preview
+
+Display a live camera feed inline (no OS permission dialog for preview):
+
+```elixir
+def mount(_params, _session, socket) do
+  socket = Mob.Camera.start_preview(socket, facing: :back)
+  {:ok, socket}
+end
+
+def render(assigns) do
+  ~MOB"""
+  <Column>
+    <CameraPreview facing={:back} weight={1} />
+    <Button text="Flip" on_tap={{self(), :flip}} />
+  </Column>
+  """
+end
+
+def terminate(_reason, socket) do
+  Mob.Camera.stop_preview(socket)
+  :ok
+end
+```
+
+The `:camera_preview` component requires an active preview session — call `start_preview/2` before mounting and `stop_preview/1` in `terminate/2`.
+
 ## Audio recording
 
 Requires `:microphone` permission.
 
 ```elixir
-socket = Mob.Audio.record(socket)
-socket = Mob.Audio.record(socket, format: :aac, max_duration: 120)
+socket = Mob.Audio.start_recording(socket)
+socket = Mob.Audio.start_recording(socket, format: :aac, quality: :medium)
 socket = Mob.Audio.stop_recording(socket)
 
 def handle_info({:audio, :recorded, %{path: path, duration: seconds}}, socket) do
   {:noreply, Mob.Socket.assign(socket, :recording, path)}
 end
+
+def handle_info({:audio, :error, reason}, socket) do
+  {:noreply, Mob.Socket.assign(socket, :error, reason)}
+end
 ```
+
+Recording formats: `:aac` (default), `:wav`. Quality: `:low`, `:medium` (default), `:high`.
+
+## Audio playback
+
+No permission needed. Plays local files or remote URLs.
+
+```elixir
+socket = Mob.Audio.play(socket, "/path/to/clip.m4a")
+socket = Mob.Audio.play(socket, path, loop: true, volume: 0.8)
+socket = Mob.Audio.stop_playback(socket)
+socket = Mob.Audio.set_volume(socket, 0.5)  # adjust without stopping
+
+def handle_info({:audio, :playback_finished, %{path: path}}, socket) do
+  {:noreply, socket}
+end
+
+def handle_info({:audio, :playback_error, %{reason: reason}}, socket) do
+  {:noreply, Mob.Socket.assign(socket, :error, reason)}
+end
+```
+
+iOS uses `AVAudioPlayer` / `AVPlayer`. Android uses `MediaPlayer`.
 
 ## Location
 
@@ -248,7 +302,33 @@ end
 
 ### Push notifications
 
-Register for push tokens and forward them to your server. A server-side push library (`mob_push`) is planned but not yet published — for now, use a standard APNs/FCM client library with the tokens you receive.
+Register for push tokens and forward them to your server. A server-side push library (`mob_push`) is in development.
+
+#### Server credentials
+
+**Apple (APNs) — token-based auth (recommended)**
+
+Create a signing key at:
+https://developer.apple.com/account/resources/authkeys/add
+
+Enable "Apple Push Notifications service (APNs)", download the `.p8` file, and note
+the Key ID shown in the portal. One key works across all your apps, both development
+and production environments, and never expires (but can be revoked if compromised).
+
+You need four things server-side:
+- `.p8` key file — downloaded when you create the key (only shown once)
+- Key ID — https://developer.apple.com/account/resources/authkeys/list
+- Team ID — https://developer.apple.com/account (Membership Details section)
+- Bundle ID — https://developer.apple.com/account/resources/identifiers/list
+
+Your server signs a short-lived JWT from these at send time; there is no separate
+token to store. See the APNs documentation for the JWT format.
+
+**Google (FCM)**
+
+Create a Firebase project, then: Project Settings → Service accounts →
+Generate new private key. Drop `google-services.json` into `android/app/` for
+the Android client.
 
 ```elixir
 # After :notifications permission is granted:
@@ -270,3 +350,143 @@ def handle_info({:notification, %{title: t, body: b, data: d, source: :push}}, s
   {:noreply, socket}
 end
 ```
+
+## Storage
+
+App-local file storage using named locations instead of raw paths. No permission needed.
+
+```elixir
+# Resolve a location to its absolute path
+path = Mob.Storage.dir(:documents)   # persists, user-visible on iOS
+path = Mob.Storage.dir(:cache)       # persists until OS needs space
+path = Mob.Storage.dir(:temp)        # ephemeral, may be purged any time
+path = Mob.Storage.dir(:app_support) # persists, hidden from user, backed up on iOS
+
+# File operations
+{:ok, files} = Mob.Storage.list(:documents)       # returns full paths
+{:ok, meta}  = Mob.Storage.stat("/path/to/file")  # %{name, path, size, modified_at}
+{:ok, path}  = Mob.Storage.write("/path/file.txt", "contents")
+{:ok, data}  = Mob.Storage.read("/path/file.txt")
+{:ok, dest}  = Mob.Storage.copy("/path/src.txt", :documents)  # keeps basename
+{:ok, dest}  = Mob.Storage.move("/path/src.txt", "/path/dest.txt")
+:ok          = Mob.Storage.delete("/path/file.txt")
+
+ext = Mob.Storage.extension("/tmp/clip.mp4")  # => ".mp4"
+```
+
+All operations that can fail return `{:ok, value} | {:error, posix}`. `dir/1` raises on an unknown location atom.
+
+For saving to the native media library (Camera Roll, Downloads), see `Mob.Storage.Apple` and `Mob.Storage.Android`.
+
+## WebView
+
+Embed a native web view and communicate with it over a JS bridge. No permission needed.
+
+```elixir
+def render(assigns) do
+  ~MOB"""
+  <WebView url="https://example.com" allow={["https://example.com"]} show_url={true} weight={1} />
+  """
+end
+
+# Send a message to Elixir from JS:
+#   window.mob.send({ event: "clicked", id: 42 })
+def handle_info({:webview, :message, %{"event" => "clicked", "id" => id}}, socket) do
+  {:noreply, socket}
+end
+
+# A navigation attempt was blocked by the allow: whitelist
+def handle_info({:webview, :blocked, url}, socket) do
+  {:noreply, socket}
+end
+```
+
+Push a message from Elixir into the page (calls `window.mob.onMessage` handlers):
+
+```elixir
+socket = Mob.WebView.post_message(socket, %{type: "update", value: 42})
+```
+
+Evaluate arbitrary JavaScript and receive the result:
+
+```elixir
+socket = Mob.WebView.eval_js(socket, "document.title")
+# Result arrives as:
+def handle_info({:webview, :eval_result, result}, socket) do
+  {:noreply, socket}
+end
+```
+
+Props: `:url` (required), `:allow` (list of URL prefixes — blocks others), `:show_url` (native URL bar), `:title` (static label overriding `:show_url`), `:width`, `:height`.
+
+> **Platform note:** WebView is supported on both iOS and Android.
+
+## Alerts and toasts
+
+`Mob.Alert` shows native dialogs and status messages. No permission needed.
+
+### Alert dialog
+
+Centered modal for confirmations and errors (iOS: `UIAlertController(.alert)`, Android: `AlertDialog`).
+
+```elixir
+def handle_info({:tap, :delete}, socket) do
+  Mob.Alert.alert(socket,
+    title:   "Delete item?",
+    message: "This cannot be undone.",
+    buttons: [
+      [label: "Delete", style: :destructive, action: :confirmed_delete],
+      [label: "Cancel", style: :cancel]
+    ]
+  )
+  {:noreply, socket}
+end
+
+def handle_info({:alert, :confirmed_delete}, socket) do
+  {:noreply, do_delete(socket)}
+end
+
+def handle_info({:alert, :dismiss}, socket) do
+  {:noreply, socket}
+end
+```
+
+Dismissing without tapping a button (e.g. Android back gesture) sends `{:alert, :dismiss}`.
+
+### Action sheet
+
+Bottom-anchored list for choosing between actions (iOS: `UIAlertController(.actionSheet)`, Android: list dialog).
+
+```elixir
+Mob.Alert.action_sheet(socket,
+  title:   "Share photo",
+  buttons: [
+    [label: "Save to Photos", action: :save],
+    [label: "Copy link",      action: :copy],
+    [label: "Cancel",         style: :cancel]
+  ]
+)
+
+def handle_info({:alert, :save}, socket), do: {:noreply, save_photo(socket)}
+def handle_info({:alert, :copy}, socket), do: {:noreply, copy_link(socket)}
+def handle_info({:alert, :dismiss}, socket), do: {:noreply, socket}
+```
+
+### Toast
+
+Ephemeral status message with no callback.
+
+```elixir
+Mob.Alert.toast(socket, "Saved!")
+Mob.Alert.toast(socket, "File uploaded", duration: :long)
+```
+
+Duration: `:short` (default, ~2 s) or `:long` (~4 s). iOS renders a floating label overlay; Android uses `Toast`.
+
+### Button options
+
+| Key | Values | Default |
+|-----|--------|---------|
+| `:label` | string | `""` |
+| `:style` | `:default`, `:cancel`, `:destructive` | `:default` |
+| `:action` | atom — delivered as `{:alert, atom}` to `handle_info/2` | `:dismiss` |

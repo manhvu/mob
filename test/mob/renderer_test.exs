@@ -396,6 +396,80 @@ defmodule Mob.RendererTest do
     end
   end
 
+  # ── Component type name serialization ────────────────────────────────────
+  # The renderer converts atom types to strings via Atom.to_string/1.
+  # Multi-word types (PascalCase in the native layer, snake_case in Elixir) are
+  # the risky ones: a mismatch between "web_view" and "webview" causes a silent
+  # white-screen. Each test below pins the exact string the native layer must match.
+
+  describe "component type name serialization" do
+    defp rendered_type(type) do
+      tree = %{type: type, props: %{}, children: []}
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      :json.decode(json)["type"]
+    end
+
+    # Single-word types — baseline sanity
+    test "text → \"text\"",     do: assert rendered_type(:text)     == "text"
+    test "button → \"button\"", do: assert rendered_type(:button)   == "button"
+    test "column → \"column\"", do: assert rendered_type(:column)   == "column"
+    test "row → \"row\"",       do: assert rendered_type(:row)      == "row"
+    test "image → \"image\"",   do: assert rendered_type(:image)    == "image"
+    test "scroll → \"scroll\"", do: assert rendered_type(:scroll)   == "scroll"
+
+    # Multi-word types — the ones where a missing underscore causes a white screen
+    test "web_view → \"web_view\" (not \"webview\")" do
+      assert rendered_type(:web_view) == "web_view"
+    end
+
+    test "camera_preview → \"camera_preview\"" do
+      assert rendered_type(:camera_preview) == "camera_preview"
+    end
+
+    test "lazy_list → \"lazy_list\"" do
+      assert rendered_type(:lazy_list) == "lazy_list"
+    end
+
+    test "tab_bar → \"tab_bar\"" do
+      assert rendered_type(:tab_bar) == "tab_bar"
+    end
+
+    test "text_field → \"text_field\"" do
+      assert rendered_type(:text_field) == "text_field"
+    end
+
+    test "native_view → \"native_view\"" do
+      assert rendered_type(:native_view) == "native_view"
+    end
+
+    # Mob.UI constructors — verify the constructor atom matches the expected string
+    test "Mob.UI.webview/1 produces type \"web_view\"" do
+      node = Mob.UI.webview(url: "https://example.com")
+      MockNIF.reset()
+      Renderer.render(node, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["type"] == "web_view"
+    end
+
+    test "Mob.UI.camera_preview/1 produces type \"camera_preview\"" do
+      node = Mob.UI.camera_preview(facing: :back)
+      MockNIF.reset()
+      Renderer.render(node, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["type"] == "camera_preview"
+    end
+
+    test "Mob.UI.native_view/2 produces type \"native_view\"" do
+      node = Mob.UI.native_view(MyApp.FakeComponent, id: :chart)
+      MockNIF.reset()
+      Renderer.render(node, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["type"] == "native_view"
+    end
+  end
+
   describe "Mob.Style struct" do
     test "style props are merged into node props" do
       style = %Mob.Style{props: %{text_size: :xl, text_color: :white}}

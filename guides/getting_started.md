@@ -1,205 +1,348 @@
 # Getting Started
 
-This guide walks you through creating a new Mob app from scratch, running it on a simulator, and making your first code change with hot push.
+Mob runs on iOS and Android. Pick your target — you don't need both.
 
-## Prerequisites
+→ [iOS only](#ios-only)
+→ [Android only](#android-only)
+→ [Both platforms](#both-platforms)
 
-- Elixir 1.18 or later (with Hex: `mix local.hex`)
-- `mob_new` installed globally: `mix archive.install hex mob_new`
-- For iOS: Xcode 15+ with the iOS Simulator
-- For Android: Android Studio Hedgehog or later with an AVD (Android Virtual Device) configured
+---
 
-## Create a new app
+## iOS only
+
+### What you need
+
+- macOS
+- Xcode 15 or later (`xcode-select --install` for command-line tools)
+- Elixir 1.18 or later with Hex: `mix local.hex`
+- `mob_new` installed: `mix archive.install hex mob_new`
+
+That's enough to run on the **iOS Simulator**. For a **physical iPhone**, you also need:
+
+- An Apple ID — free at https://appleid.apple.com
+- Xcode signed in with that Apple ID: open Xcode → Settings → Accounts → [+]
+- (For App Store distribution only) Apple Developer Program — $99/year.
+  Free accounts can deploy to your own devices; profiles expire every 7 days.
+
+### Create a project
 
 ```bash
 mix mob.new my_app
 cd my_app
-```
-
-`mix mob.new` generates a complete project: Elixir sources, a native iOS project, and a native Android project. The Elixir code lives in `lib/`; native projects live in `ios/` and `android/`.
-
-## Project structure
-
-```
-my_app/
-├── lib/
-│   ├── my_app.ex          # Mob.App entry point
-│   └── my_app/
-│       └── home_screen.ex # Your first screen
-├── ios/
-│   └── build.sh           # iOS build script
-├── android/
-│   └── app/               # Android project
-└── mix.exs
-```
-
-## Install dependencies
-
-```bash
 mix mob.install
 ```
 
-This fetches Elixir dependencies and downloads the pre-built OTP runtime for your target platform(s). The OTP download is platform-specific (iOS simulator or Android ARM64) and may take a few minutes the first time.
+`mix mob.install` downloads the pre-built OTP runtime for iOS and writes your `mob.exs`.
 
-## Verify your environment
+### Verify your environment
 
 ```bash
 mix mob.doctor
 ```
 
-`mix mob.doctor` checks that every required tool is installed, your `mob.exs` is correctly configured, the OTP runtimes were downloaded and extracted properly, and at least one device or simulator is visible. Run it any time something isn't working — it prints specific fix instructions for each issue it finds:
+Fix any failures before continuing. See [Troubleshooting](troubleshooting.md) if needed.
 
-```
-=== Mob Doctor ===
+### Run on the iOS Simulator
 
-Tools
-  ✓ Elixir — 1.18.3
-  ✓ OTP — 28 (ERTS 16.3)
-  ✓ Hex — 2.1.1
-  ✓ adb — /usr/bin/adb
-  ✓ xcrun — Xcode 15.4 Build version 15F31d
-  ✓ java — openjdk version "21.0.2" 2024-01-16
-  ✓ Android SDK — /Users/you/Library/Android/sdk
-  ✓ python3 — /usr/bin/python3
-  ✓ rsync — /usr/bin/rsync
-  ⚠ ideviceinfo — not found (optional, needed for iOS physical device battery benchmarks)
-      brew install libimobiledevice
+Boot a simulator from Xcode → Open Simulator, or:
 
-Project
-  ✓ mob.exs — found
-  ✓ mob_dir — /Users/you/code/mob
-
-Build
-  ✓ mix deps — 42 deps fetched
-  ✓ compiled — 680 BEAMs in 12 lib(s)
-
-OTP Cache
-  ✓ OTP Android — otp-android-73ba6e0f (erts-16.3)
-  ✓ OTP iOS simulator — otp-ios-sim-73ba6e0f (erts-16.3)
-
-Devices
-  ✓ Android devices — Pixel 8 (emulator-5554)
-  ✓ iOS simulator — iPhone 16 Pro (A1B2-...)
-
-1 warning — optional items above may limit some features.
+```bash
+xcrun simctl boot "iPhone 16 Pro"
+open -a Simulator
 ```
 
-If `mix mob.doctor` shows failures, fix them before continuing. See [Troubleshooting](troubleshooting.md) for detailed solutions.
-
-## Run on simulator / emulator
-
-`mix mob.deploy` compiles your Elixir code and pushes it to the running app. With `--native` it also rebuilds and reinstalls the full native binary. Without `--native` it pushes only the changed .beam files — no rebuild required.
-
-Use `--ios` or `--android` to target a single platform; omit both to deploy to all connected devices.
-
-> **Physical devices:** Android devices must have Developer Options and USB Debugging enabled and be connected via USB for the initial deploy. After the first install, wireless debugging works. iOS is similar — trust the Mac on first connection.
-
-### iOS simulator
+Then deploy:
 
 ```bash
 mix mob.deploy --native --ios
 ```
 
-Or open `ios/` in Xcode, select a simulator, and press Run.
+This builds the `.app` bundle, installs it in the simulator, and pushes your BEAM files.
+Subsequent deploys without `--native` are faster — they push only changed `.beam` files:
 
-### Android emulator
+```bash
+mix mob.deploy --ios
+```
+
+### Run on a physical iPhone
+
+There are three one-time steps before your first deploy. Do them in order.
+
+#### Step 1 — Trust the Mac
+
+Connect your iPhone to your Mac with a USB cable. The phone will show:
+
+> **"Trust This Computer?"**
+
+Tap **Trust**, then enter your passcode. If this dialog doesn't appear, unplug and
+replug the cable, or try a different port.
+
+#### Step 2 — Enable Developer Mode on the iPhone
+
+This is required on iOS 16 and later. You only do it once per phone.
+
+On the iPhone: **Settings → Privacy & Security → Developer Mode → turn ON**
+
+The phone will warn you and ask to restart. Tap **Restart**. After it reboots, a
+dialog appears asking to confirm — tap **Enable** and enter your passcode.
+
+> If you don't see Developer Mode in Settings, make sure the phone is connected to
+> the Mac and Xcode is open. Xcode needs to recognise the device at least once for
+> the option to appear.
+
+#### Step 3 — Register your app ID and get a provisioning profile
+
+Apple requires every app installed on a physical device to be signed with a
+provisioning profile tied to your developer account. Run:
+
+```bash
+mix mob.provision
+```
+
+This generates a small Xcode project stub, uses it to register your bundle ID with
+Apple, and downloads a development provisioning profile — all from the command line.
+You won't need to build or launch anything in Xcode.
+
+> **If `mix mob.provision` fails:** open Xcode, select your phone from the device
+> picker at the top, and wait for it to finish "Preparing device for development".
+> Then re-run `mix mob.provision`.
+
+#### Deploy
+
+```bash
+mix mob.deploy --native --ios
+```
+
+Mob auto-detects the connected phone. The app will appear on your home screen.
+
+If the profile expires (free accounts: every 7 days, paid Developer Program: 1 year),
+re-run `mix mob.provision` then deploy again.
+
+---
+
+## Android only
+
+### What you need
+
+- Elixir 1.18 or later with Hex: `mix local.hex`
+- `mob_new` installed: `mix archive.install hex mob_new`
+- Java 17–21 (`brew install --cask temurin` on macOS)
+- Android Studio (includes the SDK and `adb`)
+
+For a **physical Android device**: enable Developer Options and USB Debugging on the
+device, then connect via USB and accept the authorization prompt.
+
+### Create a project
+
+```bash
+mix mob.new my_app
+cd my_app
+mix mob.install
+```
+
+`mix mob.install` downloads the pre-built OTP runtime for Android and writes your
+`mob.exs` and `android/local.properties`.
+
+### Verify your environment
+
+```bash
+mix mob.doctor
+```
+
+Fix any failures before continuing. See [Troubleshooting](troubleshooting.md) if needed.
+
+### Run on an emulator
+
+Start an AVD from Android Studio → Device Manager, then:
 
 ```bash
 mix mob.deploy --native --android
 ```
 
-Or open the `android/` folder in Android Studio and press Run.
-
-## Use the dev server for live debugging
-
-```bash
-iex -S mix mob.server
-```
-
-Without `iex`:
+This builds the APK, installs it on the emulator, and pushes your BEAM files.
+Subsequent deploys without `--native` push only changed `.beam` files:
 
 ```bash
-mix mob.server
+mix mob.deploy --android
 ```
 
-This starts the Mob dev server and opens a dashboard at `http://localhost:4040`.
+### Run on a physical Android device
 
-The dashboard shows each connected device (Android emulator and iOS simulator side by side), with **Update** and **First Deploy** buttons for each. Below the device cards is a live log panel that streams BEAM output from every connected device in real time — useful for watching startup, crashes, and `IO.inspect` output without leaving the browser.
+There are two one-time steps before your first deploy.
 
-![Mob Dev dashboard showing two connected devices and live BEAM logs](../assets/mob_dev_dashboard.png)
+#### Step 1 — Enable Developer Mode on the phone
 
-## Connect a live IEx session
+Android hides developer options until you unlock them.
 
-Once the app is running:
+1. Open **Settings → About phone**
+   - On Samsung: **Settings → About phone → Software information**
+2. Find **Build number** and tap it **7 times** in quick succession
+3. You'll see: *"You are now a developer!"*
+4. Go back to **Settings** — a new **Developer options** entry has appeared
+5. Open **Developer options** and turn on **USB debugging**
+
+#### Step 2 — Connect via USB and set the mode
+
+Plug in the USB cable. On the phone:
+
+- A prompt appears: **"Allow USB debugging?"** — tap **Allow**
+  (tick "Always allow from this computer" so you're not asked every time)
+- Pull down the notification shade and tap the USB connection notification
+- Select **File Transfer** (sometimes labelled "MTP") — not "Charging only"
+
+Verify the connection:
+
+```bash
+adb devices
+```
+
+You should see your device listed as `device` (not `unauthorized` or `offline`).
+If it shows `unauthorized`, check for a missed dialog on the phone screen.
+
+#### Deploy
+
+```bash
+mix mob.deploy --native --android
+```
+
+Mob detects connected devices automatically. If you have more than one, use
+`mix mob.devices` to find the serial ID and `--device <id>` to target it.
+
+---
+
+## Both platforms
+
+### What you need
+
+Everything from the iOS and Android sections above — but you don't need a physical
+device for both. Mix and match whatever you actually have:
+
+| Setup | What to do |
+|-------|-----------|
+| iOS Simulator + Android emulator | Nothing extra — just deploy |
+| Physical iPhone + Android emulator | Set up iPhone (trust + Developer Mode + `mix mob.provision`) |
+| iOS Simulator + physical Android | Set up Android (Developer Mode + USB debugging + File Transfer) |
+| Physical iPhone + physical Android | Set up both phones, then `mix mob.provision` for iOS |
+
+### Create a project
+
+```bash
+mix mob.new my_app
+cd my_app
+mix mob.install
+```
+
+### Verify your environment
+
+```bash
+mix mob.doctor
+```
+
+### Deploy to everything you have connected
+
+```bash
+mix mob.deploy --native
+```
+
+Without `--ios` or `--android`, Mob targets all connected simulators, emulators, and
+physical devices at once — whatever is available. On macOS it includes both platforms;
+on Linux/Windows it deploys Android only. You don't need to tell it what you have.
+
+### If you have a physical iPhone (one-time setup)
+
+Before your first deploy to a physical iPhone, register your app with Apple:
+
+```bash
+mix mob.provision
+```
+
+Then deploy normally — Mob auto-detects the phone alongside any running simulators
+or emulators and pushes to all of them in one command:
+
+```bash
+mix mob.deploy --native
+```
+
+If you only want to target the phone and skip the simulators for a deploy:
+
+```bash
+mix mob.deploy --native --ios
+```
+
+### Targeting one device at a time
+
+Use `mix mob.devices` to see what's connected and their IDs, then `--device <id>` to
+target a specific one — useful when you have multiple physical devices or want to
+isolate a deploy while keeping others running.
+
+---
+
+## After the first deploy
+
+These commands work the same regardless of platform.
+
+### Connect a live IEx session
 
 ```bash
 mix mob.connect
 ```
 
-This tunnels EPMD, sets up Erlang distribution, and drops you into an IEx session connected to the running BEAM node on the device. You can inspect state, call functions, and push code changes without restarting the app.
+Tunnels Erlang distribution and drops you into an IEx session connected to the running
+BEAM on the device. You can inspect state, call functions, and push code live.
 
 ```elixir
-# Verify the device node is visible
 Node.list()
 #=> [:"my_app_ios@127.0.0.1"]
 
-# Inspect the current screen's assigns
 Mob.Test.assigns(:"my_app_ios@127.0.0.1")
-#=> %{safe_area: %{top: 62.0, ...}}
+#=> %{count: 0, safe_area: %{top: 62.0, ...}}
 ```
 
-## Hot-push a code change
+### Hot-push a code change
 
-Edit a screen module, then push the new bytecode to the running app without restarting:
+Edit a module, then push the new bytecode without restarting:
 
 ```bash
 mix mob.push
 ```
 
-`mix mob.push` compiles your project and loads every changed module into the live BEAM on all connected devices — no app restart. The screen updates instantly.
+Changed `.beam` files are loaded directly into the running BEAM via RPC — no restart,
+no state loss. The screen updates immediately.
 
-Use `mix mob.push --all` to force-push every module rather than just those that changed.
+### Auto-push on save
+
+```bash
+mix mob.watch
+```
+
+Watches for file changes and runs `mob.push` automatically. Combine with
+`mix mob.connect` to keep an IEx session open alongside.
+
+---
 
 ## Deployment reference
 
-There are several ways to get code onto a device. Each one has a different scope and mechanism — here's how they fit together:
+| Command | Restarts? | Requires dist? | What it does |
+|---------|:---------:|:--------------:|---|
+| `mix mob.deploy --native` | Yes | No | Build native binary + install + push BEAMs |
+| `mix mob.deploy` | Yes | No | Push BEAMs + restart (no native rebuild) |
+| `mix mob.push` | No | **Yes** | Hot-push changed BEAMs via RPC |
+| `mix mob.watch` | No | **Yes** | `mob.push` on every file save |
+| `nl(MyApp.Screen)` in IEx | No | **Yes** | Hot-push a single module |
 
-| Command | Restarts app? | Requires dist? | What it does |
-|---------|:---:|:---:|---|
-| `mix mob.deploy --native` | Yes | No | Build native binary + install APK/IPA + push .beam files |
-| `mix mob.deploy` | Yes | No | Push .beam files + restart app (falls back to adb/simctl if dist unavailable) |
-| `mix mob.push` | No | **Yes** | Hot-push changed .beam files via RPC — preserves all app state |
-| `mix mob.watch` | No | **Yes** | Same as `mob.push`, triggered automatically on file save |
-| `nl(MyApp.Screen)` in IEx | No | **Yes** | Hot-push a single module from an IEx session |
+**Requires dist** means Erlang distribution must be active. Run `mix mob.connect` first,
+or use the dashboard (`mix mob.server`) which sets it up automatically.
 
-**Requires dist** means the app must already be running with Erlang distribution active. Run `mix mob.connect` first or use the dashboard's **Watch** button — both establish the distribution connection.
+### Which command should I use?
 
-### Which one should I use?
+- **First time, or after changing Swift/Kotlin/C?** → `mix mob.deploy --native`
+- **Changed Elixir, want a clean restart?** → `mix mob.deploy`
+- **Changed Elixir, want to keep app state?** → `mix mob.push`
+- **Want changes pushed automatically while editing?** → `mix mob.watch`
 
-- **First time running the app, or changed native code (Swift/Kotlin/C)?**
-  → `mix mob.deploy --native`
-
-- **Changed Elixir code and want a clean restart?**
-  → `mix mob.deploy`
-
-- **Changed Elixir code and want to keep app state (fastest)?**
-  → `mix mob.push` (requires the app to be running with dist active)
-
-- **Want changes pushed automatically while you edit?**
-  → Enable Watch in the dev dashboard, or run `mix mob.watch`
-
-- **Already in IEx and want to push one module?**
-  → `nl(MyApp.Screen)` — same underlying RPC, no shell required
-
-### Under the hood
-
-`mix mob.deploy` uses `adb push` (Android) or `simctl` (iOS) to copy .beam files into the app bundle, then restarts the app. No live connection required.
-
-`mix mob.push` and `nl/1` both use Erlang distribution: they call `:code.load_binary/3` on the device node via RPC, replacing the running module in-place — exactly like hot code loading in a production release. The running process state is untouched. This is the fastest path: sub-second for a single module.
+---
 
 ## Your first screen
-
-A screen module looks like this:
 
 ```elixir
 defmodule MyApp.HomeScreen do
@@ -226,35 +369,19 @@ defmodule MyApp.HomeScreen do
 end
 ```
 
-`mount/3` initialises assigns. `render/1` returns the component tree via the `~MOB` sigil (imported automatically by `use Mob.Screen`). `handle_info/2` updates assigns in response to user interaction. After each callback that returns a modified socket, the framework calls `render/1` again and pushes the diff to the native layer.
+`mount/3` initialises assigns. `render/1` returns the component tree via the `~MOB`
+sigil. `handle_info/2` updates state in response to user events. After each update,
+the framework calls `render/1` again and pushes the diff to the native layer.
 
-## App entry point
-
-Your app module declares navigation and starts the root screen:
-
-```elixir
-defmodule MyApp do
-  use Mob.App
-
-  def navigation(_platform) do
-    stack(:home, root: MyApp.HomeScreen)
-  end
-
-  def on_start do
-    Mob.Screen.start_root(MyApp.HomeScreen)
-  end
-end
-```
-
-`use Mob.App` generates a `start/0` entry point that the BEAM launcher calls. It handles framework initialization (logger, navigation registry) before calling your `on_start/0`.
+---
 
 ## Next steps
 
-- [Screen Lifecycle](screen_lifecycle.md) — understand mount, render, handle_event, handle_info
-- [Components](components.md) — the full component reference
+- [Screen Lifecycle](screen_lifecycle.md) — mount, render, handle_event, handle_info
+- [Components](components.md) — full component reference
 - [Navigation](navigation.md) — stack, tab bar, drawer, push/pop
 - [Theming](theming.md) — color tokens, named themes, runtime switching
-- [Data & Persistence](data.md) — `Mob.State` for app preferences, Ecto + SQLite for structured data
+- [Data & Persistence](data.md) — `Mob.State` for preferences, Ecto + SQLite for structured data
 - [Device Capabilities](device_capabilities.md) — camera, location, haptics, notifications
 - [Testing](testing.md) — unit tests and live device inspection
 - [Troubleshooting](troubleshooting.md) — if something isn't working, start here

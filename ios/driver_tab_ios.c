@@ -39,6 +39,13 @@ void *asn1rt_nif_nif_init(void);
 // generates function name: mob_nif_nif_init
 void *mob_nif_nif_init(void);
 
+// exqlite sqlite3_nif is linked statically on device (pass -DMOB_STATIC_SQLITE_NIF
+// when compiling this file in device builds). On simulator it loads dynamically
+// as a .so and must NOT appear in the static table.
+#ifdef MOB_STATIC_SQLITE_NIF
+void *sqlite3_nif_nif_init(void);
+#endif
+
 ErtsStaticNif erts_static_nif_tab[] = {
     {prim_tty_nif_init,     0, THE_NON_VALUE, NULL},
     {erl_tracer_nif_init,   0, THE_NON_VALUE, NULL},
@@ -50,5 +57,8 @@ ErtsStaticNif erts_static_nif_tab[] = {
     {prim_net_nif_init,     0, THE_NON_VALUE, NULL},
     {asn1rt_nif_nif_init,   1, THE_NON_VALUE, NULL},
     {mob_nif_nif_init,      0, THE_NON_VALUE, NULL},
+#ifdef MOB_STATIC_SQLITE_NIF
+    {sqlite3_nif_nif_init,  0, THE_NON_VALUE, NULL},
+#endif
     {NULL,                  0, THE_NON_VALUE, NULL}
 };
