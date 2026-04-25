@@ -217,6 +217,7 @@ defmodule Mob.LiveView do
       iex> Mob.LiveView.local_url("/dashboard")
       "http://127.0.0.1:4000/dashboard"
   """
+  @spec local_url(String.t()) :: String.t()
   def local_url(path \\ "/") do
     port = Application.get_env(:mob, :liveview_port, 4000)
     "http://127.0.0.1:#{port}#{path}"

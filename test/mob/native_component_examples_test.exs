@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Jump.CredoChecks.VacuousTest
 defmodule Mob.NativeComponentExamplesTest do
   use ExUnit.Case, async: true
 

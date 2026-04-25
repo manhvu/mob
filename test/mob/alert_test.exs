@@ -58,7 +58,6 @@ defmodule Mob.AlertTest do
 
     test "output is valid JSON binary" do
       result = Mob.Alert.encode_buttons([[label: "Test"]])
-      assert is_binary(result)
       assert String.starts_with?(result, "[")
     end
   end

@@ -29,6 +29,7 @@ defmodule Mob.WebView do
   Evaluate arbitrary JavaScript in the current WebView and return the result
   asynchronously via `handle_info({:webview, :eval_result, result}, socket)`.
   """
+  @spec eval_js(Phoenix.LiveView.Socket.t(), String.t()) :: Phoenix.LiveView.Socket.t()
   def eval_js(socket, code) when is_binary(code) do
     :mob_nif.webview_eval_js(code)
     socket
@@ -38,6 +39,7 @@ defmodule Mob.WebView do
   Push a message from Elixir into the WebView page. Calls `window.mob._dispatch(json)`
   in JS, which delivers the data to all `window.mob.onMessage` handlers.
   """
+  @spec post_message(Phoenix.LiveView.Socket.t(), term()) :: Phoenix.LiveView.Socket.t()
   def post_message(socket, data) do
     json = :json.encode(data)
     :mob_nif.webview_post_message(json)

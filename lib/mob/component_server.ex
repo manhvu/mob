@@ -6,6 +6,7 @@ defmodule Mob.ComponentServer do
   use GenServer
 
   @doc "Start a component process (not linked to the caller)."
+  @spec start(keyword()) :: {:ok, pid()} | {:error, term()}
   def start(opts) do
     GenServer.start(__MODULE__, opts)
   end

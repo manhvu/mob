@@ -102,6 +102,7 @@ defmodule Mob.Alert do
   end
 
   @doc false
+  @spec encode_buttons([keyword()]) :: binary()
   def encode_buttons(buttons) do
     buttons
     |> Enum.map(fn btn ->
