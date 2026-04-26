@@ -65,6 +65,8 @@
          %% Native view components
          register_component/1,
          deregister_component/1,
+         %% Device state
+         battery_level/0,
          %% Test harness — native UI inspection and interaction
          ui_tree/0,
          ui_debug/0,
@@ -112,6 +114,7 @@
        notify_cancel/1,
        notify_register_push/0,
        take_launch_notification/0,
+       battery_level/0,
        ui_tree/0,
        ui_debug/0,
        tap/1,
@@ -180,6 +183,7 @@ notify_schedule(_OptsJson)        -> erlang:nif_error(not_loaded).
 notify_cancel(_Id)                -> erlang:nif_error(not_loaded).
 notify_register_push()            -> erlang:nif_error(not_loaded).
 take_launch_notification()        -> erlang:nif_error(not_loaded).
+battery_level()                   -> erlang:nif_error(not_loaded).
 ui_tree()                         -> erlang:nif_error(not_loaded).
 ui_debug()                        -> erlang:nif_error(not_loaded).
 tap(_Label)                       -> erlang:nif_error(not_loaded).

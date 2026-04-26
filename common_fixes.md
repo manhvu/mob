@@ -307,6 +307,97 @@ visually disappears and snaps back.
 
 ---
 
+## Android WebView black screen in LiveView apps (`"webview"` vs `"web_view"` type mismatch)
+
+**Symptom**: LiveView app on Android shows a completely black screen. iOS works fine.
+No WebView-related log output (no `chromium` tag entries in logcat). Erlang distribution
+confirms the `:mob_screen` GenServer is mounted (`platform: :android`, `safe_area` set,
+`root_view: :json_tree`), but nothing renders.
+
+**Root cause**: `Mob.UI.webview/1` returns `%{type: :web_view, ...}` (underscore). The
+Elixir renderer serialises this to JSON as `"type": "web_view"`. The iOS NIF maps `"web_view"`
+correctly. However, `MobBridge.kt`'s `RenderNode` `when` clause used `"webview"` (no
+underscore), so the type never matched and `MobWebView` was never called. The
+`AnimatedContent` root remained `null` — the Compose UI was blank.
+
+**Fix**: In `MobBridge.kt`, change the `RenderNode` when clause:
+```kotlin
+// Before:
+"webview"  -> MobWebView(node, m)
+// After:
+"web_view" -> MobWebView(node, m)
+```
+
+**Fixed in**: `mob_new/priv/templates/mob.new/android/app/src/main/java/MobBridge.kt.eex`
+and all existing projects — `mob_demo`, `my_app2`, `pegleg_test`, `smoke_test`,
+`sqlite_test`, `sqlite_alt`, `liveview_test` (2026-04-25).
+
+---
+
+## Android WebView `ERR_CLEARTEXT_NOT_PERMITTED` for localhost
+
+**Symptom**: After fixing the type mismatch above, the WebView renders but shows
+"Webpage not available — net::ERR_CLEARTEXT_NOT_PERMITTED" when trying to load
+`http://127.0.0.1:4200/`.
+
+**Root cause**: Android 9+ (API 28+) blocks plain HTTP (cleartext) traffic by default
+via the Network Security Configuration policy. The LiveView endpoint runs on plain HTTP
+at `127.0.0.1:4200`, which is blocked without an explicit exception.
+
+**Fix**: Add a network security config that permits cleartext to `127.0.0.1` and
+`localhost`, and reference it from `AndroidManifest.xml`:
+
+1. Create `android/app/src/main/res/xml/network_security_config.xml`:
+   ```xml
+   <?xml version="1.0" encoding="utf-8"?>
+   <network-security-config>
+       <domain-config cleartextTrafficPermitted="true">
+           <domain includeSubdomains="false">127.0.0.1</domain>
+           <domain includeSubdomains="false">localhost</domain>
+       </domain-config>
+   </network-security-config>
+   ```
+
+2. In `AndroidManifest.xml`, add to `<application>`:
+   ```xml
+   android:networkSecurityConfig="@xml/network_security_config"
+   ```
+
+**Fixed in**: `mob_new/priv/static/mob.new/android/app/src/main/res/xml/network_security_config.xml`
+(created) and `mob_new/priv/templates/mob.new/android/app/src/main/AndroidManifest.xml.eex`.
+All existing projects patched (2026-04-25).
+
+Note: `mix mob.enable liveview` already had `android_add_liveview_network_config` which
+does the same thing, but `mix mob.new --liveview` did not call it during generation.
+
+---
+
+## `Mob.Screen` crashes on `:__mob_hot_reload__` GenServer cast
+
+**Symptom**: After running `mix mob.deploy`, logcat shows the `:mob_screen` GenServer
+terminating with `"attempted to cast GenServer :mob_screen but no handle_cast/2 clause
+was provided"`. The screen goes blank and requires an app restart.
+
+**Root cause**: Something sends `:__mob_hot_reload__` to `:mob_screen` as a `GenServer.cast`
+(wrapped in `{:"$gen_cast", :__mob_hot_reload__}`). `Mob.Screen` used `use GenServer` but
+defined no `handle_cast/2`, so any cast terminates the process.
+
+Note: `mob_dev`'s deployer sends the message via `:erlang.send` (plain message to
+`handle_info`), not as a cast. If you see a cast arriving, check for older deployed
+mob_dev code on the device.
+
+**Fix**: Added `handle_cast/2` to `Mob.Screen` that re-renders on hot reload:
+```elixir
+def handle_cast(:__mob_hot_reload__, {module, socket, nav_history, render_mode}) do
+  new_socket = if render_mode == :render, do: do_render(module, socket), else: socket
+  {:noreply, {module, new_socket, nav_history, render_mode}}
+end
+```
+
+**Fixed in**: `mob/lib/mob/screen.ex` (2026-04-25).
+
+---
+
 ## iOS BEAM crashes when `Mob.Test.pop` / `pop_to_root` is called via distribution
 
 **Symptom**: `Mob.Test.pop(node)`, `Mob.Test.pop_to(node, ...)`, or

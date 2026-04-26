@@ -439,6 +439,26 @@ static ERL_NIF_TERM nif_platform(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
     return enif_make_atom(env, "ios");
 }
 
+// ── NIF: battery_level/0 ─────────────────────────────────────────────────────
+// Returns the current battery charge as an integer 0..100, or -1 if the device
+// does not report battery info (unlikely on iPhone/iPad).
+// Enables battery monitoring if not already enabled. Must run on main thread.
+
+static ERL_NIF_TERM nif_battery_level(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    __block int level = -1;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        UIDevice *dev = [UIDevice currentDevice];
+        if (!dev.batteryMonitoringEnabled) {
+            dev.batteryMonitoringEnabled = YES;
+        }
+        float f = dev.batteryLevel;
+        if (f >= 0.0f) {
+            level = (int)roundf(f * 100.0f);
+        }
+    });
+    return enif_make_int(env, level);
+}
+
 // ── NIF: safe_area/0 ─────────────────────────────────────────────────────────
 // Returns {Top, Right, Bottom, Left} in logical points (not pixels).
 // Must read UIWindow.safeAreaInsets on the main thread.
@@ -3527,6 +3547,7 @@ static ErlNifFunc nif_funcs[] = {
     {"long_press_xy",    3, nif_long_press_xy,    0},
     {"swipe_xy",         4, nif_swipe_xy,         0},
     // ── Core mob functions ───────────────────────────────────────────────────
+    {"battery_level",  0, nif_battery_level,  0},
     {"platform",       0, nif_platform,       0},
     {"log",            1, nif_log,            0},
     {"log",            2, nif_log2,           0},

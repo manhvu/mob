@@ -199,6 +199,122 @@ ErtsStaticNif erts_static_nif_tab[] = {
 
 ---
 
+## Erlang Distribution
+
+The BEAM on a physical device supports full Erlang distribution — `mix mob.connect`,
+`Mob.Test.*`, hot code push, and direct IEx RPC all work the same as on the simulator.
+
+The node name is determined at startup by walking the device's network interfaces in
+priority order:
+
+| Priority | Connection | Node name | Requires |
+|----------|------------|-----------|----------|
+| 1 | WiFi / LAN | `<app>_ios@10.0.0.x` | Same network as Mac |
+| 1 | Tailscale | `<app>_ios@100.x.x.x` | Tailscale running on both devices |
+| 1 | Personal Hotspot | `<app>_ios@172.20.10.1` | Mac connected to iPhone's hotspot |
+| 2 | USB cable only | `<app>_ios@169.254.x.x` | Cable plugged in, no WiFi |
+| 3 | None | `<app>_ios@127.0.0.1` | No network — unreachable without iproxy |
+
+> **WiFi is checked before USB.** This is the opposite of what you might expect.
+> The reason: if the node started with a USB link-local address and you later unplug
+> the cable, the Mac can no longer reach that address and distribution dies. With WiFi
+> taking priority, the node IP stays stable whether the cable is in or out.
+>
+> If both WiFi and USB are connected when the app launches, the node will use the
+> WiFi IP. Plugging in USB afterwards does not change it.
+>
+> **USB only (no WiFi):** the node falls back to the link-local address and
+> `mix mob.connect` finds it the same way — no difference in that workflow.
+
+### The node name is still fixed at app launch
+
+The BEAM picks an IP once, at startup, and does not change it while running.
+Connecting or disconnecting WiFi after launch has no effect. The improvement is
+that WiFi is now chosen over USB at launch time, so the node survives USB
+reconnects without needing a restart.
+
+**If distribution isn't working:** force-quit the app and relaunch it so it picks
+up the current network state. `mix mob.connect` will find it automatically.
+
+### USB (recommended for development)
+
+Plug in the cable. No configuration needed.
+
+```bash
+mix mob.connect
+```
+
+The iPhone presents a USB networking interface on the Mac (typically `en11`) with a
+`169.254.x.x` link-local address. The device's in-process EPMD and dist port both bind
+`0.0.0.0`, so the Mac can reach them directly at that address.
+
+### WiFi
+
+Works automatically when Mac and iPhone are on the same network — no cable, no setup.
+
+```bash
+mix mob.connect
+```
+
+If it doesn't connect, check: was the app last launched with USB plugged in? If so,
+force-quit and relaunch the app on the iPhone (without USB), then run `mix mob.connect`
+again.
+
+**Limitation:** public WiFi (coffee shops, hotels, conferences) and many corporate
+networks enable client isolation, which blocks device-to-device traffic. If the device
+isn't found, use USB or Tailscale.
+
+### Tailscale (any network, including cellular)
+
+[Tailscale](https://tailscale.com) is a mesh VPN built on WireGuard. Once installed,
+devices on the same Tailscale account can reach each other on any network — same WiFi,
+different WiFi, cellular, corporate network. It's free for personal use.
+
+**Setup (one time):**
+
+1. Install the Tailscale app on your Mac and iPhone.
+2. Sign in to the same Tailscale account on both.
+3. On the iPhone: open the Tailscale app and enable the VPN.
+
+**Usage:**
+
+```bash
+mix mob.connect   # works the same — no change to the workflow
+```
+
+The BEAM detects the Tailscale interface (`100.x.x.x`) at startup and registers the
+node there. The Mac reaches it directly over the WireGuard tunnel — Tailscale's servers
+are only involved in the initial connection handshake.
+
+**Important:** Tailscale must be active on the iPhone *before* the app launches.
+The node name is fixed at BEAM startup. If you enable Tailscale after the app is
+already running, restart the app.
+
+### Personal Hotspot
+
+Connect the Mac to the iPhone's Personal Hotspot (Settings → Personal Hotspot).
+The iPhone's hotspot address (`172.20.10.1`) is detected automatically — no setup beyond
+connecting the Mac to the hotspot WiFi.
+
+### Finding the node name manually
+
+If you're unsure what address the BEAM registered under, query the device's EPMD
+directly (USB must be connected):
+
+```bash
+# Substitute your device's link-local IP (shown in ifconfig as 169.254.x.x on en11)
+elixir -e "
+{:ok, s} = :gen_tcp.connect({169, 254, 235, 134}, 4369, [:binary, active: false], 3000)
+:gen_tcp.send(s, <<0, 1, ?n>>)
+{:ok, <<_port::32, names::binary>>} = :gen_tcp.recv(s, 0, 3000)
+:gen_tcp.close(s)
+IO.puts(names)
+"
+# → name smoke_test_ios at port 9101
+```
+
+---
+
 ## Pitfalls
 
 ### "No provider was found" from devicectl

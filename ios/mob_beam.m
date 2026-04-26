@@ -70,6 +70,30 @@ static const char *find_link_local_ip(char *buf, size_t len) {
     return found;
 }
 
+// Find a routable LAN IP (10.x.x.x, 172.16-31.x.x, 192.168.x.x) for WiFi distribution
+// when no USB link-local interface is present. Returns NULL if none found.
+static const char *find_lan_ip(char *buf, size_t len) {
+    struct ifaddrs *ifa_list;
+    if (getifaddrs(&ifa_list) != 0) return NULL;
+    const char *found = NULL;
+    for (struct ifaddrs *ifa = ifa_list; ifa && !found; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+        struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+        uint32_t addr = ntohl(sa->sin_addr.s_addr);
+        uint32_t top8  = addr >> 24;
+        uint32_t top16 = addr >> 16;
+        if (top8 == 10 ||                               // 10.0.0.0/8
+            (top16 >= 0xAC10 && top16 <= 0xAC1F) ||   // 172.16.0.0/12
+            top16 == 0xC0A8 ||                          // 192.168.0.0/16
+            (top16 >= 0x6440 && top16 <= 0x647F)) {   // 100.64.0.0/10 (Tailscale)
+            inet_ntop(AF_INET, &sa->sin_addr, buf, (socklen_t)len);
+            found = buf;
+        }
+    }
+    freeifaddrs(ifa_list);
+    return found;
+}
+
 void mob_start_beam(const char* app_module) {
     mob_set_startup_phase("Setting up BEAM environment…");
 
@@ -133,18 +157,27 @@ void mob_start_beam(const char* app_module) {
 
     // Determine node hostname:
     //   MOB_BUNDLE_OTP = physical device build (OTP bundled in .app).
-    //   On device: find the USB link-local (169.254.x.x) interface via getifaddrs().
-    //   The device's in-process EPMD binds 0.0.0.0:4369 so Mac can query it
-    //   directly over USB; the dist port is also directly reachable. No iproxy needed.
+    //   Priority: WiFi/LAN (10/172/192.168/Tailscale) > USB link-local (169.254.x.x) > 127.0.0.1
+    //
+    //   WiFi is preferred over USB because the node name is fixed at startup.
+    //   If USB were preferred, unplugging the cable would strand the node at a
+    //   link-local address that is no longer reachable — requiring an app restart
+    //   to regain connectivity. With WiFi first, the node stays reachable on the
+    //   same IP whether the cable is plugged in or not.
+    //   USB link-local is the fallback for cable-only setups (no WiFi).
+    //   127.0.0.1 is last resort; dist only reachable via iproxy in that case.
+    //   The in-process EPMD and dist port both bind 0.0.0.0, so the node is
+    //   reachable via any interface regardless of which IP was chosen as the name.
     //
     //   Without MOB_BUNDLE_OTP = simulator build. Simulator shares the Mac's network
     //   stack, including Mac's USB link-local interfaces, so find_link_local_ip()
     //   would return the Mac's USB IP (wrong). Always use 127.0.0.1 on simulator.
 #ifdef MOB_BUNDLE_OTP
-    // Physical device: find USB link-local IP; node name is <app>_ios@<device-ip>
-    static char link_local_buf[64];
-    const char *ll_ip = find_link_local_ip(link_local_buf, sizeof(link_local_buf));
-    const char *host_ip = ll_ip ? ll_ip : "127.0.0.1";
+    // Physical device: WiFi/LAN → USB link-local → loopback fallback.
+    static char lan_ip_buf[64], link_local_buf[64];
+    const char *lan_ip = find_lan_ip(lan_ip_buf, sizeof(lan_ip_buf));
+    const char *ll_ip  = lan_ip ? NULL : find_link_local_ip(link_local_buf, sizeof(link_local_buf));
+    const char *host_ip = lan_ip ? lan_ip : (ll_ip ? ll_ip : "127.0.0.1");
     static char eval_expr[280], node_name[128], beams_dir[512];
     snprintf(eval_expr, sizeof(eval_expr), "%s:start().", app_module);
     snprintf(node_name, sizeof(node_name), "%s_ios@%s", app_module, host_ip);
@@ -202,35 +235,72 @@ void mob_start_beam(const char* app_module) {
     // corresponding comment in mob_beam.c for the Android side.
     setenv("MOB_BEAMS_DIR", beams_dir, 1);
 
-    const char* args[] = {
-        "beam",
+    // Compile-time default BEAM tuning flags.
+    // Overridden at runtime if beams_dir/mob_beam_flags exists
+    // (written by `mix mob.deploy --schedulers N` or `--beam-flags "..."`).
+    static const char* s_default_flags[] = {
         "-S", "1:1", "-SDcpu", "1:1", "-SDio", "1", "-A", "1", "-sbwt", "none",
-        // Cap the BEAM's memory super carrier to 10MB on physical iOS devices.
-        // The default 1GB virtual reservation is rejected by iOS on real hardware
-        // (not on simulator where the Mac's VM handles it). Without this the BEAM
-        // crashes immediately during startup on any physical iOS device.
-#ifdef MOB_BUNDLE_OTP
-        "-MIscs", "10",
-#endif
-        "--",
-        "-root",     otp_root,
-        "-bindir",   bindir,
-        "-progname", "erl",
-        "--",
-        "-name",     node_name,
-        "-setcookie", "mob_secret",
-        "-kernel", "inet_dist_listen_min", dist_port_min,
-        "-kernel", "inet_dist_listen_max", dist_port_max,
-        "-noshell", "-noinput",
-        "-boot",   boot_path,
-        "-pa",     elixir_dir,
-        "-pa",     logger_dir,
-        "-pa",     beams_dir,
-        "-eval",   eval_expr,
         NULL
     };
+
+    // Runtime override: read whitespace-separated flags from beams_dir/mob_beam_flags.
+    static char   s_flags_buf[512]         = {0};
+    static const char* s_runtime_flags[64] = {NULL};
+    static int    s_runtime_flag_count     = 0;
+    {
+        char flags_path[640];
+        snprintf(flags_path, sizeof(flags_path), "%s/mob_beam_flags", beams_dir);
+        FILE *f = fopen(flags_path, "r");
+        if (f) {
+            size_t n = fread(s_flags_buf, 1, sizeof(s_flags_buf) - 1, f);
+            fclose(f);
+            s_flags_buf[n] = '\0';
+            s_runtime_flag_count = 0;
+            char *p = s_flags_buf;
+            while (*p && s_runtime_flag_count < 63) {
+                while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+                if (!*p) break;
+                s_runtime_flags[s_runtime_flag_count++] = p;
+                while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') p++;
+                if (*p) *p++ = '\0';
+            }
+            s_runtime_flags[s_runtime_flag_count] = NULL;
+            NSLog(@"[MobBeam] loaded %d runtime flags from %s", s_runtime_flag_count, flags_path);
+        }
+    }
+
+    const char** selected_flags = (s_runtime_flag_count > 0)
+        ? s_runtime_flags
+        : s_default_flags;
+
+    static const char* args[128];
     int ac = 0;
-    while (args[ac]) ac++;
+    args[ac++] = "beam";
+    for (int i = 0; selected_flags[i]; i++) args[ac++] = selected_flags[i];
+    // Cap the BEAM's memory super carrier to 10MB on physical iOS devices.
+    // The default 1GB virtual reservation is rejected by iOS on real hardware
+    // (not on simulator where the Mac's VM handles it). Without this the BEAM
+    // crashes immediately during startup on any physical iOS device.
+#ifdef MOB_BUNDLE_OTP
+    args[ac++] = "-MIscs"; args[ac++] = "10";
+#endif
+    args[ac++] = "--";
+    args[ac++] = "-root";       args[ac++] = otp_root;
+    args[ac++] = "-bindir";     args[ac++] = bindir;
+    args[ac++] = "-progname";   args[ac++] = "erl";
+    args[ac++] = "--";
+    args[ac++] = "-name";       args[ac++] = node_name;
+    args[ac++] = "-setcookie";  args[ac++] = "mob_secret";
+    args[ac++] = "-kernel"; args[ac++] = "inet_dist_listen_min"; args[ac++] = dist_port_min;
+    args[ac++] = "-kernel"; args[ac++] = "inet_dist_listen_max"; args[ac++] = dist_port_max;
+    args[ac++] = "-noshell";
+    args[ac++] = "-noinput";
+    args[ac++] = "-boot";   args[ac++] = boot_path;
+    args[ac++] = "-pa";     args[ac++] = elixir_dir;
+    args[ac++] = "-pa";     args[ac++] = logger_dir;
+    args[ac++] = "-pa";     args[ac++] = beams_dir;
+    args[ac++] = "-eval";   args[ac++] = eval_expr;
+    args[ac] = NULL;
     NSLog(@"[MobBeam] mob_start_beam: starting BEAM module=%s argc=%d", app_module, ac);
     mob_set_startup_phase("Starting BEAM…");
     mob_write_diag(docs_dir, "mob_diag_d_erl_start.txt", "calling erl_start");

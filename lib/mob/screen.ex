@@ -265,6 +265,19 @@ defmodule Mob.Screen do
 
   # Notification that launched the app from a killed state.
   # Decoded from JSON and re-dispatched as the standard {:notification, map} message.
+  # Hot-reload trigger sent by mob_dev after a dist push. Re-render with current code.
+  @impl GenServer
+  def handle_cast(:__mob_hot_reload__, {module, socket, nav_history, render_mode}) do
+    new_socket =
+      if render_mode == :render do
+        do_render(module, socket)
+      else
+        socket
+      end
+
+    {:noreply, {module, new_socket, nav_history, render_mode}}
+  end
+
   @impl GenServer
   def handle_info({:mob_launch_notification, json}, {module, socket, nav_history, render_mode}) do
     notif = decode_notification_json(json)
