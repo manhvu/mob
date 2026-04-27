@@ -1261,13 +1261,13 @@ static void register_device_observers_once(void) {
         }];
 
         // ── Display / lock state (iOS proxies via data-protection) ──
-        [nc addObserverForName:UIApplicationProtectedDataWillBecomeUnavailableNotification
+        [nc addObserverForName:UIApplicationProtectedDataWillBecomeUnavailable
                         object:nil queue:q
                     usingBlock:^(NSNotification *n) {
             mob_device_send_atom("mob_device",     "screen_off");
             mob_device_send_atom("mob_device_ios", "protected_data_will_become_unavailable");
         }];
-        [nc addObserverForName:UIApplicationProtectedDataDidBecomeAvailableNotification
+        [nc addObserverForName:UIApplicationProtectedDataDidBecomeAvailable
                         object:nil queue:q
                     usingBlock:^(NSNotification *n) {
             mob_device_send_atom("mob_device",     "screen_on");
