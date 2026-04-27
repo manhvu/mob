@@ -63,11 +63,105 @@ typedef struct {
     ErlNifPid    pid;
     ErlNifEnv*   tag_env;   // persistent env owning tag; NULL when slot is free
     ERL_NIF_TERM tag;
+
+    // ── Batch 5 throttle state — populated by mob_set_throttle_config ──
+    int          throttle_ms;       // 0 = no throttle (raw firing)
+    int          debounce_ms;       // 0 = no debounce
+    double       delta_threshold;
+    int          leading;           // 1 = emit first event of burst
+    int          trailing;          // 1 = emit final event after debounce
+    uint64_t     last_emit_ns;      // mach_absolute_time of last successful emit
+    double       last_x;            // last emitted x (for delta check)
+    double       last_y;            // last emitted y
+    uint64_t     seq;               // monotonic counter per handle
 } TapHandle;
 
 static TapHandle    tap_handles[MAX_TAP_HANDLES];
 static int          tap_handle_next = 0;
 static ErlNifMutex* tap_mutex       = NULL;
+
+// Convert mach absolute time to nanoseconds (initialised once).
+static mach_timebase_info_data_t g_timebase = {0, 0};
+static uint64_t mob_now_ns(void) {
+    if (g_timebase.denom == 0) mach_timebase_info(&g_timebase);
+    return mach_absolute_time() * g_timebase.numer / g_timebase.denom;
+}
+
+// Set throttle config for a handle. Called from the prop deserialiser when
+// it sees a *_config sibling prop. Idempotent — safe to call multiple times.
+static void mob_set_throttle_config(int handle,
+                                    int throttle_ms, int debounce_ms,
+                                    double delta_threshold,
+                                    int leading, int trailing) {
+    enif_mutex_lock(tap_mutex);
+    if (handle >= 0 && handle < tap_handle_next && tap_handles[handle].tag_env) {
+        tap_handles[handle].throttle_ms     = throttle_ms;
+        tap_handles[handle].debounce_ms     = debounce_ms;
+        tap_handles[handle].delta_threshold = delta_threshold;
+        tap_handles[handle].leading         = leading;
+        tap_handles[handle].trailing        = trailing;
+    }
+    enif_mutex_unlock(tap_mutex);
+}
+
+// Apply throttle/delta gating. Returns 1 if the event should fire, 0 if
+// it should be dropped. Updates per-handle state on accept.
+//
+// Defaults (when throttle/delta unset on a handle): use reasonable per-event
+// fallbacks so widgets that opt in without explicit config still get sane
+// gating.
+static int mob_throttle_check(int handle, double x, double y,
+                              int default_throttle_ms, double default_delta) {
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return 0;
+    }
+    TapHandle* h = &tap_handles[handle];
+
+    int throttle_ms = h->throttle_ms ? h->throttle_ms : default_throttle_ms;
+    double delta_threshold = h->delta_threshold > 0 ? h->delta_threshold : default_delta;
+
+    uint64_t now_ns = mob_now_ns();
+    double dx = x - h->last_x;
+    double dy = y - h->last_y;
+    double dist = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy); // L1 norm
+
+    // Time gate
+    if (h->last_emit_ns > 0 && throttle_ms > 0) {
+        uint64_t elapsed_ms = (now_ns - h->last_emit_ns) / 1000000ULL;
+        if ((int)elapsed_ms < throttle_ms) {
+            enif_mutex_unlock(tap_mutex);
+            return 0;
+        }
+    }
+
+    // Delta gate
+    if (h->last_emit_ns > 0 && dist < delta_threshold) {
+        enif_mutex_unlock(tap_mutex);
+        return 0;
+    }
+
+    h->last_emit_ns = now_ns;
+    h->last_x = x;
+    h->last_y = y;
+    h->seq++;
+    enif_mutex_unlock(tap_mutex);
+    return 1;
+}
+
+// Read current seq + ts for a handle (for envelope construction).
+static void mob_handle_meta(int handle, uint64_t* seq_out, uint64_t* ts_out) {
+    enif_mutex_lock(tap_mutex);
+    if (handle >= 0 && handle < tap_handle_next && tap_handles[handle].tag_env) {
+        *seq_out = tap_handles[handle].seq;
+        *ts_out  = mob_now_ns() / 1000000ULL; // ms since boot
+    } else {
+        *seq_out = 0;
+        *ts_out  = 0;
+    }
+    enif_mutex_unlock(tap_mutex);
+}
 static char         g_transition[16] = "none";
 
 // Called from node onTap blocks — routes tap to BEAM via enif_send.
@@ -145,6 +239,243 @@ static void mob_send_swipe_with_direction(int handle, const char* direction) {
     enif_send(NULL, &pid, msg_env, msg);
     enif_free_env(msg_env);
 }
+
+// ── Batch 5 Tier 1: high-frequency scroll/drag/pinch/rotate senders ─────────
+// Each respects the per-handle throttle config set via mob_set_throttle_config.
+// The envelope follows the canonical Mob.Event shape but is constructed at
+// the legacy {atom, tag, payload} level for now — the bridge will translate.
+//
+// Default throttle/delta when handle has no explicit config (matching
+// Mob.Event.Throttle defaults):
+//   :scroll       33 ms / 1 px
+//   :drag         16 ms / 1 px
+//   :pinch        16 ms / 0.01
+//   :rotate       16 ms / 1 deg
+//   :pointer_move 33 ms / 4 px
+
+// Build a payload map: %{x, y, dx, dy, velocity_x, velocity_y, phase, ts, seq}
+static ERL_NIF_TERM mob_build_scroll_payload(ErlNifEnv* env,
+                                              double x, double y,
+                                              double dx, double dy,
+                                              double vx, double vy,
+                                              const char* phase,
+                                              uint64_t ts, uint64_t seq) {
+    ERL_NIF_TERM keys[9] = {
+        enif_make_atom(env, "x"),
+        enif_make_atom(env, "y"),
+        enif_make_atom(env, "dx"),
+        enif_make_atom(env, "dy"),
+        enif_make_atom(env, "velocity_x"),
+        enif_make_atom(env, "velocity_y"),
+        enif_make_atom(env, "phase"),
+        enif_make_atom(env, "ts"),
+        enif_make_atom(env, "seq"),
+    };
+    ERL_NIF_TERM vals[9] = {
+        enif_make_double(env, x),
+        enif_make_double(env, y),
+        enif_make_double(env, dx),
+        enif_make_double(env, dy),
+        enif_make_double(env, vx),
+        enif_make_double(env, vy),
+        enif_make_atom(env, phase),
+        enif_make_uint64(env, ts),
+        enif_make_uint64(env, seq),
+    };
+    ERL_NIF_TERM map;
+    enif_make_map_from_arrays(env, keys, vals, 9, &map);
+    return map;
+}
+
+// Send a throttled high-frequency event. Phase is one of:
+//   "began" | "dragging" | "decelerating" | "ended"
+static void mob_send_scroll(int handle,
+                            double x, double y,
+                            double dx, double dy,
+                            double vx, double vy,
+                            const char* phase) {
+    // Force-emit for began/ended phases regardless of throttle (semantic
+    // boundaries are too important to drop).
+    int is_phase_boundary = (strcmp(phase, "began") == 0) ||
+                            (strcmp(phase, "ended") == 0);
+
+    if (!is_phase_boundary && !mob_throttle_check(handle, x, y, 33, 1.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    uint64_t     seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    uint64_t ts = mob_now_ns() / 1000000ULL;
+    ErlNifEnv* msg_env = enif_alloc_env();
+    ERL_NIF_TERM payload = mob_build_scroll_payload(msg_env, x, y, dx, dy, vx, vy, phase, ts, seq);
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "scroll"),
+        enif_make_copy(msg_env, tag),
+        payload);
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
+
+static void mob_send_drag(int handle,
+                          double x, double y,
+                          double dx, double dy,
+                          const char* phase) {
+    int is_phase_boundary = (strcmp(phase, "began") == 0) ||
+                            (strcmp(phase, "ended") == 0);
+    if (!is_phase_boundary && !mob_throttle_check(handle, x, y, 16, 1.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    uint64_t     seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    uint64_t ts = mob_now_ns() / 1000000ULL;
+    ErlNifEnv* msg_env = enif_alloc_env();
+    // Drag payload: %{x, y, dx, dy, phase, ts, seq}
+    ERL_NIF_TERM keys[7] = {
+        enif_make_atom(msg_env, "x"), enif_make_atom(msg_env, "y"),
+        enif_make_atom(msg_env, "dx"), enif_make_atom(msg_env, "dy"),
+        enif_make_atom(msg_env, "phase"),
+        enif_make_atom(msg_env, "ts"), enif_make_atom(msg_env, "seq"),
+    };
+    ERL_NIF_TERM vals[7] = {
+        enif_make_double(msg_env, x), enif_make_double(msg_env, y),
+        enif_make_double(msg_env, dx), enif_make_double(msg_env, dy),
+        enif_make_atom(msg_env, phase),
+        enif_make_uint64(msg_env, ts), enif_make_uint64(msg_env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(msg_env, keys, vals, 7, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "drag"),
+        enif_make_copy(msg_env, tag),
+        payload);
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
+
+static void mob_send_pinch(int handle, double scale, double velocity, const char* phase) {
+    int is_phase_boundary = (strcmp(phase, "began") == 0) || (strcmp(phase, "ended") == 0);
+    if (!is_phase_boundary && !mob_throttle_check(handle, scale, 0, 16, 0.01)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    uint64_t     seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    uint64_t ts = mob_now_ns() / 1000000ULL;
+    ErlNifEnv* msg_env = enif_alloc_env();
+    ERL_NIF_TERM keys[5] = {
+        enif_make_atom(msg_env, "scale"), enif_make_atom(msg_env, "velocity"),
+        enif_make_atom(msg_env, "phase"),
+        enif_make_atom(msg_env, "ts"), enif_make_atom(msg_env, "seq"),
+    };
+    ERL_NIF_TERM vals[5] = {
+        enif_make_double(msg_env, scale), enif_make_double(msg_env, velocity),
+        enif_make_atom(msg_env, phase),
+        enif_make_uint64(msg_env, ts), enif_make_uint64(msg_env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(msg_env, keys, vals, 5, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "pinch"),
+        enif_make_copy(msg_env, tag),
+        payload);
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
+
+static void mob_send_rotate(int handle, double degrees, double velocity, const char* phase) {
+    int is_phase_boundary = (strcmp(phase, "began") == 0) || (strcmp(phase, "ended") == 0);
+    if (!is_phase_boundary && !mob_throttle_check(handle, degrees, 0, 16, 1.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    uint64_t     seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    uint64_t ts = mob_now_ns() / 1000000ULL;
+    ErlNifEnv* msg_env = enif_alloc_env();
+    ERL_NIF_TERM keys[5] = {
+        enif_make_atom(msg_env, "degrees"), enif_make_atom(msg_env, "velocity"),
+        enif_make_atom(msg_env, "phase"),
+        enif_make_atom(msg_env, "ts"), enif_make_atom(msg_env, "seq"),
+    };
+    ERL_NIF_TERM vals[5] = {
+        enif_make_double(msg_env, degrees), enif_make_double(msg_env, velocity),
+        enif_make_atom(msg_env, phase),
+        enif_make_uint64(msg_env, ts), enif_make_uint64(msg_env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(msg_env, keys, vals, 5, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "rotate"),
+        enif_make_copy(msg_env, tag),
+        payload);
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
+
+static void mob_send_pointer_move(int handle, double x, double y) {
+    if (!mob_throttle_check(handle, x, y, 33, 4.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    uint64_t     seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    uint64_t ts = mob_now_ns() / 1000000ULL;
+    ErlNifEnv* msg_env = enif_alloc_env();
+    ERL_NIF_TERM keys[4] = {
+        enif_make_atom(msg_env, "x"), enif_make_atom(msg_env, "y"),
+        enif_make_atom(msg_env, "ts"), enif_make_atom(msg_env, "seq"),
+    };
+    ERL_NIF_TERM vals[4] = {
+        enif_make_double(msg_env, x), enif_make_double(msg_env, y),
+        enif_make_uint64(msg_env, ts), enif_make_uint64(msg_env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(msg_env, keys, vals, 4, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "pointer_move"),
+        enif_make_copy(msg_env, tag),
+        payload);
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
+
+// ── Batch 5 Tier 2 senders — semantic single-fire scroll events ─────────────
+static void mob_send_scroll_began(int handle)   { mob_send_event(handle, "scroll_began"); }
+static void mob_send_scroll_ended(int handle)   { mob_send_event(handle, "scroll_ended"); }
+static void mob_send_scroll_settled(int handle) { mob_send_event(handle, "scroll_settled"); }
+static void mob_send_top_reached(int handle)    { mob_send_event(handle, "top_reached"); }
+static void mob_send_scrolled_past(int handle)  { mob_send_event(handle, "scrolled_past"); }
 
 // ── Back gesture sender ───────────────────────────────────────────────────────
 // Called from MobHostingController when the left-edge-pan gesture fires.
@@ -398,6 +729,124 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
         if (onSwipeDown && [onSwipeDown isKindOfClass:[NSNumber class]]) {
             int handle = [onSwipeDown intValue];
             node.onSwipeDown = ^{ mob_send_swipe_down(handle); };
+        }
+
+        // ── Batch 5 Tier 1: high-frequency events (with throttle config) ──
+        // Helper macro: read a *_config sibling prop and apply it to the
+        // handle's throttle state.
+        #define MOB_APPLY_THROTTLE(HANDLE, CONFIG_KEY)                                       \
+            do {                                                                             \
+                id _cfg = props[CONFIG_KEY];                                                 \
+                if ([_cfg isKindOfClass:[NSDictionary class]]) {                             \
+                    int t  = [(_cfg[@"throttle_ms"] ?: @0) intValue];                        \
+                    int d  = [(_cfg[@"debounce_ms"] ?: @0) intValue];                        \
+                    double dt = [(_cfg[@"delta_threshold"] ?: @0) doubleValue];              \
+                    int ld = [(_cfg[@"leading"]  ?: @YES) boolValue] ? 1 : 0;                \
+                    int tr = [(_cfg[@"trailing"] ?: @YES) boolValue] ? 1 : 0;                \
+                    mob_set_throttle_config((HANDLE), t, d, dt, ld, tr);                     \
+                }                                                                            \
+            } while (0)
+
+        id onScroll = props[@"on_scroll"];
+        if ([onScroll isKindOfClass:[NSNumber class]]) {
+            int handle = [onScroll intValue];
+            MOB_APPLY_THROTTLE(handle, @"scroll_config");
+            node.onScroll = ^(CGFloat dx, CGFloat dy, CGFloat x, CGFloat y,
+                              CGFloat vx, CGFloat vy, NSString* phase) {
+                mob_send_scroll(handle, x, y, dx, dy, vx, vy,
+                                phase ? [phase UTF8String] : "dragging");
+            };
+        }
+
+        id onDrag = props[@"on_drag"];
+        if ([onDrag isKindOfClass:[NSNumber class]]) {
+            int handle = [onDrag intValue];
+            MOB_APPLY_THROTTLE(handle, @"drag_config");
+            node.onDrag = ^(CGFloat dx, CGFloat dy, CGFloat x, CGFloat y, NSString* phase) {
+                mob_send_drag(handle, x, y, dx, dy,
+                              phase ? [phase UTF8String] : "dragging");
+            };
+        }
+
+        id onPinch = props[@"on_pinch"];
+        if ([onPinch isKindOfClass:[NSNumber class]]) {
+            int handle = [onPinch intValue];
+            MOB_APPLY_THROTTLE(handle, @"pinch_config");
+            node.onPinch = ^(CGFloat scale, CGFloat velocity, NSString* phase) {
+                mob_send_pinch(handle, scale, velocity,
+                               phase ? [phase UTF8String] : "dragging");
+            };
+        }
+
+        id onRotate = props[@"on_rotate"];
+        if ([onRotate isKindOfClass:[NSNumber class]]) {
+            int handle = [onRotate intValue];
+            MOB_APPLY_THROTTLE(handle, @"rotate_config");
+            node.onRotate = ^(CGFloat degrees, CGFloat velocity, NSString* phase) {
+                mob_send_rotate(handle, degrees, velocity,
+                                phase ? [phase UTF8String] : "dragging");
+            };
+        }
+
+        id onPointerMove = props[@"on_pointer_move"];
+        if ([onPointerMove isKindOfClass:[NSNumber class]]) {
+            int handle = [onPointerMove intValue];
+            MOB_APPLY_THROTTLE(handle, @"pointer_config");
+            node.onPointerMove = ^(CGFloat x, CGFloat y) {
+                mob_send_pointer_move(handle, x, y);
+            };
+        }
+
+        #undef MOB_APPLY_THROTTLE
+
+        // ── Batch 5 Tier 2: semantic single-fire scroll events ──
+        id onScrollBegan = props[@"on_scroll_began"];
+        if ([onScrollBegan isKindOfClass:[NSNumber class]]) {
+            int handle = [onScrollBegan intValue];
+            node.onScrollBegan = ^{ mob_send_scroll_began(handle); };
+        }
+
+        id onScrollEnded = props[@"on_scroll_ended"];
+        if ([onScrollEnded isKindOfClass:[NSNumber class]]) {
+            int handle = [onScrollEnded intValue];
+            node.onScrollEnded = ^{ mob_send_scroll_ended(handle); };
+        }
+
+        id onScrollSettled = props[@"on_scroll_settled"];
+        if ([onScrollSettled isKindOfClass:[NSNumber class]]) {
+            int handle = [onScrollSettled intValue];
+            node.onScrollSettled = ^{ mob_send_scroll_settled(handle); };
+        }
+
+        id onTopReached = props[@"on_top_reached"];
+        if ([onTopReached isKindOfClass:[NSNumber class]]) {
+            int handle = [onTopReached intValue];
+            node.onTopReached = ^{ mob_send_top_reached(handle); };
+        }
+
+        id onScrolledPast = props[@"on_scrolled_past"];
+        if ([onScrolledPast isKindOfClass:[NSNumber class]]) {
+            int handle = [onScrolledPast intValue];
+            node.onScrolledPast = ^{ mob_send_scrolled_past(handle); };
+        }
+        id scrolledPastThreshold = props[@"scrolled_past_threshold"];
+        if (scrolledPastThreshold) {
+            node.scrolledPastThreshold = [scrolledPastThreshold doubleValue];
+        }
+
+        // ── Batch 5 Tier 3: native-side scroll-driven UI configs ──
+        // Pass-through to the SwiftUI layer; never round-trips to BEAM.
+        id parallax = props[@"parallax"];
+        if ([parallax isKindOfClass:[NSDictionary class]]) {
+            node.parallaxConfig = parallax;
+        }
+        id fadeOnScroll = props[@"fade_on_scroll"];
+        if ([fadeOnScroll isKindOfClass:[NSDictionary class]]) {
+            node.fadeOnScrollConfig = fadeOnScroll;
+        }
+        id stickyConfig = props[@"sticky_when_scrolled_past"];
+        if ([stickyConfig isKindOfClass:[NSDictionary class]]) {
+            node.stickyWhenScrolledPastConfig = stickyConfig;
         }
 
         id checked = props[@"value"];
@@ -1049,6 +1498,16 @@ static ERL_NIF_TERM nif_clear_taps(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
             enif_free_env(tap_handles[i].tag_env);
             tap_handles[i].tag_env = NULL;
         }
+        // Reset throttle state — slots get reused across renders.
+        tap_handles[i].throttle_ms     = 0;
+        tap_handles[i].debounce_ms     = 0;
+        tap_handles[i].delta_threshold = 0;
+        tap_handles[i].leading         = 1;
+        tap_handles[i].trailing        = 1;
+        tap_handles[i].last_emit_ns    = 0;
+        tap_handles[i].last_x          = 0;
+        tap_handles[i].last_y          = 0;
+        tap_handles[i].seq             = 0;
     }
     tap_handle_next = 0;
     enif_mutex_unlock(tap_mutex);

@@ -259,6 +259,13 @@ struct MobNodeView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
+                // ── Batch 5 Tier 1: scroll position observation ──
+                // SwiftUI's onScrollGeometryChange (iOS 17+) fires on every
+                // frame during scroll; we forward to mob_send_scroll which
+                // applies the per-handle throttle config before crossing the
+                // BEAM boundary. Tier-2 semantic events (began/ended) are
+                // derived from the same observer.
+                .modifier(MobScrollObserver(node: node, isHorizontal: isHorizontal))
 
             case .textField:
                 let placeholder = node.placeholder ?? ""
@@ -817,5 +824,89 @@ public struct MobRootView: View {
         default:
             return nil
         }
+    }
+}
+
+// MARK: - Batch 5: scroll position observation
+//
+// MobScrollObserver wires SwiftUI's scroll-geometry observer to MobNode's
+// closures. Tier 1 (raw deltas) goes through node.onScroll which is throttled
+// native-side. Tier 2 (semantic begin/end/top) is derived here. Tier 3 (parallax,
+// fade-on-scroll, sticky) is rendered with no BEAM round-trip.
+
+// MobScrollObserver wires SwiftUI's onScrollGeometryChange (iOS 17+) to the
+// MobNode closures populated by mob_nif.m. Throttling and delta-thresholding
+// happen native-side in mob_send_scroll, so this modifier just forwards every
+// geometry change. End-of-scroll is detected by a debounced "no motion for N
+// ms" timer (avoids requiring iOS 18 onScrollPhaseChange).
+@available(iOS 17.0, *)
+struct MobScrollObserver: ViewModifier {
+    let node: MobNode
+    let isHorizontal: Bool
+
+    @State private var lastX: CGFloat = 0
+    @State private var lastY: CGFloat = 0
+    @State private var lastTs: TimeInterval = 0
+    @State private var hasBegun: Bool = false
+    @State private var pastThreshold: Bool = false
+    @State private var endTask: Task<Void, Never>? = nil
+
+    private static let endDebounceMs: Int = 150
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: CGPoint.self, of: { $0.contentOffset }) { _, offset in
+                let now = ProcessInfo.processInfo.systemUptime
+                let dt = lastTs > 0 ? now - lastTs : 0
+                let x = offset.x
+                let y = offset.y
+                let dx = x - lastX
+                let dy = y - lastY
+                let vx = dt > 0 ? dx / CGFloat(dt) : 0
+                let vy = dt > 0 ? dy / CGFloat(dt) : 0
+
+                if !hasBegun {
+                    hasBegun = true
+                    node.onScrollBegan?()
+                    node.onScroll?(0, 0, x, y, 0, 0, "began")
+                } else {
+                    node.onScroll?(dx, dy, x, y, vx, vy, "dragging")
+                }
+
+                // Tier 2 — top reached (fires on entering y == 0)
+                if y <= 0.001 && lastY > 0.001 {
+                    node.onTopReached?()
+                }
+
+                // Tier 2 — scrolled-past (latched, only fires on transition)
+                let threshold = node.scrolledPastThreshold
+                if threshold > 0 {
+                    let nowPast = (isHorizontal ? x : y) > threshold
+                    if nowPast && !pastThreshold {
+                        node.onScrolledPast?()
+                    }
+                    pastThreshold = nowPast
+                }
+
+                lastX = x
+                lastY = y
+                lastTs = now
+
+                // Debounced scroll-ended detector. Cancel any prior task and
+                // schedule a fresh one — fires only after motion stops for
+                // endDebounceMs.
+                endTask?.cancel()
+                let ms = Self.endDebounceMs
+                endTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
+                    if Task.isCancelled { return }
+                    if hasBegun {
+                        node.onScrollEnded?()
+                        node.onScrollSettled?()
+                        node.onScroll?(0, 0, lastX, lastY, 0, 0, "ended")
+                        hasBegun = false
+                    }
+                }
+            }
     }
 }

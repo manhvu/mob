@@ -154,6 +154,78 @@ defmodule Mob.Event.IntegrationTest do
     end
   end
 
+  describe "Batch 5 Tier 1: scroll/drag/pinch through bridge" do
+    test "scroll event with payload arrives canonical" do
+      {:ok, screen} = TestScreen.start_link(reply_to: self())
+
+      send(screen, {:scroll, :main_list,
+                    %{x: 0.0, y: 240.0, dx: 0.0, dy: 8.0, phase: :dragging,
+                      velocity_x: 0.0, velocity_y: 480.0, ts: 12345, seq: 1}})
+
+      assert_receive {:handled, envelope}, 200
+
+      assert {:mob_event, %Address{widget: :scroll, id: :main_list},
+              :scroll, %{y: 240.0, dy: 8.0, phase: :dragging}} = envelope
+    end
+
+    test "drag with payload" do
+      {:ok, screen} = TestScreen.start_link(reply_to: self())
+
+      send(screen, {:drag, :map, %{x: 50.0, y: 80.0, dx: 5.0, dy: 0.0, phase: :began}})
+
+      assert_receive {:handled, {:mob_event, %Address{widget: :drag, id: :map}, :drag, _}}, 200
+    end
+
+    test "pinch with payload" do
+      {:ok, screen} = TestScreen.start_link(reply_to: self())
+
+      send(screen, {:pinch, :photo, %{scale: 1.5, velocity: 0.4, phase: :dragging}})
+
+      assert_receive {:handled, {:mob_event, _, :pinch, %{scale: 1.5}}}, 200
+    end
+
+    test "scroll-stream — many events arrive in order" do
+      {:ok, screen} = TestScreen.start_link([])
+
+      for i <- 1..10 do
+        send(screen, {:scroll, :feed, %{x: 0.0, y: i * 10.0, dx: 0.0, dy: 10.0, phase: :dragging, seq: i}})
+      end
+
+      Process.sleep(20)
+      log = TestScreen.get_log(screen)
+
+      seqs =
+        log
+        |> Enum.map(fn {_widget, _id, :scroll, %{seq: seq}} -> seq end)
+
+      assert seqs == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    end
+  end
+
+  describe "Batch 5 Tier 2: semantic scroll events through bridge" do
+    test "scroll_began → scroll_ended → scroll_settled" do
+      {:ok, screen} = TestScreen.start_link(reply_to: self())
+
+      send(screen, {:scroll_began, :main})
+      send(screen, {:scroll_ended, :main})
+      send(screen, {:scroll_settled, :main})
+
+      assert_receive {:handled, {:mob_event, _, :scroll_began, nil}}, 200
+      assert_receive {:handled, {:mob_event, _, :scroll_ended, nil}}, 200
+      assert_receive {:handled, {:mob_event, _, :scroll_settled, nil}}, 200
+    end
+
+    test "top_reached and scrolled_past land as semantic events" do
+      {:ok, screen} = TestScreen.start_link(reply_to: self())
+
+      send(screen, {:top_reached, :main})
+      send(screen, {:scrolled_past, :crossed_100})
+
+      assert_receive {:handled, {:mob_event, %Address{id: :main}, :top_reached, nil}}, 200
+      assert_receive {:handled, {:mob_event, %Address{id: :crossed_100}, :scrolled_past, nil}}, 200
+    end
+  end
+
   describe "Mob.Event direct dispatch (no bridge)" do
     test "synthesised event delivered to the test process" do
       addr = Address.new(screen: TestScreen, widget: :button, id: :save)

@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include "erl_nif.h"
 #include "mob_beam.h"
 
@@ -92,6 +93,17 @@ typedef struct {
     ErlNifPid    pid;
     ErlNifEnv*   tag_env;   // persistent env owning tag; NULL when not in use
     ERL_NIF_TERM tag;       // the term sent as the second element of {:tap, tag}
+
+    // ── Batch 5 throttle state — populated by mob_set_throttle_config ──
+    int          throttle_ms;
+    int          debounce_ms;
+    double       delta_threshold;
+    int          leading;
+    int          trailing;
+    long long    last_emit_ns;     // CLOCK_MONOTONIC ns
+    double       last_x;
+    double       last_y;
+    unsigned long long seq;
 } TapHandle;
 
 static TapHandle    tap_handles[MAX_TAP_HANDLES];
@@ -259,6 +271,278 @@ void mob_send_swipe_with_direction(int handle, const char* direction) {
     enif_send(NULL, &pid, msg_env, msg);
     enif_free_env(msg_env);
 }
+
+// ── Batch 5 Tier 1: high-frequency events with throttling ─────────────────
+// Mirrors the iOS implementation in mob_nif.m. Throttle state lives on each
+// TapHandle (above). JNI stubs in beam_jni.c are pending — these C functions
+// are the bridge target.
+
+static long long mob_now_ns_android(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000000000LL + (long long)ts.tv_nsec;
+}
+
+void mob_set_throttle_config(int handle,
+                             int throttle_ms, int debounce_ms,
+                             double delta_threshold,
+                             int leading, int trailing) {
+    enif_mutex_lock(tap_mutex);
+    if (handle >= 0 && handle < tap_handle_next && tap_handles[handle].tag_env) {
+        tap_handles[handle].throttle_ms     = throttle_ms;
+        tap_handles[handle].debounce_ms     = debounce_ms;
+        tap_handles[handle].delta_threshold = delta_threshold;
+        tap_handles[handle].leading         = leading;
+        tap_handles[handle].trailing        = trailing;
+    }
+    enif_mutex_unlock(tap_mutex);
+}
+
+static int mob_throttle_check_a(int handle, double x, double y,
+                                int default_throttle_ms, double default_delta) {
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return 0;
+    }
+    TapHandle* h = &tap_handles[handle];
+    int throttle_ms = h->throttle_ms ? h->throttle_ms : default_throttle_ms;
+    double delta_threshold = h->delta_threshold > 0 ? h->delta_threshold : default_delta;
+
+    long long now_ns = mob_now_ns_android();
+    double dx = x - h->last_x;
+    double dy = y - h->last_y;
+    double dist = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+
+    if (h->last_emit_ns > 0 && throttle_ms > 0) {
+        long long elapsed_ms = (now_ns - h->last_emit_ns) / 1000000LL;
+        if (elapsed_ms < throttle_ms) {
+            enif_mutex_unlock(tap_mutex);
+            return 0;
+        }
+    }
+    if (h->last_emit_ns > 0 && dist < delta_threshold) {
+        enif_mutex_unlock(tap_mutex);
+        return 0;
+    }
+
+    h->last_emit_ns = now_ns;
+    h->last_x = x;
+    h->last_y = y;
+    h->seq++;
+    enif_mutex_unlock(tap_mutex);
+    return 1;
+}
+
+// Build payload map for scroll/drag/etc. Caller owns msg_env.
+static ERL_NIF_TERM mob_build_scroll_map(ErlNifEnv* env,
+                                         double x, double y,
+                                         double dx, double dy,
+                                         double vx, double vy,
+                                         const char* phase,
+                                         long long ts_ms,
+                                         unsigned long long seq) {
+    ERL_NIF_TERM keys[9] = {
+        enif_make_atom(env, "x"), enif_make_atom(env, "y"),
+        enif_make_atom(env, "dx"), enif_make_atom(env, "dy"),
+        enif_make_atom(env, "velocity_x"), enif_make_atom(env, "velocity_y"),
+        enif_make_atom(env, "phase"),
+        enif_make_atom(env, "ts"), enif_make_atom(env, "seq"),
+    };
+    ERL_NIF_TERM vals[9] = {
+        enif_make_double(env, x), enif_make_double(env, y),
+        enif_make_double(env, dx), enif_make_double(env, dy),
+        enif_make_double(env, vx), enif_make_double(env, vy),
+        enif_make_atom(env, phase),
+        enif_make_int64(env, ts_ms),
+        enif_make_uint64(env, seq),
+    };
+    ERL_NIF_TERM map;
+    enif_make_map_from_arrays(env, keys, vals, 9, &map);
+    return map;
+}
+
+void mob_send_scroll(int handle,
+                     double x, double y,
+                     double dx, double dy,
+                     double vx, double vy,
+                     const char* phase) {
+    int phase_boundary = (strcmp(phase, "began") == 0) || (strcmp(phase, "ended") == 0);
+    if (!phase_boundary && !mob_throttle_check_a(handle, x, y, 33, 1.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    unsigned long long seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    long long ts_ms = mob_now_ns_android() / 1000000LL;
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM payload = mob_build_scroll_map(env, x, y, dx, dy, vx, vy, phase, ts_ms, seq);
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "scroll"),
+        enif_make_copy(env, tag),
+        payload);
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
+void mob_send_drag(int handle,
+                   double x, double y,
+                   double dx, double dy,
+                   const char* phase) {
+    int phase_boundary = (strcmp(phase, "began") == 0) || (strcmp(phase, "ended") == 0);
+    if (!phase_boundary && !mob_throttle_check_a(handle, x, y, 16, 1.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    unsigned long long seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    long long ts_ms = mob_now_ns_android() / 1000000LL;
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM keys[7] = {
+        enif_make_atom(env, "x"), enif_make_atom(env, "y"),
+        enif_make_atom(env, "dx"), enif_make_atom(env, "dy"),
+        enif_make_atom(env, "phase"),
+        enif_make_atom(env, "ts"), enif_make_atom(env, "seq"),
+    };
+    ERL_NIF_TERM vals[7] = {
+        enif_make_double(env, x), enif_make_double(env, y),
+        enif_make_double(env, dx), enif_make_double(env, dy),
+        enif_make_atom(env, phase),
+        enif_make_int64(env, ts_ms), enif_make_uint64(env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(env, keys, vals, 7, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "drag"),
+        enif_make_copy(env, tag),
+        payload);
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
+void mob_send_pinch(int handle, double scale, double velocity, const char* phase) {
+    int phase_boundary = (strcmp(phase, "began") == 0) || (strcmp(phase, "ended") == 0);
+    if (!phase_boundary && !mob_throttle_check_a(handle, scale, 0, 16, 0.01)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    unsigned long long seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    long long ts_ms = mob_now_ns_android() / 1000000LL;
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM keys[5] = {
+        enif_make_atom(env, "scale"), enif_make_atom(env, "velocity"),
+        enif_make_atom(env, "phase"),
+        enif_make_atom(env, "ts"), enif_make_atom(env, "seq"),
+    };
+    ERL_NIF_TERM vals[5] = {
+        enif_make_double(env, scale), enif_make_double(env, velocity),
+        enif_make_atom(env, phase),
+        enif_make_int64(env, ts_ms), enif_make_uint64(env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(env, keys, vals, 5, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "pinch"),
+        enif_make_copy(env, tag),
+        payload);
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
+void mob_send_rotate(int handle, double degrees, double velocity, const char* phase) {
+    int phase_boundary = (strcmp(phase, "began") == 0) || (strcmp(phase, "ended") == 0);
+    if (!phase_boundary && !mob_throttle_check_a(handle, degrees, 0, 16, 1.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    unsigned long long seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    long long ts_ms = mob_now_ns_android() / 1000000LL;
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM keys[5] = {
+        enif_make_atom(env, "degrees"), enif_make_atom(env, "velocity"),
+        enif_make_atom(env, "phase"),
+        enif_make_atom(env, "ts"), enif_make_atom(env, "seq"),
+    };
+    ERL_NIF_TERM vals[5] = {
+        enif_make_double(env, degrees), enif_make_double(env, velocity),
+        enif_make_atom(env, phase),
+        enif_make_int64(env, ts_ms), enif_make_uint64(env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(env, keys, vals, 5, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "rotate"),
+        enif_make_copy(env, tag),
+        payload);
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
+void mob_send_pointer_move(int handle, double x, double y) {
+    if (!mob_throttle_check_a(handle, x, y, 33, 4.0)) return;
+
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    unsigned long long seq = tap_handles[handle].seq;
+    enif_mutex_unlock(tap_mutex);
+
+    long long ts_ms = mob_now_ns_android() / 1000000LL;
+    ErlNifEnv* env = enif_alloc_env();
+    ERL_NIF_TERM keys[4] = {
+        enif_make_atom(env, "x"), enif_make_atom(env, "y"),
+        enif_make_atom(env, "ts"), enif_make_atom(env, "seq"),
+    };
+    ERL_NIF_TERM vals[4] = {
+        enif_make_double(env, x), enif_make_double(env, y),
+        enif_make_int64(env, ts_ms), enif_make_uint64(env, seq),
+    };
+    ERL_NIF_TERM payload;
+    enif_make_map_from_arrays(env, keys, vals, 4, &payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(env,
+        enif_make_atom(env, "pointer_move"),
+        enif_make_copy(env, tag),
+        payload);
+    enif_send(NULL, &pid, env, msg);
+    enif_free_env(env);
+}
+
+// ── Batch 5 Tier 2: semantic single-fire scroll events ──
+void mob_send_scroll_began(int handle)   { send_event(handle, "scroll_began"); }
+void mob_send_scroll_ended(int handle)   { send_event(handle, "scroll_ended"); }
+void mob_send_scroll_settled(int handle) { send_event(handle, "scroll_settled"); }
+void mob_send_top_reached(int handle)    { send_event(handle, "top_reached"); }
+void mob_send_scrolled_past(int handle)  { send_event(handle, "scrolled_past"); }
 
 // ── Back gesture sender ───────────────────────────────────────────────────────
 // Called from beam_jni.c's nativeHandleBack JNI stub when the Android back
@@ -466,6 +750,16 @@ static ERL_NIF_TERM nif_clear_taps(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
             enif_free_env(tap_handles[i].tag_env);
             tap_handles[i].tag_env = NULL;
         }
+        // Reset throttle state — slots get reused across renders.
+        tap_handles[i].throttle_ms     = 0;
+        tap_handles[i].debounce_ms     = 0;
+        tap_handles[i].delta_threshold = 0;
+        tap_handles[i].leading         = 1;
+        tap_handles[i].trailing        = 1;
+        tap_handles[i].last_emit_ns    = 0;
+        tap_handles[i].last_x          = 0;
+        tap_handles[i].last_y          = 0;
+        tap_handles[i].seq             = 0;
     }
     tap_handle_next = 0;
     enif_mutex_unlock(tap_mutex);

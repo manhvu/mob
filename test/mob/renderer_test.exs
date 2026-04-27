@@ -287,6 +287,232 @@ defmodule Mob.RendererTest do
       end
     end
 
+    # ── Batch 5 Tier 1: high-frequency events with throttle config ────────
+    test "on_scroll without opts uses default throttle (no scroll_config emitted)" do
+      pid = self()
+      tree = %{type: :scroll, props: %{on_scroll: {pid, :main}}, children: []}
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_scroll"])
+      # Default config not emitted; native side uses Mob.Event.Throttle.default_for(:scroll)
+      refute Map.has_key?(decoded["props"], "scroll_config")
+    end
+
+    test "on_scroll with throttle opts emits scroll_config" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{on_scroll: {pid, :main, throttle: 100}},
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_scroll"])
+      cfg = decoded["props"]["scroll_config"]
+      assert cfg["throttle_ms"] == 100
+      assert cfg["delta_threshold"] == 1
+      assert cfg["leading"] == true
+      assert cfg["trailing"] == true
+    end
+
+    test "on_scroll with throttle: 0 (raw firing rate) is valid" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{on_scroll: {pid, :main, throttle: 0, delta: 0}},
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert decoded["props"]["scroll_config"]["throttle_ms"] == 0
+      assert decoded["props"]["scroll_config"]["delta_threshold"] == 0
+    end
+
+    test "on_scroll with debounce opts" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{on_scroll: {pid, :main, debounce: 200}},
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert decoded["props"]["scroll_config"]["debounce_ms"] == 200
+      # Throttle default still applies:
+      assert decoded["props"]["scroll_config"]["throttle_ms"] == 33
+    end
+
+    test "on_drag, on_pinch, on_rotate, on_pointer_move all accept throttle opts" do
+      pid = self()
+
+      tree = %{
+        type: :container,
+        props: %{
+          on_drag: {pid, :pan, throttle: 16},
+          on_pinch: {pid, :zoom, throttle: 16, delta: 0.05},
+          on_rotate: {pid, :twist, throttle: 16},
+          on_pointer_move: {pid, :hover, throttle: 50, delta: 8}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      props = :json.decode(json)["props"]
+
+      assert is_integer(props["on_drag"])
+      assert props["drag_config"]["throttle_ms"] == 16
+      assert is_integer(props["on_pinch"])
+      assert props["pinch_config"]["delta_threshold"] == 0.05
+      assert is_integer(props["on_rotate"])
+      assert is_integer(props["on_pointer_move"])
+      assert props["pointer_config"]["delta_threshold"] == 8
+    end
+
+    test "throttle: invalid value raises during render" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{on_scroll: {pid, :main, throttle: -1}},
+        children: []
+      }
+
+      assert_raise ArgumentError, ~r/throttle/, fn ->
+        Renderer.render(tree, :android, MockNIF)
+      end
+    end
+
+    # ── Batch 5 Tier 2: semantic scroll events ────────────────────────────
+    test "on_scroll_began, on_scroll_ended, on_scroll_settled get handles" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{
+          on_scroll_began: {pid, :s_began},
+          on_scroll_ended: {pid, :s_ended},
+          on_scroll_settled: {pid, :s_settled}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      props = :json.decode(json)["props"]
+      assert is_integer(props["on_scroll_began"])
+      assert is_integer(props["on_scroll_ended"])
+      assert is_integer(props["on_scroll_settled"])
+    end
+
+    test "on_top_reached gets a handle" do
+      pid = self()
+      tree = %{type: :scroll, props: %{on_top_reached: {pid, :hit_top}}, children: []}
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert is_integer(:json.decode(json)["props"]["on_top_reached"])
+    end
+
+    test "on_scrolled_past requires a threshold and emits both handle + threshold" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{on_scrolled_past: {pid, :crossed_100, 100}},
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      props = :json.decode(json)["props"]
+      assert is_integer(props["on_scrolled_past"])
+      assert props["scrolled_past_threshold"] == 100
+    end
+
+    test "on_scrolled_past supports float thresholds" do
+      pid = self()
+      tree = %{type: :scroll, props: %{on_scrolled_past: {pid, :tag, 250.5}}, children: []}
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      assert :json.decode(json)["props"]["scrolled_past_threshold"] == 250.5
+    end
+
+    # ── Batch 5 Tier 3: native-side scroll-driven UI ──────────────────────
+    test "parallax config passes through with stringified atoms" do
+      tree = %{
+        type: :image,
+        props: %{
+          src: "hero.jpg",
+          parallax: %{ratio: 0.5, container: :main_scroll}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      cfg = :json.decode(json)["props"]["parallax"]
+      assert cfg["ratio"] == 0.5
+      assert cfg["container"] == "main_scroll"
+    end
+
+    test "fade_on_scroll config" do
+      tree = %{
+        type: :navbar,
+        props: %{
+          fade_on_scroll: %{container: :main, fade_after: 100, fade_over: 60}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      cfg = :json.decode(json)["props"]["fade_on_scroll"]
+      assert cfg["container"] == "main"
+      assert cfg["fade_after"] == 100
+      assert cfg["fade_over"] == 60
+    end
+
+    test "sticky_when_scrolled_past config" do
+      tree = %{
+        type: :header,
+        props: %{
+          sticky_when_scrolled_past: %{container: :feed, threshold: 200}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      cfg = :json.decode(json)["props"]["sticky_when_scrolled_past"]
+      assert cfg["container"] == "feed"
+      assert cfg["threshold"] == 200
+    end
+
+    test "Tier 3 props do NOT register taps (no BEAM round-trip)" do
+      tree = %{
+        type: :image,
+        props: %{parallax: %{ratio: 0.5, container: :main}},
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      tap_calls = Enum.filter(MockNIF.calls(), fn {f, _} -> f == :register_tap end)
+      assert tap_calls == []
+    end
+
     test "keyboard atom is serialised as string" do
       tree = %{type: :text_field, props: %{value: "", keyboard: :decimal}, children: []}
       Renderer.render(tree, :android, MockNIF)

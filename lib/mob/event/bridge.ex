@@ -120,7 +120,72 @@ defmodule Mob.Event.Bridge do
     end
   end
 
+  # ── Batch 5 Tier 1: high-frequency events with payload maps ────────────
+  # The native side sends {atom, tag, %{...payload}} for these. We map the
+  # widget kind from the event atom (scroll → :scroll widget, etc.) and pass
+  # the payload through unchanged.
+
+  def legacy_to_canonical({:scroll, tag, %{} = payload}, screen_id, opts) when not is_nil(tag) do
+    legacy_hf_event(:scroll, :scroll, tag, payload, screen_id, opts)
+  end
+
+  def legacy_to_canonical({:drag, tag, %{} = payload}, screen_id, opts) when not is_nil(tag) do
+    legacy_hf_event(:drag, :drag, tag, payload, screen_id, opts)
+  end
+
+  def legacy_to_canonical({:pinch, tag, %{} = payload}, screen_id, opts) when not is_nil(tag) do
+    legacy_hf_event(:pinch, :pinch, tag, payload, screen_id, opts)
+  end
+
+  def legacy_to_canonical({:rotate, tag, %{} = payload}, screen_id, opts) when not is_nil(tag) do
+    legacy_hf_event(:rotate, :rotate, tag, payload, screen_id, opts)
+  end
+
+  def legacy_to_canonical({:pointer_move, tag, %{} = payload}, screen_id, opts)
+      when not is_nil(tag) do
+    legacy_hf_event(:pointer_move, :pointer_move, tag, payload, screen_id, opts)
+  end
+
+  # ── Batch 5 Tier 2: semantic single-fire scroll events ─────────────────
+  for ev <- [:scroll_began, :scroll_ended, :scroll_settled, :top_reached, :scrolled_past] do
+    def legacy_to_canonical({unquote(ev), tag}, screen_id, opts) when not is_nil(tag) do
+      case Address.validate_id(tag) do
+        :ok ->
+          addr =
+            Address.new(
+              screen: screen_id,
+              widget: Keyword.get(opts, :widget, :scroll),
+              id: tag,
+              render_id: Keyword.get(opts, :render_id, 1)
+            )
+
+          {:ok, {:mob_event, addr, unquote(ev), nil}}
+
+        {:error, _} ->
+          :passthrough
+      end
+    end
+  end
+
   def legacy_to_canonical(_msg, _screen_id, _opts), do: :passthrough
+
+  defp legacy_hf_event(event, widget, tag, payload, screen_id, opts) do
+    case Address.validate_id(tag) do
+      :ok ->
+        addr =
+          Address.new(
+            screen: screen_id,
+            widget: widget,
+            id: tag,
+            render_id: Keyword.get(opts, :render_id, 1)
+          )
+
+        {:ok, {:mob_event, addr, event, payload}}
+
+      {:error, _} ->
+        :passthrough
+    end
+  end
 
   @doc """
   Same as `legacy_to_canonical/3` but raises if the message is not a

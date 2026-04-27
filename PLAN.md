@@ -1962,19 +1962,129 @@ Foundation for `Mob.Device.subscribe/1` and `Mob.Device.IOS` / `Mob.Device.Andro
   shape working via the bridge for now; full migration when the
   stateful-component infrastructure (`Mob.Event.Component`) lands.
 
-### Batch 5 — High-frequency events with throttling ⬜
+### Batch 5 — High-frequency events ✅ (Elixir + iOS) / ⏳ (Android JNI)
 
-`on_scroll` (position deltas), `on_drag` (pan), `on_pinch`, `on_rotate`,
-`on_pointer_move`. These fire 60–120 Hz natively. Needs:
-- Native-side rate limiting (emit at N Hz, configurable per subscriber)
-- Native-side delta thresholding (only emit if change > threshold)
-- Backpressure handling — drop events if subscriber mailbox is full
-- Optional `:throttle` / `:debounce` modifiers per subscription
+`on_scroll`, `on_drag`, `on_pinch`, `on_rotate`, `on_pointer_move`. These
+fire 60–120 Hz natively. The design (lessons from React Native + Flutter):
+**three tiers, each appropriate for a different category of use case.**
+
+#### Tier 1 — NIF-side throttled stream
+
+Raw scroll events to BEAM, but throttled and delta-thresholded native-side
+*before* the `enif_send`. Default cap 30 Hz; configurable per widget:
+
+```elixir
+on_scroll: {pid, :main_list}                  # 30 Hz default
+on_scroll: {pid, :main_list, throttle: 100}   # 10 Hz
+on_scroll: {pid, :main_list, throttle: 0}     # raw 60-120 Hz, escape hatch
+on_scroll: {pid, :main_list, debounce: 200}   # only after scroll stops
+```
+
+Native side maintains per-handle state: `last_emit_ts`, `last_emit_x/y`,
+`throttle_ms`, `delta_threshold`. Cheap rejection before any BEAM crossing.
+
+Envelope:
+```elixir
+{:mob_event, addr, :scroll, %{
+  x: 0, y: 1240, dx: 0, dy: 12,
+  velocity_x: 0.0, velocity_y: 720.0,
+  phase: :began | :dragging | :decelerating | :ended,
+  ts: 18472, seq: 891
+}}
+```
+
+`seq` is a monotonic counter so handlers detect drops; `ts` is monotonic ms
+since render started; `phase` lets handlers cheaply ignore the dragging
+stream and react only to begin/end.
+
+#### Tier 2 — Semantic events (no per-frame data)
+
+Most code wants *meaningful* events about scroll, not the position stream:
+
+```elixir
+on_scroll_began:    :tag                              # touch went down
+on_scroll_ended:    :tag                              # finger lifted
+on_scroll_settled:  :tag                              # all motion stopped
+on_end_reached:     :tag                              # bottom (already wired)
+on_top_reached:     :tag                              # top
+on_scrolled_past:   {:tag, threshold_y}               # crossed a y-pixel boundary
+```
+
+Each fires *once per event*, never floods the mailbox. The 95% case
+(pagination, hiding a button when scrolled, fading a header below 100 px)
+uses these and never opts into Tier 1 at all.
+
+#### Tier 3 — Native-side scroll-driven UI primitives
+
+Some scroll behaviors *must* run at display refresh rate without round-trips:
+parallax, sticky-with-interpolation headers, fading navbars. These are
+*native props* on widgets. The native side wires them directly using
+SwiftUI's `.scrollPosition` observer (iOS 17+) and Compose's `snapshotFlow`.
+Zero BEAM involvement during the scroll.
+
+```elixir
+%{type: :image, props: %{
+  src: "hero.jpg",
+  parallax: %{ratio: 0.5, container: :main_scroll}
+}}
+
+%{type: :navbar, props: %{
+  fade_on_scroll: %{container: :main_scroll, fade_after: 100, fade_over: 60}
+}}
+
+%{type: :header, props: %{
+  sticky_when_scrolled_past: %{container: :main_scroll, threshold: 200}
+}}
+```
+
+This is the React Native `useNativeDriver` lesson applied to Mob: keep the
+60 Hz pipeline native; let BEAM see only the *result* (e.g. "user reached
+sticky state"). New Tier-3 props are added on demand, not designed
+speculatively.
+
+**Other high-frequency events** — `on_drag`, `on_pinch`, `on_rotate`,
+`on_pointer_move` — get the same Tier 1 throttling treatment. Pointer move
+is the most aggressive (constant cursor movement on iPad trackpad / Android
+tablet) and may need stricter defaults.
+
+**Shipped:**
+- `Mob.Event.Throttle` — config parser/validator (parse / default_for /
+  default? helpers). Per-event-kind defaults: scroll 33 ms / 1 px, drag
+  16 ms / 1 px, pinch 16 ms / 0.01, rotate 16 ms / 1°, pointer_move
+  33 ms / 4 px. (33 tests + 6 doctests)
+- `Mob.Event.Bridge` extended for HF event shapes
+  (`:scroll`/`:drag`/`:pinch`/`:rotate`/`:pointer_move` with payload maps,
+  plus 5 Tier-2 single-fires).
+- Renderer prop pass-through for all Tier 1, Tier 2, Tier 3 props with
+  config encoding for native consumption.
+- iOS: native throttle state per TapHandle; `mob_send_scroll`,
+  `mob_send_drag`, `mob_send_pinch`, `mob_send_rotate`,
+  `mob_send_pointer_move`, plus 5 Tier-2 senders. Throttle/delta gating
+  before any `enif_send`. Phase-boundary events (`began`/`ended`) bypass
+  throttling. SwiftUI `MobScrollObserver` modifier (iOS 17+) wires
+  `onScrollGeometryChange` to the node closures; debounced timer derives
+  `scroll_ended`/`scroll_settled`. Tier-3 native config props are
+  pass-through dictionaries on `MobNode` for the SwiftUI layer to read.
+- Android: same C senders (`mob_send_scroll` / `_drag` / `_pinch` /
+  `_rotate` / `_pointer_move` / Tier-2 single-fires). `clock_gettime`
+  monotonic time. Header exports in `mob_beam.h`.
+- Tests: 27 throttle + 36 bridge + 16 integration + 14 renderer scroll/HF
+  cases; total suite 563 / 0 failures.
+
+**Pending:**
+- Android JNI stubs in `beam_jni.c` calling the C senders.
+- Compose `Modifier.scrollable` / `LazyListState`-`snapshotFlow` wiring in
+  the generated app's MobBridge to actually fire `mob_send_scroll`.
+- Tier 3 native primitives — only the prop-pass-through is wired today;
+  the SwiftUI side that *applies* parallax/fade/sticky transforms is the
+  next addition (small per-primitive — added on demand).
+- Physical-device perf verification of the 30 Hz scroll cap; tune
+  defaults if real-world apps need different fidelity.
 
 **Performance note for batches 1–4 vs 5–6:** batches 1–4 are essentially free —
 each event takes one `dispatch_async` + one `enif_send`, ~1–10 μs at <10 Hz.
-Batch 5 is where design matters: 60 Hz scroll events on multiple lists can
-become hundreds of `enif_send` calls per second per subscriber.
+Batch 5 needs careful native-side gating: 60 Hz scroll events on multiple
+lists can become hundreds of `enif_send` calls per second per subscriber.
 
 ### Batch 6 — Complex multi-stage events ⬜
 

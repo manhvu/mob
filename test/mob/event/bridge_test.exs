@@ -130,6 +130,95 @@ defmodule Mob.Event.BridgeTest do
     end
   end
 
+  describe "legacy_to_canonical/3 — Batch 5 Tier 1: high-frequency events" do
+    test ":scroll with payload map" do
+      payload = %{x: 0.0, y: 1240.0, dx: 0.0, dy: 12.0, phase: :dragging, ts: 18472, seq: 891}
+
+      assert {:ok, {:mob_event, addr, :scroll, ^payload}} =
+               Bridge.legacy_to_canonical({:scroll, :main_list, payload}, MyScreen)
+
+      assert addr.widget == :scroll
+      assert addr.id == :main_list
+    end
+
+    test ":drag with payload" do
+      payload = %{x: 100.0, y: 200.0, dx: 5.0, dy: 0.0, phase: :dragging}
+
+      assert {:ok, {:mob_event, addr, :drag, ^payload}} =
+               Bridge.legacy_to_canonical({:drag, :map, payload}, MyScreen)
+
+      assert addr.widget == :drag
+    end
+
+    test ":pinch with payload" do
+      payload = %{scale: 1.25, velocity: 0.3, phase: :dragging}
+
+      assert {:ok, {:mob_event, _, :pinch, ^payload}} =
+               Bridge.legacy_to_canonical({:pinch, :photo, payload}, MyScreen)
+    end
+
+    test ":rotate with payload" do
+      payload = %{degrees: 45.0, velocity: 0.1, phase: :ended}
+
+      assert {:ok, {:mob_event, _, :rotate, ^payload}} =
+               Bridge.legacy_to_canonical({:rotate, :photo, payload}, MyScreen)
+    end
+
+    test ":pointer_move with payload" do
+      payload = %{x: 320.0, y: 480.0, ts: 12345, seq: 7}
+
+      assert {:ok, {:mob_event, _, :pointer_move, ^payload}} =
+               Bridge.legacy_to_canonical({:pointer_move, :hover_zone, payload}, MyScreen)
+    end
+
+    test "binary tag works for HF events" do
+      assert {:ok, {:mob_event, addr, :scroll, _}} =
+               Bridge.legacy_to_canonical({:scroll, "list:contacts", %{}}, MyScreen)
+
+      assert addr.id == "list:contacts"
+    end
+
+    test "nil tag passes through" do
+      assert :passthrough = Bridge.legacy_to_canonical({:scroll, nil, %{}}, MyScreen)
+    end
+  end
+
+  describe "legacy_to_canonical/3 — Batch 5 Tier 2: semantic scroll events" do
+    test ":scroll_began" do
+      assert {:ok, {:mob_event, addr, :scroll_began, nil}} =
+               Bridge.legacy_to_canonical({:scroll_began, :main}, MyScreen)
+
+      assert addr.widget == :scroll
+      assert addr.id == :main
+    end
+
+    test ":scroll_ended" do
+      assert {:ok, {:mob_event, _, :scroll_ended, nil}} =
+               Bridge.legacy_to_canonical({:scroll_ended, :main}, MyScreen)
+    end
+
+    test ":scroll_settled" do
+      assert {:ok, {:mob_event, _, :scroll_settled, nil}} =
+               Bridge.legacy_to_canonical({:scroll_settled, :main}, MyScreen)
+    end
+
+    test ":top_reached" do
+      assert {:ok, {:mob_event, _, :top_reached, nil}} =
+               Bridge.legacy_to_canonical({:top_reached, :main}, MyScreen)
+    end
+
+    test ":scrolled_past" do
+      assert {:ok, {:mob_event, _, :scrolled_past, nil}} =
+               Bridge.legacy_to_canonical({:scrolled_past, :crossed_100}, MyScreen)
+    end
+
+    test "all five Tier-2 events nil tag passes through" do
+      for ev <- [:scroll_began, :scroll_ended, :scroll_settled, :top_reached, :scrolled_past] do
+        assert :passthrough = Bridge.legacy_to_canonical({ev, nil}, MyScreen)
+      end
+    end
+  end
+
   describe "legacy_to_canonical!/3" do
     test "returns envelope on success" do
       env = Bridge.legacy_to_canonical!({:tap, :save}, MyScreen)

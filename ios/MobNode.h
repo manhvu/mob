@@ -77,6 +77,45 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^onSwipeUp)(void);
 @property (nonatomic, copy, nullable) void (^onSwipeDown)(void);
 
+// ── Batch 5 Tier 1: high-frequency scroll/drag/pinch/rotate/pointer ──
+// These callbacks are wired by mob_nif.m. Throttling and delta-thresholding
+// happen native-side BEFORE invocation — by the time these fire, the BEAM
+// crossing is already justified. Apps SHOULD NOT throttle in the closure.
+//
+// Scroll: SwiftUI .onScrollGeometryChange (iOS 17+) or UIScrollView delegate.
+// (CGFloat dx, CGFloat dy, CGFloat x, CGFloat y, CGFloat vx, CGFloat vy, NSString phase)
+@property (nonatomic, copy, nullable) void (^onScroll)(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, NSString*);
+
+// Drag: pan gesture deltas.
+// (CGFloat dx, CGFloat dy, CGFloat x, CGFloat y, NSString phase)
+@property (nonatomic, copy, nullable) void (^onDrag)(CGFloat, CGFloat, CGFloat, CGFloat, NSString*);
+
+// Pinch: scale + velocity. (CGFloat scale, CGFloat velocity, NSString phase)
+@property (nonatomic, copy, nullable) void (^onPinch)(CGFloat, CGFloat, NSString*);
+
+// Rotate: angle in degrees + velocity. (CGFloat degrees, CGFloat velocity, NSString phase)
+@property (nonatomic, copy, nullable) void (^onRotate)(CGFloat, CGFloat, NSString*);
+
+// Pointer move (iPad trackpad / Apple Pencil hover).
+// (CGFloat x, CGFloat y)
+@property (nonatomic, copy, nullable) void (^onPointerMove)(CGFloat, CGFloat);
+
+// ── Batch 5 Tier 2: semantic scroll events (single-fire) ──
+@property (nonatomic, copy, nullable) void (^onScrollBegan)(void);
+@property (nonatomic, copy, nullable) void (^onScrollEnded)(void);
+@property (nonatomic, copy, nullable) void (^onScrollSettled)(void);
+@property (nonatomic, copy, nullable) void (^onTopReached)(void);
+@property (nonatomic, copy, nullable) void (^onScrolledPast)(void);
+@property (nonatomic) CGFloat scrolledPastThreshold;     // y boundary
+
+// ── Batch 5 Tier 3: native-side scroll-driven UI ──
+// Each is a config dict (decoded from JSON). The SwiftUI view layer reads
+// these and wires them up using .scrollPosition / .onScrollGeometryChange
+// observers without going through the BEAM. nil = not configured.
+@property (nonatomic, strong, nullable) NSDictionary* parallaxConfig;
+@property (nonatomic, strong, nullable) NSDictionary* fadeOnScrollConfig;
+@property (nonatomic, strong, nullable) NSDictionary* stickyWhenScrolledPastConfig;
+
 // text_field
 @property (nonatomic, copy, nullable) NSString* placeholder;
 @property (nonatomic, copy, nonnull)  NSString* keyboardTypeStr;  // "default","number","decimal","email","phone","url"

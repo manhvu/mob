@@ -343,6 +343,91 @@ defmodule Mob.Renderer do
       {:on_swipe_down, {pid, tag}} when is_pid(pid) ->
         [{"on_swipe_down", nif.register_tap({pid, tag})}]
 
+      # ── Batch 5: high-frequency events ────────────────────────────────────
+      # `on_scroll` is the prototype: native side throttles + delta-thresholds
+      # before any enif_send. Default is 30 Hz / 1 px (see Mob.Event.Throttle).
+      # Forms accepted:
+      #   on_scroll: {pid, tag}                     # default throttle
+      #   on_scroll: {pid, tag, throttle: 100}      # 10 Hz
+      #   on_scroll: {pid, tag, debounce: 200}      # only after stillness
+      #   on_scroll: {pid, tag, throttle: 0}        # raw (escape hatch)
+      # The throttle config is serialised as a sibling prop "scroll_config"
+      # which the native side reads alongside the registered handle.
+
+      {:on_scroll, {pid, tag}} when is_pid(pid) ->
+        [{"on_scroll", nif.register_tap({pid, tag})}]
+
+      {:on_scroll, {pid, tag, opts}} when is_pid(pid) and is_list(opts) ->
+        cfg = Mob.Event.Throttle.parse(:scroll, opts)
+        [{"on_scroll", nif.register_tap({pid, tag})}, {"scroll_config", encode_throttle(cfg)}]
+
+      {:on_drag, {pid, tag}} when is_pid(pid) ->
+        [{"on_drag", nif.register_tap({pid, tag})}]
+
+      {:on_drag, {pid, tag, opts}} when is_pid(pid) and is_list(opts) ->
+        cfg = Mob.Event.Throttle.parse(:drag, opts)
+        [{"on_drag", nif.register_tap({pid, tag})}, {"drag_config", encode_throttle(cfg)}]
+
+      {:on_pinch, {pid, tag}} when is_pid(pid) ->
+        [{"on_pinch", nif.register_tap({pid, tag})}]
+
+      {:on_pinch, {pid, tag, opts}} when is_pid(pid) and is_list(opts) ->
+        cfg = Mob.Event.Throttle.parse(:pinch, opts)
+        [{"on_pinch", nif.register_tap({pid, tag})}, {"pinch_config", encode_throttle(cfg)}]
+
+      {:on_rotate, {pid, tag}} when is_pid(pid) ->
+        [{"on_rotate", nif.register_tap({pid, tag})}]
+
+      {:on_rotate, {pid, tag, opts}} when is_pid(pid) and is_list(opts) ->
+        cfg = Mob.Event.Throttle.parse(:rotate, opts)
+        [{"on_rotate", nif.register_tap({pid, tag})}, {"rotate_config", encode_throttle(cfg)}]
+
+      {:on_pointer_move, {pid, tag}} when is_pid(pid) ->
+        [{"on_pointer_move", nif.register_tap({pid, tag})}]
+
+      {:on_pointer_move, {pid, tag, opts}} when is_pid(pid) and is_list(opts) ->
+        cfg = Mob.Event.Throttle.parse(:pointer_move, opts)
+
+        [
+          {"on_pointer_move", nif.register_tap({pid, tag})},
+          {"pointer_config", encode_throttle(cfg)}
+        ]
+
+      # ── Batch 5 Tier 2: semantic scroll events (single-fire, no payload) ──
+      {:on_scroll_began, {pid, tag}} when is_pid(pid) ->
+        [{"on_scroll_began", nif.register_tap({pid, tag})}]
+
+      {:on_scroll_ended, {pid, tag}} when is_pid(pid) ->
+        [{"on_scroll_ended", nif.register_tap({pid, tag})}]
+
+      {:on_scroll_settled, {pid, tag}} when is_pid(pid) ->
+        [{"on_scroll_settled", nif.register_tap({pid, tag})}]
+
+      {:on_top_reached, {pid, tag}} when is_pid(pid) ->
+        [{"on_top_reached", nif.register_tap({pid, tag})}]
+
+      # `on_scrolled_past` requires a threshold; native side fires once when
+      # scroll y crosses the boundary (latched: re-emits only after going back
+      # below and past again).
+      {:on_scrolled_past, {pid, tag, threshold}} when is_pid(pid) and is_number(threshold) ->
+        [
+          {"on_scrolled_past", nif.register_tap({pid, tag})},
+          {"scrolled_past_threshold", threshold}
+        ]
+
+      # ── Batch 5 Tier 3: native-side scroll-driven UI primitives ───────────
+      # These never round-trip to BEAM during scroll. Native side wires them
+      # directly. Pass-through for the renderer; consumed by the platform
+      # layer (SwiftUI .scrollPosition observer / Compose snapshotFlow).
+      {:parallax, %{} = config} ->
+        [{"parallax", encode_native_config(config)}]
+
+      {:fade_on_scroll, %{} = config} ->
+        [{"fade_on_scroll", encode_native_config(config)}]
+
+      {:sticky_when_scrolled_past, %{} = config} ->
+        [{"sticky_when_scrolled_past", encode_native_config(config)}]
+
       {key, value} ->
         [{Atom.to_string(key), resolve_token(key, value, ctx)}]
     end)
@@ -403,4 +488,34 @@ defmodule Mob.Renderer do
   end
 
   defp resolve_color(value, _theme_colors), do: value
+
+  # ── Batch 5 helpers ─────────────────────────────────────────────────────
+  # Encode a Mob.Event.Throttle config for the native side. We use string
+  # keys + plain numeric/boolean values so the JSON serialiser sends a flat
+  # map across the NIF boundary. Native side reads these and stores per-handle.
+
+  defp encode_throttle(%{} = cfg) do
+    %{
+      "throttle_ms" => cfg.throttle_ms,
+      "debounce_ms" => cfg.debounce_ms,
+      "delta_threshold" => cfg.delta_threshold,
+      "leading" => cfg.leading,
+      "trailing" => cfg.trailing
+    }
+  end
+
+  # Encode a Tier-3 native-side scroll-driven config (parallax, fade_on_scroll,
+  # sticky_when_scrolled_past). Atoms are stringified; nested structures
+  # passed through as-is for native consumption.
+  defp encode_native_config(%{} = config) do
+    Map.new(config, fn
+      {k, v} when is_atom(k) -> {Atom.to_string(k), encode_native_value(v)}
+      {k, v} -> {k, encode_native_value(v)}
+    end)
+  end
+
+  defp encode_native_value(v) when is_atom(v) and not is_boolean(v) and not is_nil(v),
+    do: Atom.to_string(v)
+
+  defp encode_native_value(v), do: v
 end

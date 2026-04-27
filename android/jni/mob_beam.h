@@ -41,6 +41,36 @@ void mob_send_swipe_down(int handle);
 // "left" | "right" | "up" | "down".
 void mob_send_swipe_with_direction(int handle, const char* direction);
 
+// ── Batch 5 Tier 1: high-frequency scroll/drag/pinch/rotate/pointer ─────
+// Throttling and delta-thresholding are applied native-side BEFORE these
+// fire — by the time they're called, the BEAM crossing is justified.
+// Defaults (when no explicit config): scroll 33ms/1px, drag 16ms/1px,
+// pinch 16ms/0.01, rotate 16ms/1°, pointer_move 33ms/4px.
+void mob_set_throttle_config(int handle,
+                             int throttle_ms, int debounce_ms,
+                             double delta_threshold,
+                             int leading, int trailing);
+// Phase is "began" | "dragging" | "decelerating" | "ended"
+void mob_send_scroll(int handle,
+                     double x, double y,
+                     double dx, double dy,
+                     double vx, double vy,
+                     const char* phase);
+void mob_send_drag(int handle,
+                   double x, double y,
+                   double dx, double dy,
+                   const char* phase);
+void mob_send_pinch(int handle, double scale, double velocity, const char* phase);
+void mob_send_rotate(int handle, double degrees, double velocity, const char* phase);
+void mob_send_pointer_move(int handle, double x, double y);
+
+// ── Batch 5 Tier 2: semantic single-fire scroll events ──
+void mob_send_scroll_began(int handle);
+void mob_send_scroll_ended(int handle);
+void mob_send_scroll_settled(int handle);
+void mob_send_top_reached(int handle);
+void mob_send_scrolled_past(int handle);
+
 // Signal a system back gesture to the BEAM screen process.
 // The BEAM pops the nav stack or calls exit_app if at root.
 void mob_handle_back(void);
