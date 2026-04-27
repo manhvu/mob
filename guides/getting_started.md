@@ -277,6 +277,80 @@ isolate a deploy while keeping others running.
 
 ---
 
+## LiveView projects
+
+Instead of writing screens in Elixir with the `~MOB` sigil, you can run a full
+Phoenix LiveView app inside a native WebView. The native shell handles device APIs
+and distribution; your UI is a regular Phoenix web app.
+
+### Extra prerequisite
+
+You need the `phx_new` archive in addition to `mob_new`:
+
+```bash
+mix archive.install hex phx_new
+```
+
+### Create a LiveView project
+
+Pass `--liveview` to `mix mob.new`:
+
+```bash
+mix mob.new my_app --liveview
+cd my_app
+mix mob.install
+```
+
+This calls `mix phx.new` under the hood, then patches the generated project:
+adds the Mob bridge hook to `app.js`, inserts the `mob-bridge` element in
+`root.html.heex`, adds `Mob.App` to the supervision tree, and writes a
+`mob.exs` with `liveview_port: 4000`.
+
+### Extra steps before the first deploy
+
+**1. Set up the database**
+
+```bash
+mix ecto.create && mix ecto.migrate
+```
+
+**2. Run the Phoenix server once**
+
+This downloads JS/CSS dependencies and compiles assets. Skip this and the
+WebView will load a blank screen — the asset pipeline hasn't run yet.
+
+```bash
+mix phx.server
+```
+
+Open `http://localhost:4000` to confirm it loads, then stop the server (`Ctrl-C`).
+
+**3. Deploy**
+
+```bash
+mix mob.deploy --native
+```
+
+The native app starts your Phoenix server at `http://127.0.0.1:4000` and loads
+it in a WebView. The LiveView bridge (`window.mob.send`) routes through
+`pushEvent` so server-side LiveView events reach the native layer.
+
+### Day-to-day development
+
+The workflow is the same as a native project — push changed BEAMs, restart, or
+watch for file changes:
+
+```bash
+mix mob.deploy    # push BEAMs + restart (Phoenix server restarts inside the app)
+mix mob.watch     # auto-push on file save
+```
+
+Phoenix code changes (templates, LiveViews) are picked up automatically when the
+BEAM restarts. Asset changes (`app.js`, CSS) require running `mix assets.build`
+locally first, since the device runs your compiled assets, not the dev pipeline.
+
+---
+
 ## After the first deploy
 
 These commands work the same regardless of platform.

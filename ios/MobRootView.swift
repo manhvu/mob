@@ -51,6 +51,52 @@ extension View {
             self
         }
     }
+
+    /// Apply Mob gesture handlers from a node — long press, double tap, swipe.
+    /// Each is opt-in (nil callbacks become no-ops). Per-widget; most widgets
+    /// won't have any of these set, so the cost is one nil check per gesture.
+    /// Drag gesture is only attached if at least one swipe handler is set
+    /// (otherwise it would interfere with ScrollView and tap behaviors).
+    @ViewBuilder
+    func mobGestures(_ node: MobNode) -> some View {
+        let hasSwipe =
+            node.onSwipe != nil ||
+            node.onSwipeLeft != nil ||
+            node.onSwipeRight != nil ||
+            node.onSwipeUp != nil ||
+            node.onSwipeDown != nil
+
+        self
+            .ifLet(node.onLongPress) { view, cb in
+                view.onLongPressGesture(minimumDuration: 0.5) { cb() }
+            }
+            .ifLet(node.onDoubleTap) { view, cb in
+                view.onTapGesture(count: 2) { cb() }
+            }
+            .ifLet(hasSwipe ? node : nil) { view, n in
+                view.gesture(
+                    DragGesture(minimumDistance: 30)
+                        .onEnded { value in
+                            let dx = value.translation.width
+                            let dy = value.translation.height
+                            let direction: String
+                            if abs(dx) > abs(dy) {
+                                direction = dx > 0 ? "right" : "left"
+                            } else {
+                                direction = dy > 0 ? "down" : "up"
+                            }
+                            n.onSwipe?(direction)
+                            switch direction {
+                            case "left":  n.onSwipeLeft?()
+                            case "right": n.onSwipeRight?()
+                            case "up":    n.onSwipeUp?()
+                            case "down":  n.onSwipeDown?()
+                            default:      break
+                            }
+                        }
+                )
+            }
+    }
 }
 
 // Allow MobNode to be used as ForEach identity (NSObject provides hash/isEqual).
@@ -139,6 +185,7 @@ struct MobNodeView: View {
                 .ifLet(node.onTap) { view, tap in
                     view.contentShape(Rectangle()).onTapGesture { tap() }
                 }
+                .mobGestures(node)
 
             case .row:
                 HStack(spacing: 0) {
@@ -149,6 +196,7 @@ struct MobNodeView: View {
                 .ifLet(node.onTap) { view, tap in
                     view.contentShape(Rectangle()).onTapGesture { tap() }
                 }
+                .mobGestures(node)
 
             case .box:
                 ZStack(alignment: .topLeading) {
@@ -160,6 +208,7 @@ struct MobNodeView: View {
                 .ifLet(node.onTap) { view, tap in
                     view.contentShape(Rectangle()).onTapGesture { tap() }
                 }
+                .mobGestures(node)
 
             case .label:
                 Text(node.text ?? "")
@@ -174,6 +223,7 @@ struct MobNodeView: View {
                     .ifLet(node.onTap) { view, tap in
                         view.contentShape(Rectangle()).onTapGesture { tap() }
                     }
+                    .mobGestures(node)
 
             case .button:
                 Button(action: { node.onTap?() }) {

@@ -63,6 +63,8 @@ static struct {
     jmethodID storage_dir;
     jmethodID storage_save_to_media_store;
     jmethodID storage_external_files_dir;
+    jmethodID background_keep_alive;
+    jmethodID background_stop;
     // Cached before nif_load (used during BEAM startup before NIFs are loaded)
     jmethodID set_startup_phase;
     jmethodID set_startup_error;
@@ -225,6 +227,38 @@ static void send_event(int handle, const char* atom) {
 void mob_send_focus(int handle)  { send_event(handle, "focus"); }
 void mob_send_blur(int handle)   { send_event(handle, "blur"); }
 void mob_send_submit(int handle) { send_event(handle, "submit"); }
+void mob_send_select(int handle) { send_event(handle, "select"); }
+
+// ── Gesture senders (Batch 4) ───────────────────────────────────────────────
+// Called from beam_jni.c when the Compose gesture detector fires. Each is
+// per-widget opt-in — only registered handles emit. Direction-aware swipes
+// use mob_send_swipe_with_direction.
+
+void mob_send_long_press(int handle) { send_event(handle, "long_press"); }
+void mob_send_double_tap(int handle) { send_event(handle, "double_tap"); }
+void mob_send_swipe_left(int handle)  { send_event(handle, "swipe_left"); }
+void mob_send_swipe_right(int handle) { send_event(handle, "swipe_right"); }
+void mob_send_swipe_up(int handle)    { send_event(handle, "swipe_up"); }
+void mob_send_swipe_down(int handle)  { send_event(handle, "swipe_down"); }
+
+void mob_send_swipe_with_direction(int handle, const char* direction) {
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    enif_mutex_unlock(tap_mutex);
+
+    ErlNifEnv* msg_env = enif_alloc_env();
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "swipe"),
+        enif_make_copy(msg_env, tag),
+        enif_make_atom(msg_env, direction));
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
 
 // ── Back gesture sender ───────────────────────────────────────────────────────
 // Called from beam_jni.c's nativeHandleBack JNI stub when the Android back
@@ -1496,6 +1530,66 @@ static ERL_NIF_TERM nif_deregister_component(ErlNifEnv* env, int argc, const ERL
     return enif_make_atom(env, "ok");
 }
 
+// ── NIF: background_keep_alive/0, background_stop/0 ─────────────────────────
+
+static ERL_NIF_TERM nif_background_keep_alive(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.background_keep_alive);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_background_stop(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    int att; JNIEnv* jenv = get_jenv(&att);
+    (*jenv)->CallStaticVoidMethod(jenv, Bridge.cls, Bridge.background_stop);
+    if (att) (*g_jvm)->DetachCurrentThread(g_jvm);
+    return enif_make_atom(env, "ok");
+}
+
+// ── Mob.Device — lifecycle events + queries ─────────────────────────────────
+//
+// Android implementation pending. The Elixir-side API works (subscribe will
+// succeed, no events will fire on Android until ProcessLifecycleObserver
+// + ComponentCallbacks2 are wired up in MainActivity / Application).
+// Query NIFs return reasonable defaults for now.
+
+static ERL_NIF_TERM nif_device_set_dispatcher(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): wire ProcessLifecycleObserver + ComponentCallbacks2.
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_device_battery_state(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): query BatteryManager. For now, unknown / -1.
+    return enif_make_tuple2(env,
+        enif_make_atom(env, "unknown"),
+        enif_make_int(env, -1));
+}
+
+static ERL_NIF_TERM nif_device_thermal_state(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): query PowerManager.getCurrentThermalStatus() (API 29+).
+    return enif_make_atom(env, "nominal");
+}
+
+static ERL_NIF_TERM nif_device_low_power_mode(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): query PowerManager.isPowerSaveMode().
+    return enif_make_atom(env, "false");
+}
+
+static ERL_NIF_TERM nif_device_foreground(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): track via ProcessLifecycleOwner.
+    return enif_make_atom(env, "true");
+}
+
+static ERL_NIF_TERM nif_device_os_version(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): Build.VERSION.RELEASE via JNI.
+    return enif_make_string(env, "", ERL_NIF_LATIN1);
+}
+
+static ERL_NIF_TERM nif_device_model(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // TODO(android): Build.MODEL via JNI.
+    return enif_make_string(env, "Android", ERL_NIF_LATIN1);
+}
+
 // ── NIF table & load ──────────────────────────────────────────────────────────
 
 static ErlNifFunc nif_funcs[] = {
@@ -1558,8 +1652,18 @@ static ErlNifFunc nif_funcs[] = {
     {"webview_post_message",1, nif_webview_post_message,0},
     {"webview_can_go_back", 0, nif_webview_can_go_back, 0},
     {"webview_go_back",     0, nif_webview_go_back,     0},
-    {"register_component",   1, nif_register_component,   0},
-    {"deregister_component", 1, nif_deregister_component, 0},
+    {"register_component",     1, nif_register_component,     0},
+    {"deregister_component",   1, nif_deregister_component,   0},
+    {"background_keep_alive",  0, nif_background_keep_alive,  0},
+    {"background_stop",        0, nif_background_stop,        0},
+    // ── Mob.Device — lifecycle events + queries (Android stubs) ───────────────
+    {"device_set_dispatcher",  1, nif_device_set_dispatcher,  0},
+    {"device_battery_state",   0, nif_device_battery_state,   0},
+    {"device_thermal_state",   0, nif_device_thermal_state,   0},
+    {"device_low_power_mode",  0, nif_device_low_power_mode,  0},
+    {"device_foreground",      0, nif_device_foreground,      0},
+    {"device_os_version",      0, nif_device_os_version,      0},
+    {"device_model",           0, nif_device_model,           0},
 };
 
 static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
@@ -1630,6 +1734,8 @@ static int nif_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     CACHE(notify_schedule,        "(JLjava/lang/String;)V")
     CACHE(notify_cancel,          "(Ljava/lang/String;)V")
     CACHE(notify_register_push,   "(JLjava/lang/String;)V")
+    CACHE(background_keep_alive,  "()V")
+    CACHE(background_stop,        "()V")
     #undef CACHE
 
     g_launch_notif_mutex = enif_mutex_create("mob_launch_notif_mutex");

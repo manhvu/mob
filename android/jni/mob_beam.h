@@ -25,6 +25,22 @@ void mob_send_focus(int handle);
 void mob_send_blur(int handle);
 void mob_send_submit(int handle);
 
+// Send {:select, tag} for pickers, menus, segmented controls.
+void mob_send_select(int handle);
+
+// ── Gesture senders (Batch 4) ────────────────────────────────────────────
+// Called from beam_jni.c JNI stubs when Compose's gesture detector fires.
+// Per-widget opt-in — only nodes with the corresponding registered handle emit.
+void mob_send_long_press(int handle);
+void mob_send_double_tap(int handle);
+void mob_send_swipe_left(int handle);
+void mob_send_swipe_right(int handle);
+void mob_send_swipe_up(int handle);
+void mob_send_swipe_down(int handle);
+// Direction-aware: emits {:swipe, tag, direction_atom} where direction is
+// "left" | "right" | "up" | "down".
+void mob_send_swipe_with_direction(int handle, const char* direction);
+
 // Signal a system back gesture to the BEAM screen process.
 // The BEAM pops the nav stack or calls exit_app if at root.
 void mob_handle_back(void);

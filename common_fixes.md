@@ -583,3 +583,30 @@ grep bundle_id mob.exs
 # What the APK actually uses:
 grep applicationId android/app/build.gradle
 ```
+
+---
+
+## Elixir stdlib version mismatch — `function_clause` in `Regex.safe_run` (Android)
+
+**Symptom**: App crashes at startup with `function_clause` in `Elixir.Regex.safe_run/3`
+inside `Phoenix.Endpoint.Supervisor.build_url/2`. The first argument is a `%Regex{}`
+struct with `re_pattern: {re_pattern,0,0,0,#Ref<...>}`.
+
+**Root cause**: The mob Android OTP packages a specific Elixir stdlib. `mix mob.deploy --native`
+pushes the host Elixir BEAMs to the device. If the host Elixir is upgraded afterwards
+(e.g. 1.18.4 → 1.19.5), subsequent `mix mob.deploy` runs only push app BEAMs — the
+device keeps the old Elixir stdlib. Phoenix compiled with Elixir 1.19.5 stores regex
+literals in OTP 28 NIF format; Elixir 1.18.4's `Regex.safe_run` has no clause for that
+format.
+
+**Fix**: `mob.deploy` now auto-detects and syncs Elixir stdlib when versions differ
+(`sync_elixir_stdlib_android/1` in `mob_dev/lib/mob_dev/deployer.ex`). Simply run
+`mix mob.deploy` and the warning + sync happen automatically.
+
+**Quick manual fix**:
+```bash
+ELIXIR_EBIN=$(elixir -e "IO.puts(:code.lib_dir(:elixir))")/ebin
+PKG=com.mob.YOUR_APP
+adb -s SERIAL push "$ELIXIR_EBIN/." /data/data/$PKG/files/otp/lib/elixir/ebin/
+adb -s SERIAL shell "am force-stop $PKG && am start -n $PKG/.MainActivity"
+```

@@ -88,6 +88,24 @@ defmodule Mob.App do
           {:error, {:already_started, _}} -> :ok
         end
 
+        # Mob.Device dispatcher + platform fan-out modules. Order matters:
+        # the IOS / Android modules must exist before Mob.Device starts,
+        # because Mob.Device forwards platform-tagged messages to them.
+        case Mob.Device.IOS.start_link() do
+          {:ok, _} -> :ok
+          {:error, {:already_started, _}} -> :ok
+        end
+
+        case Mob.Device.Android.start_link() do
+          {:ok, _} -> :ok
+          {:error, {:already_started, _}} -> :ok
+        end
+
+        case Mob.Device.start_link() do
+          {:ok, _} -> :ok
+          {:error, {:already_started, _}} -> :ok
+        end
+
         __MODULE__.on_start()
       end
 

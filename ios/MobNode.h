@@ -63,6 +63,20 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^onChangeBool)(BOOL);
 @property (nonatomic, copy, nullable) void (^onChangeFloat)(double);
 
+// Selection (pickers, menus, segmented controls)
+@property (nonatomic, copy, nullable) void (^onSelect)(void);
+
+// Gestures (Batch 4) — set by mob_nif.m via tap-handle registration.
+// SwiftUI side wires these through .onLongPressGesture, .gesture(TapGesture(count:2)),
+// .gesture(DragGesture(...)). Each is opt-in (nil = no gesture recognizer).
+@property (nonatomic, copy, nullable) void (^onLongPress)(void);
+@property (nonatomic, copy, nullable) void (^onDoubleTap)(void);
+@property (nonatomic, copy, nullable) void (^onSwipe)(NSString* direction);
+@property (nonatomic, copy, nullable) void (^onSwipeLeft)(void);
+@property (nonatomic, copy, nullable) void (^onSwipeRight)(void);
+@property (nonatomic, copy, nullable) void (^onSwipeUp)(void);
+@property (nonatomic, copy, nullable) void (^onSwipeDown)(void);
+
 // text_field
 @property (nonatomic, copy, nullable) NSString* placeholder;
 @property (nonatomic, copy, nonnull)  NSString* keyboardTypeStr;  // "default","number","decimal","email","phone","url"

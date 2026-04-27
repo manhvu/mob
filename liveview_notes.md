@@ -384,6 +384,39 @@ faster than trying to interpret screenshot pixels.
 
 ---
 
+## Fix A4: Elixir stdlib version mismatch after host Elixir upgrade
+
+**Applies to: Android**
+
+**Symptom:** `function_clause` crash in `Elixir.Regex.safe_run` when Phoenix starts on the device:
+
+```
+{function_clause,
+  [{'Elixir.Regex',safe_run,
+    [#{re_pattern => {re_pattern,0,0,0,#Ref<...>}, ...},
+     <<"localhost">>,
+     [{capture,none}]],
+    [{file,"lib/regex.ex"},{line,524}]},
+   {'Elixir.Phoenix.Endpoint.Supervisor',build_url,2, ...}
+```
+
+**Root cause:** The mob Android OTP bundles a specific Elixir stdlib version. The Elixir stdlib (including `Regex`) is pushed to the device by `mix mob.deploy --native` using the host Elixir at that time. If the host Elixir is later upgraded (e.g. 1.18.4 → 1.19.5), the device retains the old stdlib. Phoenix compiled with Elixir 1.19.5 embeds regex patterns in OTP 28's NIF format; Elixir 1.18.4's `Regex.safe_run` doesn't handle that format → `function_clause`.
+
+**Fix:** `mix mob.deploy` now automatically detects Elixir version mismatches between host and device and re-pushes the stdlib (elixir, logger, eex) when they differ. This happens transparently on every deploy with no extra flags.
+
+**Manual workaround** (before the fix was in `mob_dev`):
+
+```bash
+ELIXIR_EBIN=$(elixir -e "IO.puts(:code.lib_dir(:elixir))")/ebin
+adb -s SERIAL shell "run-as PKG mkdir -p files/otp/lib/elixir/ebin"
+adb -s SERIAL push "$ELIXIR_EBIN/." /data/data/PKG/files/otp/lib/elixir/ebin/
+am force-stop PKG && am start -n PKG/.MainActivity
+```
+
+**Where:** `mob_dev/lib/mob_dev/deployer.ex` — `sync_elixir_stdlib_android/1`.
+
+---
+
 ## Summary table
 
 ### Shared (iOS + Android)
@@ -408,6 +441,7 @@ faster than trying to interpret screenshot pixels.
 | A1 | `"web_view"` (not `"webview"`) in `MobBridge.kt` `RenderNode` | Solid white screen, no error |
 | A2 | `network_security_config.xml` + manifest attribute | `net::ERR_CLEARTEXT_NOT_PERMITTED` |
 | A3 | (awareness) Compose hides from `uiautomator` / `inspect_ui` | Misleading "empty" UI dump |
+| A4 | Elixir stdlib version must match host (auto-synced by `mob.deploy`) | `function_clause` in `Regex.safe_run` on endpoint start |
 
 ---
 

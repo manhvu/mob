@@ -310,6 +310,39 @@ defmodule Mob.Renderer do
       {:on_tab_select, {pid, tag}} when is_pid(pid) ->
         [{"on_tab_select", nif.register_tap({pid, tag})}]
 
+      # Generic selection event — used by pickers, menus, segmented controls.
+      # Lists use a structured tag (see Mob.List) and emit on_tap; this is for
+      # widgets where "selection" is the only meaningful interaction.
+      {:on_select, {pid, tag}} when is_pid(pid) ->
+        [{"on_select", nif.register_tap({pid, tag})}]
+
+      # ── Gestures (Batch 4) ────────────────────────────────────────────────
+      # Each maps to a UIGestureRecognizer (iOS) / GestureDetector (Android).
+      # The native side fires the registered handle when the gesture ends in
+      # the recognized state. Per-widget opt-in — most widgets don't carry
+      # gesture overhead by default.
+
+      {:on_long_press, {pid, tag}} when is_pid(pid) ->
+        [{"on_long_press", nif.register_tap({pid, tag})}]
+
+      {:on_double_tap, {pid, tag}} when is_pid(pid) ->
+        [{"on_double_tap", nif.register_tap({pid, tag})}]
+
+      {:on_swipe, {pid, tag}} when is_pid(pid) ->
+        [{"on_swipe", nif.register_tap({pid, tag})}]
+
+      {:on_swipe_left, {pid, tag}} when is_pid(pid) ->
+        [{"on_swipe_left", nif.register_tap({pid, tag})}]
+
+      {:on_swipe_right, {pid, tag}} when is_pid(pid) ->
+        [{"on_swipe_right", nif.register_tap({pid, tag})}]
+
+      {:on_swipe_up, {pid, tag}} when is_pid(pid) ->
+        [{"on_swipe_up", nif.register_tap({pid, tag})}]
+
+      {:on_swipe_down, {pid, tag}} when is_pid(pid) ->
+        [{"on_swipe_down", nif.register_tap({pid, tag})}]
+
       {key, value} ->
         [{Atom.to_string(key), resolve_token(key, value, ctx)}]
     end)

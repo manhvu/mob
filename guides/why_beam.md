@@ -81,6 +81,41 @@ Combined with on-demand distribution (start a cluster connection, receive new
 BEAMs, disconnect), OTA updates become a first-class feature rather than a
 platform workaround.
 
+## Battery consumption
+
+The BEAM has a reputation for being hard on mobile batteries. The numbers below
+are measured on a physical iPhone with the screen on (required — see note), which
+means each run includes screen consumption. All runs use the same conditions so the
+results are directly comparable.
+
+| Mode | Start | End (30 min) | Drain | Rate |
+|------|-------|--------------|-------|------|
+| Default (Nerves tuning) | 100% | 97% | 3% | ~6%/hr |
+| No BEAM (native baseline) | 100% | 100% | 0% | ~0%/hr |
+| Untuned BEAM | — | — | — | — |
+
+_Untuned run pending. Table will be updated._
+
+**How to read this:** the no-beam baseline shows that running a native iOS app at
+minimum screen brightness costs essentially nothing over 30 minutes. The BEAM with
+Nerves tuning adds ~6%/hr — similar to leaving the screen on at moderate brightness.
+The untuned row will show how much worse it gets without scheduler tuning, which is
+what gives the BEAM its battery reputation.
+
+**Methodology:** `mix mob.battery_bench_ios` builds and installs the app, connects to
+the device BEAM over WiFi, reads battery every 10 seconds via `mob_nif:battery_level/0`,
+and reports drain and rate. The 30-minute duration is the default; longer runs give
+better rate estimates. The Nerves-tuned run was measured with the screen on (required
+at the time — the app was not yet background-capable). The no-beam run was measured
+at minimum screen brightness; battery read via `ideviceinfo` at start and end (USB
+connected briefly for reads only). The screen-off BEAM run uses `Mob.Background`
+keep-alive and is currently in progress.
+
+**Resolution note:** `UIDevice.batteryLevel` reports in 5% increments on real
+hardware (an iOS privacy measure). The actual drain may be finer; when USB is
+connected `ideviceinfo BatteryCurrentCapacity` gives 1% resolution. In the first
+run above, the 5% gauge snapped to 95% at exactly 30 minutes but USB confirmed 97%.
+
 ## The honest trade-off
 
 The BEAM is not free. You are writing Elixir, not JavaScript or Swift. The

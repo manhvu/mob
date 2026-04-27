@@ -1890,3 +1890,102 @@ Right-to-left language support (Arabic, Hebrew, Farsi, Urdu). Start/end instead 
 - `mob` v0.4.0 — github.com/genericjam/mob, MIT
 - `mob_dev` v0.2.x — github.com/genericjam/mob_dev, MIT
 - `mob_new` v0.1.x — archive, `mix archive.install hex mob_new`
+
+---
+
+## Native event surface — `Mob.Device` + UI events
+
+**Goal:** every meaningful OS / UI event surfaces to Elixir as a tagged tuple
+following the `Mob.Device` model: NIF observes natively, emits
+`{:mob_device, atom}` (cross-platform) and/or `{:mob_device_<plat>, atom, payload}`
+(platform-specific) to a registered dispatcher pid which fans out to subscribers
+by category.
+
+### Batch 1 — Device lifecycle ⏳ (in progress)
+
+iOS + Android. Six categories: `:app`, `:display`, `:audio`, `:power`,
+`:thermal`, `:memory`. ~30 events total. Low-frequency, no throttling needed.
+Foundation for `Mob.Device.subscribe/1` and `Mob.Device.IOS` / `Mob.Device.Android`.
+
+### Batch 2 — Audit existing widget events ✅ (Elixir side)
+
+**Shipped:**
+- `guides/event_model.md` — full event model design doc (canonical envelope,
+  Address struct, target resolution, stateful vs stateless components, ID
+  type rules, atom-exhaustion warning, migration path)
+- `guides/event_audit.md` — current state of native emitters, mapping to new
+  envelope, pending native work
+- `Mob.Event.Address` — typed address struct with validation, formatters,
+  pattern-matching helpers (47 tests + 10 doctests)
+- `Mob.Event.Target` — target resolution covering `:parent`, `:screen`,
+  `{:component, id}`, atom, pid, `{:via, mod, key}` (17 tests + 3 doctests)
+- `Mob.Event` — emit/dispatch API, envelope predicate, address matcher,
+  test helper (20 tests + 4 doctests)
+- `Mob.Event.Bridge` — converts legacy `{:tap, tag}`, `{:change, tag, value}`,
+  `{:tap, {:list, id, :select, idx}}` into canonical envelope (19 tests + 4 doctests)
+
+### Batch 3 — Low-frequency widget events ✅ (Elixir + iOS) / ⏳ (Android JNI)
+
+**Shipped:**
+- Existing: `on_change`, `on_focus`, `on_blur`, `on_submit`, `on_end_reached`,
+  `on_tab_select` already wired
+- New: `on_select` for pickers/menus/segmented controls — renderer + iOS NIF +
+  iOS `MobNode` property + iOS prop deserialiser; Android C sender exported
+  via `mob_beam.h`
+- Bridge handles `{:change, tag, value}` shape conversion to canonical
+
+**Pending:** Android JNI stubs in `beam_jni.c`; Compose `Modifier` for
+`on_select`.
+
+### Batch 4 — Gestures ✅ (Elixir + iOS) / ⏳ (Android JNI)
+
+**Shipped:**
+- Renderer: `on_long_press`, `on_double_tap`, `on_swipe`, `on_swipe_left`,
+  `on_swipe_right`, `on_swipe_up`, `on_swipe_down` props
+- iOS: NIF senders (`mob_send_long_press`, `mob_send_double_tap`,
+  `mob_send_swipe_*`, `mob_send_swipe_with_direction`); `MobNode` properties;
+  prop deserialiser; SwiftUI `View.mobGestures(_:)` modifier with
+  `.onLongPressGesture`, `.onTapGesture(count: 2)`, conditional `DragGesture`
+  (only attached when at least one swipe handler is set, to avoid
+  ScrollView interference)
+- Android: C sender functions and `mob_beam.h` exports
+
+**Pending:**
+- Android JNI stubs in `beam_jni.c` calling the C senders
+- Kotlin `MobBridge` JNI declarations
+- Compose `Modifier.pointerInput { detectTapGestures, detectDragGestures }`
+  setup in the generated app
+- Physical-device verification of iOS swipe-vs-scroll conflict resolution
+
+**Not yet started:**
+- Stateful `Mob.List` migration to the new event model — keeping current
+  shape working via the bridge for now; full migration when the
+  stateful-component infrastructure (`Mob.Event.Component`) lands.
+
+### Batch 5 — High-frequency events with throttling ⬜
+
+`on_scroll` (position deltas), `on_drag` (pan), `on_pinch`, `on_rotate`,
+`on_pointer_move`. These fire 60–120 Hz natively. Needs:
+- Native-side rate limiting (emit at N Hz, configurable per subscriber)
+- Native-side delta thresholding (only emit if change > threshold)
+- Backpressure handling — drop events if subscriber mailbox is full
+- Optional `:throttle` / `:debounce` modifiers per subscription
+
+**Performance note for batches 1–4 vs 5–6:** batches 1–4 are essentially free —
+each event takes one `dispatch_async` + one `enif_send`, ~1–10 μs at <10 Hz.
+Batch 5 is where design matters: 60 Hz scroll events on multiple lists can
+become hundreds of `enif_send` calls per second per subscriber.
+
+### Batch 6 — Complex multi-stage events ⬜
+
+Drag-and-drop (begin / over / end with payload), IME composition (preedit text
+on CJK keyboards), multi-touch tracking, stylus input, hover (iPad trackpad /
+Android tablet). State machines, not single events. Likely needs its own
+message shape: `{:mob_device, :drag_session, session_id, phase, data}`.
+
+### Selective category enable (deferred)
+
+If batch 5+ benchmarks show meaningful overhead, add per-category enable so
+subscribers only register OS observers they actually use. For batches 1–4
+this isn't worth the API surface — the cost is dominated by the OS firing
+the notification, which happens regardless of whether we observe.

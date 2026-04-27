@@ -198,6 +198,95 @@ defmodule Mob.RendererTest do
       assert is_integer(decoded["props"]["on_submit"])
     end
 
+    # ── Batch 3: on_select ────────────────────────────────────────────────
+    test "on_select {pid, tag} is replaced by integer handle" do
+      pid = self()
+      tree = %{type: :picker, props: %{on_select: {pid, :picked}}, children: []}
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_select"])
+    end
+
+    # ── Batch 4: gestures ─────────────────────────────────────────────────
+    test "on_long_press {pid, tag} is replaced by integer handle" do
+      pid = self()
+      tree = %{type: :button, props: %{on_long_press: {pid, :menu}}, children: []}
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_long_press"])
+    end
+
+    test "on_double_tap {pid, tag} is replaced by integer handle" do
+      pid = self()
+      tree = %{type: :button, props: %{on_double_tap: {pid, :zoom}}, children: []}
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_double_tap"])
+    end
+
+    test "on_swipe and directional swipes are replaced by integer handles" do
+      pid = self()
+
+      tree = %{
+        type: :card,
+        props: %{
+          on_swipe: {pid, :any},
+          on_swipe_left: {pid, :delete},
+          on_swipe_right: {pid, :archive},
+          on_swipe_up: {pid, :reveal},
+          on_swipe_down: {pid, :collapse}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_swipe"])
+      assert is_integer(decoded["props"]["on_swipe_left"])
+      assert is_integer(decoded["props"]["on_swipe_right"])
+      assert is_integer(decoded["props"]["on_swipe_up"])
+      assert is_integer(decoded["props"]["on_swipe_down"])
+    end
+
+    test "register_tap is called once per gesture prop" do
+      pid = self()
+
+      tree = %{
+        type: :card,
+        props: %{
+          on_tap: {pid, :tap},
+          on_long_press: {pid, :long},
+          on_double_tap: {pid, :double},
+          on_swipe_left: {pid, :left}
+        },
+        children: []
+      }
+
+      Renderer.render(tree, :android, MockNIF)
+      tap_calls = Enum.filter(MockNIF.calls(), fn {f, _} -> f == :register_tap end)
+      assert length(tap_calls) == 4
+    end
+
+    test "gesture tags must be {pid, tag} — bare pid is rejected at serialisation" do
+      # Gestures intentionally require a {pid, tag} shape. A bare pid falls
+      # through to the generic catch-all clause and crashes JSON encoding
+      # because pids aren't serialisable. This documents the contract: gesture
+      # props must always be tagged.
+      pid = self()
+      tree = %{type: :button, props: %{on_long_press: pid}, children: []}
+
+      assert_raise ErlangError, ~r/unsupported_type/, fn ->
+        Renderer.render(tree, :android, MockNIF)
+      end
+    end
+
     test "keyboard atom is serialised as string" do
       tree = %{type: :text_field, props: %{value: "", keyboard: :decimal}, children: []}
       Renderer.render(tree, :android, MockNIF)

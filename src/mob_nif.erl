@@ -65,8 +65,19 @@
          %% Native view components
          register_component/1,
          deregister_component/1,
+         %% Background execution
+         background_keep_alive/0,
+         background_stop/0,
          %% Device state
          battery_level/0,
+         %% Device lifecycle (Mob.Device)
+         device_set_dispatcher/1,
+         device_battery_state/0,
+         device_thermal_state/0,
+         device_low_power_mode/0,
+         device_foreground/0,
+         device_os_version/0,
+         device_model/0,
          %% Test harness — native UI inspection and interaction
          ui_tree/0,
          ui_debug/0,
@@ -114,7 +125,16 @@
        notify_cancel/1,
        notify_register_push/0,
        take_launch_notification/0,
+       background_keep_alive/0,
+       background_stop/0,
        battery_level/0,
+       device_set_dispatcher/1,
+       device_battery_state/0,
+       device_thermal_state/0,
+       device_low_power_mode/0,
+       device_foreground/0,
+       device_os_version/0,
+       device_model/0,
        ui_tree/0,
        ui_debug/0,
        tap/1,
@@ -183,7 +203,16 @@ notify_schedule(_OptsJson)        -> erlang:nif_error(not_loaded).
 notify_cancel(_Id)                -> erlang:nif_error(not_loaded).
 notify_register_push()            -> erlang:nif_error(not_loaded).
 take_launch_notification()        -> erlang:nif_error(not_loaded).
+background_keep_alive()           -> erlang:nif_error(not_loaded).
+background_stop()                 -> erlang:nif_error(not_loaded).
 battery_level()                   -> erlang:nif_error(not_loaded).
+device_set_dispatcher(_Pid)       -> erlang:nif_error(not_loaded).
+device_battery_state()            -> erlang:nif_error(not_loaded).
+device_thermal_state()            -> erlang:nif_error(not_loaded).
+device_low_power_mode()           -> erlang:nif_error(not_loaded).
+device_foreground()               -> erlang:nif_error(not_loaded).
+device_os_version()               -> erlang:nif_error(not_loaded).
+device_model()                    -> erlang:nif_error(not_loaded).
 ui_tree()                         -> erlang:nif_error(not_loaded).
 ui_debug()                        -> erlang:nif_error(not_loaded).
 tap(_Label)                       -> erlang:nif_error(not_loaded).

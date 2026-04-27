@@ -113,6 +113,38 @@ static void mob_send_event(int handle, const char* atom) {
 static void mob_send_focus(int handle)  { mob_send_event(handle, "focus"); }
 static void mob_send_blur(int handle)   { mob_send_event(handle, "blur"); }
 static void mob_send_submit(int handle) { mob_send_event(handle, "submit"); }
+static void mob_send_select(int handle) { mob_send_event(handle, "select"); }
+
+// ── Gesture senders (Batch 4) ───────────────────────────────────────────────
+// Each fires {atom, tag} just like tap. SwiftUI converts gesture recognizers
+// into onLongPress/onDoubleTap/onSwipe* callbacks on the MobNode.
+
+static void mob_send_long_press(int handle) { mob_send_event(handle, "long_press"); }
+static void mob_send_double_tap(int handle) { mob_send_event(handle, "double_tap"); }
+static void mob_send_swipe_left(int handle)  { mob_send_event(handle, "swipe_left"); }
+static void mob_send_swipe_right(int handle) { mob_send_event(handle, "swipe_right"); }
+static void mob_send_swipe_up(int handle)    { mob_send_event(handle, "swipe_up"); }
+static void mob_send_swipe_down(int handle)  { mob_send_event(handle, "swipe_down"); }
+
+// Generic on_swipe with direction: emits {swipe, tag, direction} where direction is an atom.
+static void mob_send_swipe_with_direction(int handle, const char* direction) {
+    enif_mutex_lock(tap_mutex);
+    if (handle < 0 || handle >= tap_handle_next || !tap_handles[handle].tag_env) {
+        enif_mutex_unlock(tap_mutex);
+        return;
+    }
+    ErlNifPid    pid = tap_handles[handle].pid;
+    ERL_NIF_TERM tag = tap_handles[handle].tag;
+    enif_mutex_unlock(tap_mutex);
+
+    ErlNifEnv* msg_env = enif_alloc_env();
+    ERL_NIF_TERM msg = enif_make_tuple3(msg_env,
+        enif_make_atom(msg_env, "swipe"),
+        enif_make_copy(msg_env, tag),
+        enif_make_atom(msg_env, direction));
+    enif_send(NULL, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+}
 
 // ── Back gesture sender ───────────────────────────────────────────────────────
 // Called from MobHostingController when the left-edge-pan gesture fires.
@@ -317,6 +349,57 @@ static MobNode* mob_node_from_dict(NSDictionary* dict) {
             node.onSubmit = ^{ mob_send_submit(handle); };
         }
 
+        id onSelect = props[@"on_select"];
+        if (onSelect && [onSelect isKindOfClass:[NSNumber class]]) {
+            int handle = [onSelect intValue];
+            node.onSelect = ^{ mob_send_select(handle); };
+        }
+
+        // ── Gestures (Batch 4) ──
+        id onLongPress = props[@"on_long_press"];
+        if (onLongPress && [onLongPress isKindOfClass:[NSNumber class]]) {
+            int handle = [onLongPress intValue];
+            node.onLongPress = ^{ mob_send_long_press(handle); };
+        }
+
+        id onDoubleTap = props[@"on_double_tap"];
+        if (onDoubleTap && [onDoubleTap isKindOfClass:[NSNumber class]]) {
+            int handle = [onDoubleTap intValue];
+            node.onDoubleTap = ^{ mob_send_double_tap(handle); };
+        }
+
+        id onSwipe = props[@"on_swipe"];
+        if (onSwipe && [onSwipe isKindOfClass:[NSNumber class]]) {
+            int handle = [onSwipe intValue];
+            node.onSwipe = ^(NSString* direction) {
+                mob_send_swipe_with_direction(handle, [direction UTF8String]);
+            };
+        }
+
+        id onSwipeLeft = props[@"on_swipe_left"];
+        if (onSwipeLeft && [onSwipeLeft isKindOfClass:[NSNumber class]]) {
+            int handle = [onSwipeLeft intValue];
+            node.onSwipeLeft = ^{ mob_send_swipe_left(handle); };
+        }
+
+        id onSwipeRight = props[@"on_swipe_right"];
+        if (onSwipeRight && [onSwipeRight isKindOfClass:[NSNumber class]]) {
+            int handle = [onSwipeRight intValue];
+            node.onSwipeRight = ^{ mob_send_swipe_right(handle); };
+        }
+
+        id onSwipeUp = props[@"on_swipe_up"];
+        if (onSwipeUp && [onSwipeUp isKindOfClass:[NSNumber class]]) {
+            int handle = [onSwipeUp intValue];
+            node.onSwipeUp = ^{ mob_send_swipe_up(handle); };
+        }
+
+        id onSwipeDown = props[@"on_swipe_down"];
+        if (onSwipeDown && [onSwipeDown isKindOfClass:[NSNumber class]]) {
+            int handle = [onSwipeDown intValue];
+            node.onSwipeDown = ^{ mob_send_swipe_down(handle); };
+        }
+
         id checked = props[@"value"];
         if (checked && node.nodeType == MobNodeTypeToggle) {
             // value is a boolean atom serialised as "true"/"false"
@@ -444,6 +527,136 @@ static ERL_NIF_TERM nif_platform(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 // does not report battery info (unlikely on iPhone/iPad).
 // Enables battery monitoring if not already enabled. Must run on main thread.
 
+// ── NIF: background_keep_alive/0, background_stop/0 ──────────────────────────
+// Starts/stops a silent AVAudioEngine session so iOS keeps the app running
+// when the screen locks. The session uses MixWithOthers so it does not
+// interrupt or duck the user's music or the app's own Mob.Audio playback.
+//
+// Coexistence with Mob.Audio recording/playback:
+//   - Playback: MixWithOthers on both sides — they mix, silence is inaudible.
+//   - Recording: start_recording switches the session category to PlayAndRecord,
+//     which sends an interruption to this engine. The engine stops, but the
+//     recording itself keeps the app alive. When recording ends, the session
+//     sends InterruptionTypeEnded and this engine restarts automatically.
+//
+// Requires UIBackgroundModes: [audio] in the app's Info.plist.
+
+static AVAudioEngine      *g_keep_alive_engine = nil;
+static AVAudioPlayerNode  *g_keep_alive_player = nil;
+static BOOL                g_keep_alive_active = NO; // user intent: should be running
+
+static void keep_alive_start_engine(void) {
+    if (g_keep_alive_engine != nil) return;
+
+    @try {
+        NSError *err = nil;
+        AVAudioSession *session = [AVAudioSession sharedInstance];
+        if (![session setCategory:AVAudioSessionCategoryPlayback
+                      withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                            error:&err]) {
+            NSLog(@"[mob] keep_alive setCategory failed: %@", err);
+            return;
+        }
+        if (![session setActive:YES error:&err]) {
+            NSLog(@"[mob] keep_alive setActive failed: %@", err);
+            return;
+        }
+
+        g_keep_alive_engine = [[AVAudioEngine alloc] init];
+        g_keep_alive_player = [[AVAudioPlayerNode alloc] init];
+        [g_keep_alive_engine attachNode:g_keep_alive_player];
+
+        // Use the mixer's native format so connect: and the buffer agree —
+        // a format mismatch here throws NSInvalidArgumentException, which
+        // takes down the BEAM scheduler thread.
+        AVAudioFormat *fmt =
+            [g_keep_alive_engine.mainMixerNode outputFormatForBus:0];
+        [g_keep_alive_engine connect:g_keep_alive_player
+                                  to:g_keep_alive_engine.mainMixerNode
+                              format:fmt];
+
+        AVAudioFrameCount frames = (AVAudioFrameCount)fmt.sampleRate;
+        AVAudioPCMBuffer *buf = [[AVAudioPCMBuffer alloc]
+                                  initWithPCMFormat:fmt frameCapacity:frames];
+        buf.frameLength = frames;
+
+        // Engine must be running before scheduleBuffer/play.
+        if (![g_keep_alive_engine startAndReturnError:&err]) {
+            NSLog(@"[mob] keep_alive engine start failed: %@", err);
+            g_keep_alive_engine = nil;
+            g_keep_alive_player = nil;
+            return;
+        }
+
+        [g_keep_alive_player scheduleBuffer:buf
+                                     atTime:nil
+                                    options:AVAudioPlayerNodeBufferLoops
+                          completionHandler:nil];
+        [g_keep_alive_player play];
+        NSLog(@"[mob] keep_alive engine running (sampleRate=%.0f, channels=%u)",
+              fmt.sampleRate, (unsigned)fmt.channelCount);
+    }
+    @catch (NSException *ex) {
+        NSLog(@"[mob] keep_alive exception: %@ — %@", ex.name, ex.reason);
+        g_keep_alive_engine = nil;
+        g_keep_alive_player = nil;
+    }
+}
+
+static void keep_alive_stop_engine(void) {
+    if (g_keep_alive_player) { [g_keep_alive_player stop]; g_keep_alive_player = nil; }
+    if (g_keep_alive_engine) { [g_keep_alive_engine stop]; g_keep_alive_engine = nil; }
+}
+
+static ERL_NIF_TERM nif_background_keep_alive(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    // Async so the BEAM scheduler isn't blocked while AVFoundation initialises
+    // (which can throw an NSException and take down the scheduler thread).
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_keep_alive_active) return; // idempotent
+        g_keep_alive_active = YES;
+
+        // Restart engine after audio session interruptions (e.g. recording ends,
+        // phone call ends). InterruptionTypeEnded fires when the session is ours
+        // again; we reconfigure and resume the silence loop.
+        [[NSNotificationCenter defaultCenter]
+            addObserverForName:AVAudioSessionInterruptionNotification
+                        object:nil
+                         queue:[NSOperationQueue mainQueue]
+                    usingBlock:^(NSNotification *note) {
+            if (!g_keep_alive_active) return;
+            AVAudioSessionInterruptionType type =
+                [note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+            if (type == AVAudioSessionInterruptionTypeBegan) {
+                keep_alive_stop_engine();
+            } else {
+                // InterruptionTypeEnded — real audio finished, reclaim the session.
+                keep_alive_start_engine();
+            }
+        }];
+
+        keep_alive_start_engine();
+    });
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_background_stop(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        g_keep_alive_active = NO;
+        [[NSNotificationCenter defaultCenter]
+            removeObserver:nil
+                      name:AVAudioSessionInterruptionNotification
+                    object:nil];
+        keep_alive_stop_engine();
+        [[AVAudioSession sharedInstance]
+            setActive:NO
+          withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+                error:nil];
+    });
+    return enif_make_atom(env, "ok");
+}
+
+// ── NIF: battery_level/0 ─────────────────────────────────────────────────────
+
 static ERL_NIF_TERM nif_battery_level(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     __block int level = -1;
     dispatch_sync(dispatch_get_main_queue(), ^{
@@ -457,6 +670,236 @@ static ERL_NIF_TERM nif_battery_level(ErlNifEnv* env, int argc, const ERL_NIF_TE
         }
     });
     return enif_make_int(env, level);
+}
+
+// ── Mob.Device — lifecycle events + queries ─────────────────────────────────
+//
+// One registered "dispatcher" pid (the Mob.Device GenServer) receives every
+// OS event via enif_send. The GenServer fans out to user-level subscribers.
+//
+// Each OS notification emits up to two messages:
+//   {:mob_device, atom}                 — common, both platforms have it
+//   {:mob_device_ios, atom}             — iOS-only (or extra fidelity)
+//   {:mob_device_ios, atom, payload}    — when there's data to pass
+//
+// Observer registration is one-shot via dispatch_once — calling
+// device_set_dispatcher/1 a second time just updates the pid, doesn't
+// re-register observers (avoids duplicate notifications).
+
+static ErlNifPid g_device_dispatcher_pid;
+static BOOL      g_device_dispatcher_set = NO;
+static dispatch_once_t g_device_observers_once = 0;
+
+static void mob_device_send_atom(const char *tag, const char *atom_name) {
+    if (!g_device_dispatcher_set) return;
+    ErlNifEnv *e = enif_alloc_env();
+    ERL_NIF_TERM msg = enif_make_tuple2(e,
+        enif_make_atom(e, tag),
+        enif_make_atom(e, atom_name));
+    enif_send(NULL, &g_device_dispatcher_pid, e, msg);
+    enif_free_env(e);
+}
+
+static void mob_device_send_atom_payload(const char *tag, const char *atom_name, ERL_NIF_TERM payload, ErlNifEnv *payload_env) {
+    if (!g_device_dispatcher_set) return;
+    ErlNifEnv *e = enif_alloc_env();
+    ERL_NIF_TERM payload_copy = enif_make_copy(e, payload);
+    ERL_NIF_TERM msg = enif_make_tuple3(e,
+        enif_make_atom(e, tag),
+        enif_make_atom(e, atom_name),
+        payload_copy);
+    enif_send(NULL, &g_device_dispatcher_pid, e, msg);
+    enif_free_env(e);
+    (void)payload_env;
+}
+
+static const char *thermal_state_atom(NSProcessInfoThermalState s) {
+    switch (s) {
+        case NSProcessInfoThermalStateNominal:  return "nominal";
+        case NSProcessInfoThermalStateFair:     return "fair";
+        case NSProcessInfoThermalStateSerious:  return "serious";
+        case NSProcessInfoThermalStateCritical: return "critical";
+        default:                                return "nominal";
+    }
+}
+
+static const char *battery_state_atom(UIDeviceBatteryState s) {
+    switch (s) {
+        case UIDeviceBatteryStateUnplugged: return "unplugged";
+        case UIDeviceBatteryStateCharging:  return "charging";
+        case UIDeviceBatteryStateFull:      return "full";
+        default:                            return "unknown";
+    }
+}
+
+static void register_device_observers_once(void) {
+    dispatch_once(&g_device_observers_once, ^{
+        NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+        NSOperationQueue *q = [NSOperationQueue mainQueue];
+
+        // ── App lifecycle ──
+        [nc addObserverForName:UIApplicationWillResignActiveNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "will_resign_active");
+            mob_device_send_atom("mob_device_ios", "will_resign_active");
+        }];
+        [nc addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "did_become_active");
+            mob_device_send_atom("mob_device_ios", "did_become_active");
+        }];
+        [nc addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "did_enter_background");
+            mob_device_send_atom("mob_device_ios", "did_enter_background");
+        }];
+        [nc addObserverForName:UIApplicationWillEnterForegroundNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "will_enter_foreground");
+            mob_device_send_atom("mob_device_ios", "will_enter_foreground");
+        }];
+        [nc addObserverForName:UIApplicationWillTerminateNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "will_terminate");
+            mob_device_send_atom("mob_device_ios", "will_terminate");
+        }];
+        [nc addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "memory_warning");
+            mob_device_send_atom("mob_device_ios", "memory_warning");
+        }];
+
+        // ── Display / lock state (iOS proxies via data-protection) ──
+        [nc addObserverForName:UIApplicationProtectedDataWillBecomeUnavailableNotification
+                        object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "screen_off");
+            mob_device_send_atom("mob_device_ios", "protected_data_will_become_unavailable");
+        }];
+        [nc addObserverForName:UIApplicationProtectedDataDidBecomeAvailableNotification
+                        object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            mob_device_send_atom("mob_device",     "screen_on");
+            mob_device_send_atom("mob_device_ios", "protected_data_did_become_available");
+        }];
+
+        // ── Power / thermal ──
+        [nc addObserverForName:NSProcessInfoThermalStateDidChangeNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            const char *s = thermal_state_atom([[NSProcessInfo processInfo] thermalState]);
+            ErlNifEnv *e = enif_alloc_env();
+            ERL_NIF_TERM payload = enif_make_atom(e, s);
+            mob_device_send_atom_payload("mob_device",     "thermal_state_changed", payload, e);
+            mob_device_send_atom_payload("mob_device_ios", "thermal_state_changed", payload, e);
+            enif_free_env(e);
+        }];
+        [nc addObserverForName:NSProcessInfoPowerStateDidChangeNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            BOOL low = [[NSProcessInfo processInfo] isLowPowerModeEnabled];
+            ErlNifEnv *e = enif_alloc_env();
+            ERL_NIF_TERM payload = enif_make_atom(e, low ? "true" : "false");
+            mob_device_send_atom_payload("mob_device",     "low_power_mode_changed", payload, e);
+            mob_device_send_atom_payload("mob_device_ios", "low_power_mode_changed", payload, e);
+            enif_free_env(e);
+        }];
+
+        // Ensure battery monitoring is on so the change notifications fire.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIDevice *dev = [UIDevice currentDevice];
+            if (!dev.batteryMonitoringEnabled) dev.batteryMonitoringEnabled = YES;
+        });
+        [nc addObserverForName:UIDeviceBatteryStateDidChangeNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            const char *s = battery_state_atom([[UIDevice currentDevice] batteryState]);
+            ErlNifEnv *e = enif_alloc_env();
+            ERL_NIF_TERM payload = enif_make_atom(e, s);
+            mob_device_send_atom_payload("mob_device",     "battery_state_changed", payload, e);
+            mob_device_send_atom_payload("mob_device_ios", "battery_state_changed", payload, e);
+            enif_free_env(e);
+        }];
+        [nc addObserverForName:UIDeviceBatteryLevelDidChangeNotification object:nil queue:q
+                    usingBlock:^(NSNotification *n) {
+            float lvl = [[UIDevice currentDevice] batteryLevel];
+            int pct = lvl >= 0.0f ? (int)roundf(lvl * 100.0f) : -1;
+            ErlNifEnv *e = enif_alloc_env();
+            ERL_NIF_TERM payload = enif_make_int(e, pct);
+            mob_device_send_atom_payload("mob_device",     "battery_level_changed", payload, e);
+            mob_device_send_atom_payload("mob_device_ios", "battery_level_changed", payload, e);
+            enif_free_env(e);
+        }];
+
+        // ── Audio session interruptions / route changes ──
+        [nc addObserverForName:AVAudioSessionInterruptionNotification object:nil queue:q
+                    usingBlock:^(NSNotification *note) {
+            AVAudioSessionInterruptionType t =
+                [note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+            const char *atom = (t == AVAudioSessionInterruptionTypeBegan)
+                ? "audio_interrupted" : "audio_resumed";
+            mob_device_send_atom("mob_device",     atom);
+            mob_device_send_atom("mob_device_ios", atom);
+        }];
+        [nc addObserverForName:AVAudioSessionRouteChangeNotification object:nil queue:q
+                    usingBlock:^(NSNotification *note) {
+            mob_device_send_atom("mob_device",     "audio_route_changed");
+            mob_device_send_atom("mob_device_ios", "audio_route_changed");
+        }];
+
+        NSLog(@"[mob] Mob.Device observers registered");
+    });
+}
+
+static ERL_NIF_TERM nif_device_set_dispatcher(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifPid pid;
+    if (!enif_get_local_pid(env, argv[0], &pid)) return enif_make_badarg(env);
+    g_device_dispatcher_pid = pid;
+    g_device_dispatcher_set = YES;
+    register_device_observers_once();
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM nif_device_battery_state(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    __block UIDeviceBatteryState s = UIDeviceBatteryStateUnknown;
+    __block int pct = -1;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        UIDevice *dev = [UIDevice currentDevice];
+        if (!dev.batteryMonitoringEnabled) dev.batteryMonitoringEnabled = YES;
+        s = dev.batteryState;
+        float f = dev.batteryLevel;
+        if (f >= 0.0f) pct = (int)roundf(f * 100.0f);
+    });
+    return enif_make_tuple2(env,
+        enif_make_atom(env, battery_state_atom(s)),
+        enif_make_int(env, pct));
+}
+
+static ERL_NIF_TERM nif_device_thermal_state(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    NSProcessInfoThermalState s = [[NSProcessInfo processInfo] thermalState];
+    return enif_make_atom(env, thermal_state_atom(s));
+}
+
+static ERL_NIF_TERM nif_device_low_power_mode(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    BOOL low = [[NSProcessInfo processInfo] isLowPowerModeEnabled];
+    return enif_make_atom(env, low ? "true" : "false");
+}
+
+static ERL_NIF_TERM nif_device_foreground(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    __block UIApplicationState st = UIApplicationStateBackground;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        st = [UIApplication sharedApplication].applicationState;
+    });
+    return enif_make_atom(env, st == UIApplicationStateActive ? "true" : "false");
+}
+
+static ERL_NIF_TERM nif_device_os_version(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    NSString *v = [[UIDevice currentDevice] systemVersion];
+    const char *cstr = v.UTF8String;
+    return enif_make_string(env, cstr ? cstr : "", ERL_NIF_LATIN1);
+}
+
+static ERL_NIF_TERM nif_device_model(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    NSString *m = [[UIDevice currentDevice] model];
+    const char *cstr = m.UTF8String;
+    return enif_make_string(env, cstr ? cstr : "", ERL_NIF_LATIN1);
 }
 
 // ── NIF: safe_area/0 ─────────────────────────────────────────────────────────
@@ -3547,7 +3990,17 @@ static ErlNifFunc nif_funcs[] = {
     {"long_press_xy",    3, nif_long_press_xy,    0},
     {"swipe_xy",         4, nif_swipe_xy,         0},
     // ── Core mob functions ───────────────────────────────────────────────────
+    {"background_keep_alive", 0, nif_background_keep_alive, 0},
+    {"background_stop",       0, nif_background_stop,       0},
     {"battery_level",  0, nif_battery_level,  0},
+    // ── Mob.Device — lifecycle events + queries ──────────────────────────────
+    {"device_set_dispatcher", 1, nif_device_set_dispatcher, 0},
+    {"device_battery_state",  0, nif_device_battery_state,  0},
+    {"device_thermal_state",  0, nif_device_thermal_state,  0},
+    {"device_low_power_mode", 0, nif_device_low_power_mode, 0},
+    {"device_foreground",     0, nif_device_foreground,     0},
+    {"device_os_version",     0, nif_device_os_version,     0},
+    {"device_model",          0, nif_device_model,          0},
     {"platform",       0, nif_platform,       0},
     {"log",            1, nif_log,            0},
     {"log",            2, nif_log2,           0},
