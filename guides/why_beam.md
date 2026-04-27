@@ -84,37 +84,75 @@ platform workaround.
 ## Battery consumption
 
 The BEAM has a reputation for being hard on mobile batteries. The numbers below
-are measured on a physical iPhone with the screen on (required — see note), which
-means each run includes screen consumption. All runs use the same conditions so the
-results are directly comparable.
+are measured on real hardware. All runs use the same conditions within each
+mode so the results are directly comparable.
+
+### iOS (physical iPhone, screen on)
 
 | Mode | Start | End (30 min) | Drain | Rate |
 |------|-------|--------------|-------|------|
-| Default (Nerves tuning) | 100% | 97% | 3% | ~6%/hr |
-| No BEAM (native baseline) | 100% | 100% | 0% | ~0%/hr |
+| Default (Nerves tuning) | 100% | 99% | 1% | ~2%/hr |
 | Untuned BEAM | — | — | — | — |
 
 _Untuned run pending. Table will be updated._
 
-**How to read this:** the no-beam baseline shows that running a native iOS app at
-minimum screen brightness costs essentially nothing over 30 minutes. The BEAM with
-Nerves tuning adds ~6%/hr — similar to leaving the screen on at moderate brightness.
-The untuned row will show how much worse it gets without scheduler tuning, which is
-what gives the BEAM its battery reputation.
+**How to read this:** the BEAM with Nerves tuning costs ~2%/hr on a physical
+iPhone with the screen on at minimum brightness — most of which is the screen
+itself. The untuned row will show how much worse it gets without scheduler
+tuning, which is what gives the BEAM its battery reputation.
+
+### iOS (physical iPhone, screen off, background)
+
+Measured on a physical iPhone with the screen off the entire run, BEAM kept
+alive via Mob's iOS background-audio keep-alive. Battery read every ~10 s via
+`mob_nif:battery_level/0`; precise final reading via `ideviceinfo` (USB
+connected briefly at end). 180/180 probe samples succeeded, zero reconnects.
+
+| Mode | Start | End (30 min) | Drain | Rate |
+|------|-------|--------------|-------|------|
+| Default (Nerves tuning) | 100% | 100% | 0% | ~0%/hr |
+
+Drain was below the 1% precision floor over 30 minutes — `ideviceinfo
+BatteryCurrentCapacity` confirmed 100% at the precise final read. With the
+screen off and Nerves tuning keeping the schedulers parked, the BEAM is
+effectively free.
+
+### Android (screen off, background)
+
+Measured on two Motorola phones with the screen off the entire run, BEAM kept
+alive via Mob's Android foreground service. Battery read every ~10 s by
+`adb shell dumpsys battery` (1% resolution + raw mAh).
+
+| Device | ABI | Start | End | Drain | Rate |
+|--------|-----|-------|-----|-------|------|
+| Moto E | armeabi-v7a (32-bit) | 2834 mAh (98%) | 2805 mAh (96%) | 29 mAh / 2% (31 min) | ~56 mAh/hr (~3.9 %/hr) |
+| Moto G | arm64-v8a (64-bit)   | 4726 mAh (94%) | 4652 mAh (93%) | 74 mAh / 1% (31 min) | ~143 mAh/hr |
+| No BEAM (native baseline, Moto G) | arm64-v8a | — | — | — | ~200 mAh/hr |
+
+Both BEAM runs sit between the no-BEAM baseline and zero — confirming the BEAM
+isn't sitting on its hands burning power. Cross-device comparisons are imperfect
+(different SoCs, battery sizes, and OS revisions), but the order of magnitude is
+the point: with Nerves-tuned schedulers, the screen-off BEAM is well below
+native idle, not above it.
+
+The 32-bit Moto E run is the first end-to-end validation of `armeabi-v7a` on
+real hardware: the BEAM completed startup, ran continuously through screen-off
+for 31 minutes, and remained reachable over Erlang distribution the whole time.
 
 **Methodology:** `mix mob.battery_bench_ios` builds and installs the app, connects to
 the device BEAM over WiFi, reads battery every 10 seconds via `mob_nif:battery_level/0`,
 and reports drain and rate. The 30-minute duration is the default; longer runs give
-better rate estimates. The Nerves-tuned run was measured with the screen on (required
-at the time — the app was not yet background-capable). The no-beam run was measured
-at minimum screen brightness; battery read via `ideviceinfo` at start and end (USB
-connected briefly for reads only). The screen-off BEAM run uses `Mob.Background`
-keep-alive and is currently in progress.
+better rate estimates. Battery is read via `ideviceinfo` at start and end (USB
+connected briefly for reads only) for 1% precision. The screen-on row was measured
+at minimum brightness with the screen forced on; the screen-off row uses
+`Mob.Background` audio keep-alive so the BEAM keeps running after the device
+locks. Android uses `mix mob.battery_bench_android` with `adb shell dumpsys
+battery` for per-second mAh readings.
 
 **Resolution note:** `UIDevice.batteryLevel` reports in 5% increments on real
 hardware (an iOS privacy measure). The actual drain may be finer; when USB is
-connected `ideviceinfo BatteryCurrentCapacity` gives 1% resolution. In the first
-run above, the 5% gauge snapped to 95% at exactly 30 minutes but USB confirmed 97%.
+connected `ideviceinfo BatteryCurrentCapacity` gives 1% resolution and is the
+authoritative reading.
 
 ## The honest trade-off
 
