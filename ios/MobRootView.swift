@@ -260,12 +260,12 @@ struct MobNodeView: View {
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
                 // ── Batch 5 Tier 1: scroll position observation ──
-                // SwiftUI's onScrollGeometryChange (iOS 17+) fires on every
-                // frame during scroll; we forward to mob_send_scroll which
-                // applies the per-handle throttle config before crossing the
-                // BEAM boundary. Tier-2 semantic events (began/ended) are
-                // derived from the same observer.
-                .modifier(MobScrollObserver(node: node, isHorizontal: isHorizontal))
+                // SwiftUI's onScrollGeometryChange is iOS 18+. On older iOS
+                // there's no clean SwiftUI API for raw offset; UIKit-backed
+                // alternative pending. Until then, scroll events are silently
+                // unavailable on iOS 17 (renderer still accepts on_scroll
+                // props — they just won't fire).
+                .modifier(MobScrollObserverGate(node: node, isHorizontal: isHorizontal))
 
             case .textField:
                 let placeholder = node.placeholder ?? ""
@@ -834,12 +834,28 @@ public struct MobRootView: View {
 // native-side. Tier 2 (semantic begin/end/top) is derived here. Tier 3 (parallax,
 // fade-on-scroll, sticky) is rendered with no BEAM round-trip.
 
-// MobScrollObserver wires SwiftUI's onScrollGeometryChange (iOS 17+) to the
+// MobScrollObserverGate applies the iOS 18+ observer when available and
+// falls through to a no-op on older iOS. Once a UIKit-backed observer for
+// iOS 17 lands, this is where the alternative would dispatch.
+struct MobScrollObserverGate: ViewModifier {
+    let node: MobNode
+    let isHorizontal: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.modifier(MobScrollObserver(node: node, isHorizontal: isHorizontal))
+        } else {
+            content
+        }
+    }
+}
+
+// MobScrollObserver wires SwiftUI's onScrollGeometryChange (iOS 18+) to the
 // MobNode closures populated by mob_nif.m. Throttling and delta-thresholding
 // happen native-side in mob_send_scroll, so this modifier just forwards every
 // geometry change. End-of-scroll is detected by a debounced "no motion for N
-// ms" timer (avoids requiring iOS 18 onScrollPhaseChange).
-@available(iOS 17.0, *)
+// ms" timer.
+@available(iOS 18.0, *)
 struct MobScrollObserver: ViewModifier {
     let node: MobNode
     let isHorizontal: Bool
