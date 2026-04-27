@@ -5,6 +5,7 @@ Mob runs on iOS and Android. Pick your target — you don't need both.
 → [iOS only](#ios-only)
 → [Android only](#android-only)
 → [Both platforms](#both-platforms)
+→ [LiveView projects](#liveview-projects)
 
 ---
 
@@ -280,8 +281,36 @@ isolate a deploy while keeping others running.
 ## LiveView projects
 
 Instead of writing screens in Elixir with the `~MOB` sigil, you can run a full
-Phoenix LiveView app inside a native WebView. The native shell handles device APIs
-and distribution; your UI is a regular Phoenix web app.
+Phoenix LiveView app inside a native WebView. The native shell handles device
+APIs and distribution; your UI is a regular Phoenix web app.
+
+The first-run flow is **not the same** as a native project — it has database
+setup, an extra asset-pipeline step, and a couple of paths to fill in by hand.
+The full sequence is below.
+
+### Mixed apps are fine
+
+You don't have to pick one mode for the whole app. A native Mob project can
+host LiveView screens (run `mix mob.enable liveview` in an existing project),
+and a LiveView project can include native `Mob.Screen` modules alongside its
+WebView screens. Use whichever fits each part of the app.
+
+One thing to be aware of: a mixed app has **two distinct forms of navigation**.
+
+  * **Phoenix routes** — `live "/foo", FooLive` in `router.ex`, navigated with
+    `<.link navigate={...}>` or `push_navigate(...)`. Lives entirely inside the
+    LiveView WebSocket; the WebView's URL changes but the native nav stack
+    doesn't.
+  * **Native navigation** — `Mob.Nav.push/2`, `pop/1`, tab bars, drawers.
+    Lives in the native nav controller; the WebView is just one screen on
+    that stack.
+
+The two stacks don't talk to each other (by default but you control both sides so if you _really_ want to you could make that happen). A Phoenix route change inside a
+WebView doesn't push a native screen, and a `Mob.Nav.push` doesn't navigate
+the WebView. Plan crossings explicitly: a tap inside the LiveView that should
+push a native screen sends a `mob_message` event up to the hosting
+`Mob.Screen`, which calls `Mob.Nav.push/2`; a native back-button in a parent
+screen pops the WebView screen as a whole, not the route inside it.
 
 ### Extra prerequisite
 
@@ -298,7 +327,6 @@ Pass `--liveview` to `mix mob.new`:
 ```bash
 mix mob.new my_app --liveview
 cd my_app
-mix mob.install
 ```
 
 This calls `mix phx.new` under the hood, then patches the generated project:
@@ -306,48 +334,107 @@ adds the Mob bridge hook to `app.js`, inserts the `mob-bridge` element in
 `root.html.heex`, adds `Mob.App` to the supervision tree, and writes a
 `mob.exs` with `liveview_port: 4000`.
 
-### Extra steps before the first deploy
+### 1. Configure local paths
 
-**1. Set up the database**
+Unlike a native project, the LiveView template doesn't auto-fill machine-
+specific paths. Open these two files and set the values for your machine.
+
+**`mob.exs`** — set both keys:
+
+  * `mob_dir`    — local path to the mob library (or `deps/mob` if vendored)
+  * `elixir_lib` — your Elixir lib dir, e.g.
+    `~/.local/share/mise/installs/elixir/1.19.5-otp-28/lib`
+
+**`android/local.properties`** — set the Android SDK path:
+
+```
+sdk.dir=/Users/you/Library/Android/sdk
+```
+
+### 2. Run first-time setup
+
+```bash
+mix mob.install
+```
+
+Caches the OTP runtimes, generates a placeholder app icon, and finalises the
+build config.
+
+### 3. Configure and create the database
+
+Edit `config/dev.exs` to point at your dev database (the Phoenix-generated
+defaults work for most local Postgres setups), then:
 
 ```bash
 mix ecto.create && mix ecto.migrate
 ```
 
-**2. Run the Phoenix server once**
+### 4. Run the Phoenix server once (required)
 
-This downloads JS/CSS dependencies and compiles assets. Skip this and the
-WebView will load a blank screen — the asset pipeline hasn't run yet.
+This downloads JS/CSS dependencies and compiles static assets. **Skipping
+this step is the most common cause of a blank-screen first deploy** — the
+WebView loads `http://127.0.0.1:4000/` but the asset pipeline has never
+produced any files for it to serve.
 
 ```bash
 mix phx.server
 ```
 
-Open `http://localhost:4000` to confirm it loads, then stop the server (`Ctrl-C`).
+Open `http://localhost:4000` in your browser to confirm it loads, then stop
+the server (`Ctrl-C`).
 
-**3. Deploy**
+### 5. Deploy to device
 
 ```bash
 mix mob.deploy --native
 ```
 
-The native app starts your Phoenix server at `http://127.0.0.1:4000` and loads
-it in a WebView. The LiveView bridge (`window.mob.send`) routes through
-`pushEvent` so server-side LiveView events reach the native layer.
+The native app starts your Phoenix server at `http://127.0.0.1:4000/` and
+loads it in a WebView.
+
+### 6. Verify the LiveView bridge
+
+After the app launches, open the WebView in a remote inspector (Safari Web
+Inspector for iOS, `chrome://inspect` for Android) and run:
+
+```js
+window.mob.send({some: 'event'})
+```
+
+The call should route through Phoenix's `pushEvent` — visible as a LiveView
+event on the server side — **not** through `window.postMessage`. That
+confirms the Mob ↔ LiveView bridge is wired correctly.
 
 ### Day-to-day development
 
-The workflow is the same as a native project — push changed BEAMs, restart, or
-watch for file changes:
+The workflow is the same as a native project — push changed BEAMs, restart,
+or watch for file changes:
 
 ```bash
 mix mob.deploy    # push BEAMs + restart (Phoenix server restarts inside the app)
 mix mob.watch     # auto-push on file save
 ```
 
-Phoenix code changes (templates, LiveViews) are picked up automatically when the
-BEAM restarts. Asset changes (`app.js`, CSS) require running `mix assets.build`
-locally first, since the device runs your compiled assets, not the dev pipeline.
+Phoenix code changes (templates, LiveViews) are picked up automatically when
+the BEAM restarts. Asset changes (`app.js`, CSS) require running
+`mix assets.build` locally first, since the device runs your compiled
+assets, not the dev pipeline.
+
+### Adding LiveView to an existing native project
+
+If you already have a Mob project (created without `--liveview`) and want to
+turn it into a LiveView app, run:
+
+```bash
+mix mob.enable liveview
+```
+
+This is the same patcher that `mix mob.new --liveview` runs for new projects:
+generates `lib/<app>/mob_screen.ex`, injects `MobHook` into `assets/js/app.js`,
+inserts the hidden `<div id="mob-bridge">` into `root.html.heex`, sets
+`liveview_port` in `mob.exs`, and adds the Android `networkSecurityConfig`
+that lets the WebView reach `127.0.0.1`. See [LiveView Mode](liveview.md) for
+the full architecture explanation.
 
 ---
 
@@ -457,5 +544,6 @@ the framework calls `render/1` again and pushes the diff to the native layer.
 - [Theming](theming.md) — color tokens, named themes, runtime switching
 - [Data & Persistence](data.md) — `Mob.State` for preferences, Ecto + SQLite for structured data
 - [Device Capabilities](device_capabilities.md) — camera, location, haptics, notifications
+- [LiveView Mode](liveview.md) — full Phoenix LiveView app inside a native WebView (the two-bridge architecture, `mix mob.enable liveview`)
 - [Testing](testing.md) — unit tests and live device inspection
 - [Troubleshooting](troubleshooting.md) — if something isn't working, start here
