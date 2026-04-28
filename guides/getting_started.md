@@ -503,6 +503,37 @@ or use the dashboard (`mix mob.server`) which sets it up automatically.
 
 ---
 
+## Caches and disk usage
+
+`mix mob.deploy` populates two machine-wide caches outside your project tree:
+
+- `~/.mob/cache/` — pre-built OTP runtimes for iOS sim, iOS device, and
+  Android (one per ABI). Reused across every Mob project. ~200–400 MB each.
+- `~/Library/Caches/elixir_make/` (macOS) or `~/.cache/elixir_make/` (Linux)
+  — pre-built NIF tarballs that `exqlite` and other NIF deps download
+  instead of recompiling from source. Owned by `elixir_make`, not Mob.
+
+To inspect or clear them:
+
+```bash
+mix mob.cache                              # show paths + sizes (read-only)
+mix mob.cache --include-transitive         # also show elixir_make's cache
+mix mob.cache --clear                      # delete Mob's cache (with prompt)
+mix mob.cache --clear --include-transitive # delete ours + elixir_make's
+```
+
+To relocate the Mob cache (sandbox-friendly for Nix or CI environments):
+
+```bash
+export MOB_CACHE_DIR=/path/to/somewhere
+```
+
+`mob.cache` deliberately does not touch `~/.hex`, `~/.mix`, `~/.gradle`, or
+Xcode's `DerivedData` — those are shared with non-Mob projects and clearing
+them via Mob would silently break unrelated work.
+
+---
+
 ## Your first screen
 
 ```elixir
