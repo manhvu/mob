@@ -15,7 +15,7 @@ Mob runs on iOS and Android. Pick your target — you don't need both.
 
 - macOS
 - Xcode 15 or later (`xcode-select --install` for command-line tools)
-- Elixir 1.18 or later with Hex: `mix local.hex`
+- Elixir 1.19 or later with Hex: `mix local.hex`
 - `mob_new` installed: `mix archive.install hex mob_new`
 
 That's enough to run on the **iOS Simulator**. For a **physical iPhone**, you also need:
@@ -125,7 +125,7 @@ re-run `mix mob.provision` then deploy again.
 
 ### What you need
 
-- Elixir 1.18 or later with Hex: `mix local.hex`
+- Elixir 1.19 or later with Hex: `mix local.hex`
 - `mob_new` installed: `mix archive.install hex mob_new`
 - Java 17–21 (`brew install --cask temurin` on macOS)
 - Android Studio (includes the SDK and `adb`)
