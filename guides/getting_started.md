@@ -28,10 +28,14 @@ That's enough to run on the **iOS Simulator**. For a **physical iPhone**, you al
 ### Create a project
 
 ```bash
-mix mob.new my_app
+mix mob.new my_app --ios
 cd my_app
 mix mob.install
 ```
+
+`--ios` scopes the generator to iOS only — no `android/` directory is created
+and `mix mob.install` skips the Android OTP download (saves ~400 MB of cache).
+Drop the flag if you want both platforms.
 
 `mix mob.install` downloads the pre-built OTP runtime for iOS and writes your `mob.exs`.
 
@@ -136,10 +140,14 @@ device, then connect via USB and accept the authorization prompt.
 ### Create a project
 
 ```bash
-mix mob.new my_app
+mix mob.new my_app --android
 cd my_app
 mix mob.install
 ```
+
+`--android` scopes the generator to Android only — no `ios/` directory is created
+and `mix mob.install` skips the iOS OTP download. Drop the flag if you want both
+platforms.
 
 `mix mob.install` downloads the pre-built OTP runtime for Android and writes your
 `mob.exs` and `android/local.properties`.
@@ -328,6 +336,10 @@ Pass `--liveview` to `mix mob.new`:
 mix mob.new my_app --liveview
 cd my_app
 ```
+
+`--liveview` combines with `--ios` or `--android` if you want a single-platform
+LiveView project — for example `mix mob.new my_app --liveview --ios` skips
+Android scaffolding entirely.
 
 This calls `mix phx.new` under the hood, then patches the generated project:
 adds the Mob bridge hook to `app.js`, inserts the `mob-bridge` element in
