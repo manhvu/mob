@@ -528,25 +528,50 @@ works off whatever `mix`, `elixir`, `iex`, and `erl` resolve to on your PATH.
 
 **Nix users** need to set a few env vars yourself, since mob_dev's auto-
 detection assumes mise/asdf-style on-disk layouts (e.g. `~/.local/share/mise/
-installs/elixir/...`). Override the defaults from your shell or `direnv`:
+installs/elixir/...`). Set them in your shell, `direnv`, or `shell.nix`
+**before running `mix mob.install`** — the install step reads them and
+bakes the resolved values into `mob.exs` and `android/local.properties`.
+Setting them later still works (build.sh and Gradle re-read the env at
+deploy time), but you'll need to edit those config files by hand.
 
-| Env var | What it sets | Default if unset |
+| Env var | Read by | When to set |
 |---|---|---|
-| `MOB_ELIXIR_LIB` | Elixir lib dir used to bundle the stdlib into the iOS app | computed from the running BEAM (mise/asdf path) |
-| `MOB_DIR` | Path to the mob library (only needed for `mix mob.new --local`) | resolves from `mob.exs` or `deps/mob` |
-| `MOB_DEV_DIR` | Path to the mob_dev library (only for `--local`) | sibling discovery (`./mob_dev` then `../mob_dev`) |
-| `MOB_CACHE_DIR` | OTP runtime cache for downloaded prebuilt tarballs | `~/.mob/cache/` |
-| `MOB_SIM_RUNTIME_DIR` | iOS simulator's writable OTP root | `~/.mob/runtime/ios-sim/` |
-| `ANDROID_HOME` | Android SDK location | read from `android/local.properties` `sdk.dir` |
-| `JAVA_HOME` | JDK location for Gradle | inherited |
+| `MOB_ELIXIR_LIB` | `mob.install` (writes into `mob.exs`); iOS `build.sh` | before `mob.install` |
+| `MOB_DIR` | `mix mob.new --local` (path resolution); iOS `build.sh` | before `mob.new` (only if using `--local`) |
+| `MOB_DEV_DIR` | `mix mob.new --local` (path resolution) | before `mob.new` (only if using `--local`) |
+| `MOB_CACHE_DIR` | OTP downloader at install + any `--native` deploy | before `mob.install` |
+| `MOB_SIM_RUNTIME_DIR` | iOS `build.sh` (writer) and `mob_beam.m` (reader) | before first `mob.deploy --native` |
+| `ANDROID_HOME` | `mob.install` (auto-detected, written to `local.properties`); Gradle | before `mob.install` |
+| `JAVA_HOME` | Gradle | before `mob.deploy --native` |
 
-Quick recipe for a Nix user with Elixir from `pkgs.beam.packages.erlang_28.elixir_1_19`:
+Each var has a default if you don't set it; the table column says where
+each *would* land:
+
+  * `MOB_ELIXIR_LIB` — computed from the running BEAM (mise/asdf path)
+  * `MOB_DIR` / `MOB_DEV_DIR` — resolves from `mob.exs` or `deps/mob`,
+    or sibling discovery (`./mob_dev` then `../mob_dev`)
+  * `MOB_CACHE_DIR` — `~/.mob/cache/`
+  * `MOB_SIM_RUNTIME_DIR` — `~/.mob/runtime/ios-sim/`
+  * `ANDROID_HOME` — read from `android/local.properties` `sdk.dir`
+
+Quick recipe for a Nix user with Elixir from
+`pkgs.beam.packages.erlang_28.elixir_1_19`. Put this in `direnv` or
+`shell.nix` so it loads on `cd`:
 
 ```sh
 export MOB_ELIXIR_LIB="$(elixir -e 'IO.puts(Path.dirname(to_string(:code.lib_dir(:elixir))))')"
 export MOB_CACHE_DIR="$HOME/.mob/cache"           # or somewhere your Nix gc-roots manage
 export MOB_SIM_RUNTIME_DIR="$HOME/.mob/runtime/ios-sim"
 export ANDROID_HOME="$HOME/Android/Sdk"           # wherever your nixpkgs AndroidSdk lives
+```
+
+Then run the normal flow:
+
+```sh
+mix mob.new my_app --ios
+cd my_app
+mix mob.install      # picks up the env vars, bakes them into mob.exs / local.properties
+mix mob.deploy --native
 ```
 
 `mix mob.cache` and `mix mob.cache --clear` know about both `MOB_CACHE_DIR`
