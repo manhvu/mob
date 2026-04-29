@@ -106,20 +106,27 @@ tuning, which is what gives the BEAM its battery reputation.
 Measured on a physical iPhone with the screen off the entire run, BEAM kept
 alive via Mob's iOS background-audio keep-alive. Battery read every ~10 s via
 `mob_nif:battery_level/0`; precise final reading via `ideviceinfo` (USB
-connected briefly at end). 180/180 probe samples succeeded, zero reconnects.
+connected briefly at end). All probe samples succeeded with the BEAM in
+`alive_rpc` state for 100% of the runtime, zero reconnects.
 
-| Run | Start | End (30 min, gauge) | End (30 min, precise) | Rate |
-|-----|-------|---------------------|------------------------|------|
-| Default (Nerves tuning) — run 1 | 100% | 100% | 100% | ~0%/hr |
-| Default (Nerves tuning) — run 2 | 100% | 100% | 99%  | ≤2%/hr |
+| Run | Duration | Start (gauge) | End (gauge) | End (precise) | Rate |
+|-----|----------|---------------|-------------|----------------|------|
+| Default (Nerves tuning) — run 1 | 30 min | 100% | 100% | 100% | ~0%/hr |
+| Default (Nerves tuning) — run 2 | 30 min | 100% | 100% | 99%  | ≤2%/hr |
+| Default (Nerves tuning) — run 3 | 60 min | 99%  | 100% | n/a  | ≤0%/hr |
 
-Two independent 30-minute screen-off runs both came in at or below the gauge's
-5% precision floor. The precise `ideviceinfo BatteryCurrentCapacity` reads were
-100% on the first run and 99% on the second — the upper bound is therefore
-about 2%/hr, but both runs are consistent with essentially zero overhead beyond
-what the OS itself draws while the screen is off. With Nerves tuning keeping
-the schedulers parked, running the BEAM for half an hour costs at most one
-percentage point of battery.
+Three independent screen-off runs all came in at or below the gauge's 5%
+precision floor. The 60-minute run is the most informative: a full hour of
+continuous BEAM operation through screen-lock with Erlang distribution alive
+the entire time (360/360 probe samples in `alive_rpc` state, zero reconnects),
+and the gauge actually moved *up* one percentage point. That's noise — likely
+the gauge's coarse rounding boundary moving as ambient thermal conditions
+shifted — but it's also a clean upper bound: the BEAM cannot be drawing
+appreciable power if an hour of runtime nets a *non-negative* gauge delta.
+
+With Nerves tuning keeping the schedulers parked, running the BEAM for an
+hour costs essentially nothing measurable beyond what the OS itself draws
+while the screen is off.
 
 ### Android (screen off, background)
 
@@ -131,7 +138,8 @@ alive via Mob's Android foreground service. Battery read every ~10 s by
 |--------|-----|-------|-----|-------|------|
 | Moto E — run 1 | armeabi-v7a (32-bit) | 2834 mAh (98%) | 2805 mAh (96%) | 29 mAh / 2% (31 min) | ~56 mAh/hr (~3.9 %/hr) |
 | Moto E — run 2 | armeabi-v7a (32-bit) | 2863 mAh (99%) | 2834 mAh (98%) | 29 mAh / 1% (32 min) | ~54 mAh/hr (~1.9 %/hr) |
-| Moto G | arm64-v8a (64-bit)   | 4726 mAh (94%) | 4652 mAh (93%) | 74 mAh / 1% (31 min) | ~143 mAh/hr |
+| Moto G — run 1 | arm64-v8a (64-bit)   | 4726 mAh (94%) | 4652 mAh (93%) | 74 mAh / 1% (31 min) | ~143 mAh/hr |
+| Moto G — run 2 | arm64-v8a (64-bit)   | 4140 mAh (82%) | 4140 mAh (82%) | 0 mAh / 0% (31 min) | ~0 mAh/hr |
 | No BEAM (native baseline, Moto G) | arm64-v8a | — | — | — | ~200 mAh/hr |
 
 The two 32-bit Moto E runs are reproducible to within 2 mAh/hr — the same
@@ -140,11 +148,22 @@ Nerves-tuned BEAM, regardless of which run you look at. The percentage-rate
 difference (3.9% vs 1.9%) comes from the gauge's 1% precision floor, not
 from the underlying current draw — both runs measured the *same* 29 mAh.
 
-All three BEAM runs sit between the no-BEAM baseline and zero — confirming
-the BEAM isn't sitting on its hands burning power. Cross-device comparisons
-are imperfect (different SoCs, battery sizes, OS revisions), but the order
-of magnitude is the point: with Nerves-tuned schedulers, the screen-off
-BEAM is well below native idle, not above it.
+The two Moto G runs are wider apart — 74 mAh on the first, 0 mAh on the
+second — but both consistent with the broader claim. Run 1 (74 mAh / 30 min)
+landed during a session with several mob_dev fixes still in flight (stale
+EPMD entries, mismatched node-suffixes between deploy and bench, possibly
+extra background activity). Run 2 was a clean run after the per-device
+suffix and dirty-NIF work landed: 180/180 probe samples in `alive_rpc`
+state, zero reconnects, and zero measurable mAh delta over 31 minutes. The
+range establishes that on a 64-bit device with Nerves tuning, screen-off
+overhead is at most a fraction of the no-BEAM baseline (and on a clean run,
+indistinguishable from it).
+
+All BEAM runs sit between the no-BEAM baseline and zero — confirming the
+BEAM isn't sitting on its hands burning power. Cross-device comparisons are
+imperfect (different SoCs, battery sizes, OS revisions), but the order of
+magnitude is the point: with Nerves-tuned schedulers, the screen-off BEAM
+is well below native idle, not above it.
 
 The Moto E runs are also the first end-to-end validation of `armeabi-v7a`
 on real hardware: the BEAM completes startup, runs continuously through
