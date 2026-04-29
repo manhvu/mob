@@ -71,7 +71,6 @@ cache/otp-ios-device-<hash>/
     include/          ← copy from build: erts/include/ + erts/aarch64-apple-ios/
     lib/
       libbeam.a            ← from bin/aarch64-apple-ios/
-      libmicro_openssl.a   ← from erts/emulator/openssl/obj/aarch64-apple-ios/opt/
       libepcre.a           ← from erts/emulator/pcre/obj/aarch64-apple-ios/opt/
       libryu.a             ← from erts/emulator/ryu/obj/aarch64-apple-ios/opt/
       libzstd.a
@@ -364,16 +363,13 @@ If `asn1rt_nif.c` is compiled without `-DSTATIC_ERLANG_NIF`, it exports
 but the symbol won't be found by `driver_tab_ios.c`'s declaration. Rebuild with
 the flag.
 
-### `libmicro_openssl.a` is not obvious to find
+### `libmicro_openssl.a` (historical — no longer needed)
 
-OTP bundles its own subset of OpenSSL providing `MD5Init`, `MD5Update`,
-`MD5Final`. This is not in the standard lib output directory. It lives at:
-
-```
-erts/emulator/openssl/obj/aarch64-apple-ios/opt/micro-openssl.a
-```
-
-Without it, the link step fails with `MD5Init` undefined.
+Earlier setups linked against `libmicro_openssl.a` to satisfy `MD5Init`/
+`MD5Update`/`MD5Final` symbols. With `--without-ssl` OTP, nothing in the
+linked code path references them — `libbeam.a`'s own `erts_md5_*` covers
+everything that does get called. The lib is dropped from the LIBS list
+entirely; do not re-add it.
 
 ### dlopen of `.so` NIFs silently fails at runtime
 
