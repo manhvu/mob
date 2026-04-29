@@ -129,19 +129,26 @@ alive via Mob's Android foreground service. Battery read every ~10 s by
 
 | Device | ABI | Start | End | Drain | Rate |
 |--------|-----|-------|-----|-------|------|
-| Moto E | armeabi-v7a (32-bit) | 2834 mAh (98%) | 2805 mAh (96%) | 29 mAh / 2% (31 min) | ~56 mAh/hr (~3.9 %/hr) |
+| Moto E — run 1 | armeabi-v7a (32-bit) | 2834 mAh (98%) | 2805 mAh (96%) | 29 mAh / 2% (31 min) | ~56 mAh/hr (~3.9 %/hr) |
+| Moto E — run 2 | armeabi-v7a (32-bit) | 2863 mAh (99%) | 2834 mAh (98%) | 29 mAh / 1% (32 min) | ~54 mAh/hr (~1.9 %/hr) |
 | Moto G | arm64-v8a (64-bit)   | 4726 mAh (94%) | 4652 mAh (93%) | 74 mAh / 1% (31 min) | ~143 mAh/hr |
 | No BEAM (native baseline, Moto G) | arm64-v8a | — | — | — | ~200 mAh/hr |
 
-Both BEAM runs sit between the no-BEAM baseline and zero — confirming the BEAM
-isn't sitting on its hands burning power. Cross-device comparisons are imperfect
-(different SoCs, battery sizes, and OS revisions), but the order of magnitude is
-the point: with Nerves-tuned schedulers, the screen-off BEAM is well below
-native idle, not above it.
+The two 32-bit Moto E runs are reproducible to within 2 mAh/hr — the same
+hardware burns 53–56 mAh/hr through a half-hour screen-off window with
+Nerves-tuned BEAM, regardless of which run you look at. The percentage-rate
+difference (3.9% vs 1.9%) comes from the gauge's 1% precision floor, not
+from the underlying current draw — both runs measured the *same* 29 mAh.
 
-The 32-bit Moto E run is the first end-to-end validation of `armeabi-v7a` on
-real hardware: the BEAM completed startup, ran continuously through screen-off
-for 31 minutes, and remained reachable over Erlang distribution the whole time.
+All three BEAM runs sit between the no-BEAM baseline and zero — confirming
+the BEAM isn't sitting on its hands burning power. Cross-device comparisons
+are imperfect (different SoCs, battery sizes, OS revisions), but the order
+of magnitude is the point: with Nerves-tuned schedulers, the screen-off
+BEAM is well below native idle, not above it.
+
+The Moto E runs are also the first end-to-end validation of `armeabi-v7a`
+on real hardware: the BEAM completes startup, runs continuously through
+screen-off for half an hour, and remains reachable over Erlang distribution.
 
 **Methodology:** `mix mob.battery_bench_ios` builds and installs the app, connects to
 the device BEAM over WiFi, reads battery every 10 seconds via `mob_nif:battery_level/0`,
