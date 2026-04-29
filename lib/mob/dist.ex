@@ -38,10 +38,20 @@ defmodule Mob.Dist do
     (default 9100) so `dev_connect.sh` knows which port to forward.
 
   Options:
-  - `:node`      — node name atom (required on Android)
+  - `:node`      — base node name atom (required on Android)
   - `:cookie`    — cookie atom (required on Android)
   - `:delay`     — ms to wait before starting dist (default: 3_000)
   - `:dist_port` — Erlang dist listen port (default: 9100)
+
+  ## Per-device node names (Android)
+
+  Mac's EPMD only allows one registration per name. Two phones running the
+  same app with the same hardcoded `:node` collide — the second to start
+  gets `:nodistribution` and silently runs without dist. To keep two or
+  more devices distinguishable, set the `MOB_NODE_SUFFIX` env var (the
+  Android shell launcher reads `mob_node_suffix` from the launch intent
+  extras and exports it). When present, the resolved node becomes
+  `<base_name>_<suffix>@<host>` — e.g. `test_nif_android_zy22cr@127.0.0.1`.
   """
   @spec ensure_started(keyword()) :: :ok
   def ensure_started(opts \\ []) do
@@ -50,12 +60,36 @@ defmodule Mob.Dist do
         :ok
 
       :android ->
-        node = Keyword.fetch!(opts, :node)
+        base_node = Keyword.fetch!(opts, :node)
         cookie = Keyword.fetch!(opts, :cookie)
         delay = Keyword.get(opts, :delay, @default_delay)
         dist_port = Keyword.get(opts, :dist_port, 9100)
+        node = apply_suffix(base_node, System.get_env("MOB_NODE_SUFFIX"))
+
+        if node != base_node do
+          :mob_nif.log("Mob.Dist: node suffix applied — #{base_node} → #{node}")
+        end
+
         spawn(fn -> start_after(node, cookie, delay, dist_port) end)
         :ok
+    end
+  end
+
+  @doc false
+  @spec apply_suffix(node(), String.t() | nil) :: node()
+  def apply_suffix(base_node, nil), do: base_node
+  def apply_suffix(base_node, ""), do: base_node
+
+  def apply_suffix(base_node, suffix) when is_binary(suffix) do
+    suffix = String.trim(suffix)
+
+    if suffix == "" do
+      base_node
+    else
+      case String.split(Atom.to_string(base_node), "@", parts: 2) do
+        [name, host] -> :"#{name}_#{suffix}@#{host}"
+        [name] -> :"#{name}_#{suffix}"
+      end
     end
   end
 

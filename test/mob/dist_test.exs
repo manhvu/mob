@@ -55,4 +55,36 @@ defmodule Mob.DistTest do
       assert not Node.alive?()
     end
   end
+
+  describe "apply_suffix/2" do
+    test "nil suffix returns the base node unchanged" do
+      assert Mob.Dist.apply_suffix(:"test_nif_android@127.0.0.1", nil) ==
+               :"test_nif_android@127.0.0.1"
+    end
+
+    test "empty suffix returns the base node unchanged" do
+      assert Mob.Dist.apply_suffix(:"test_nif_android@127.0.0.1", "") ==
+               :"test_nif_android@127.0.0.1"
+    end
+
+    test "whitespace-only suffix returns the base node unchanged" do
+      assert Mob.Dist.apply_suffix(:"test_nif_android@127.0.0.1", "   ") ==
+               :"test_nif_android@127.0.0.1"
+    end
+
+    test "appends suffix between name and host" do
+      assert Mob.Dist.apply_suffix(:"test_nif_android@127.0.0.1", "zy22cr") ==
+               :"test_nif_android_zy22cr@127.0.0.1"
+    end
+
+    test "trims whitespace from suffix" do
+      assert Mob.Dist.apply_suffix(:"test_nif_android@127.0.0.1", "  abc  ") ==
+               :"test_nif_android_abc@127.0.0.1"
+    end
+
+    test "handles bare name (no @host) by appending suffix" do
+      assert Mob.Dist.apply_suffix(:test_nif_android, "zy22cr") ==
+               :test_nif_android_zy22cr
+    end
+  end
 end
