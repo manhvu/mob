@@ -106,6 +106,14 @@ defmodule Mob.App do
           {:error, {:already_started, _}} -> :ok
         end
 
+        # Adaptive-theme watcher: subscribes to Mob.Device :appearance and
+        # re-resolves Mob.Theme on OS color-scheme flips. Started after
+        # Mob.Device so the subscribe call has a target.
+        case Mob.Theme.AdaptiveWatcher.start_link() do
+          {:ok, _} -> :ok
+          {:error, {:already_started, _}} -> :ok
+        end
+
         __MODULE__.on_start()
       end
 

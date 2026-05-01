@@ -804,6 +804,11 @@ public struct MobRootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var currentRoot: MobNode? = nil
     @State private var currentTransition: String = "none"
+    // Local mirror of model.navVersion so the .id() change happens INSIDE
+    // the withAnimation block (the model's @Published value changes via
+    // SwiftUI observation, which doesn't carry the animation context and
+    // produces a default crossfade instead of the .move transition).
+    @State private var currentNavVersion: Int = 0
 
     public init() {}
 
@@ -811,11 +816,12 @@ public struct MobRootView: View {
         ZStack {
             if let root = currentRoot {
                 MobNodeView(node: root)
-                    // Only assign a new identity on navigation transitions (push/pop),
-                    // not on every state-update re-render. Using rootVersion here would
-                    // tear down and recreate the whole view tree on every keystroke,
-                    // causing MobTextField to lose focus and dismiss the keyboard.
-                    .id(model.navVersion)
+                    // .id changes only on navigation (push/pop/reset), so
+                    // typing in a TextField doesn't tear the view down.
+                    // Driven by currentNavVersion (not model.navVersion)
+                    // so the change happens inside withAnimation — see
+                    // .onChange(of: model.rootVersion) below.
+                    .id(currentNavVersion)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .transition(navTransition(currentTransition))
             } else {
@@ -853,15 +859,28 @@ public struct MobRootView: View {
         .onChange(of: model.rootVersion) { _ in
             let t = model.transition
             let newRoot = model.root
-            // Capture transition before the animation block so the modifier sees
-            // the right value when the new view is inserted.
+            let newNavVersion = model.navVersion
+            // Capture transition before the animation block so the modifier
+            // sees the right value when the new view is inserted.
             currentTransition = t
+            // Log every nav transition so log-tail-based checks can verify
+            // the animation fired without resorting to video recording.
+            // Format: [MobNav] transition=<push|pop|reset|none> navVersion=<n>
+            if t != "none" {
+                NSLog("[MobNav] transition=%@ navVersion=%d", t, newNavVersion)
+            }
             if let animation = navAnimation(t) {
                 withAnimation(animation) {
                     currentRoot = newRoot
+                    // Apply navVersion inside withAnimation so the .id()
+                    // change carries the animation context — without this
+                    // SwiftUI replaces the view via default crossfade and
+                    // the .move transition never plays.
+                    currentNavVersion = newNavVersion
                 }
             } else {
                 currentRoot = newRoot
+                currentNavVersion = newNavVersion
             }
         }
         // Notify Elixir when the OS appearance toggles so subscribers
