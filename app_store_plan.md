@@ -4,7 +4,7 @@ Working document for the framework work to make `mix mob.release` produce
 App Store-shippable `.ipa` files. Update the **Status** line at the top
 and check off workstream items as work progresses.
 
-**Status (2026-05-02):** ✅ **COMPLETE**. Build 7 (`6b078e26-2b49-46e5-821a-b22a17c497f1`) accepted by App Store Connect, processed by Apple, lives in TestFlight. Air Cart Maximizer ships through the store. Total wall time ~4 hours vs 2-3 day estimate. W6 (test coverage + per-feature capability NIF compile-out) still pending as cleanup.
+**Status (2026-05-02):** ✅ **COMPLETE**. Build 7 (`6b078e26-2b49-46e5-821a-b22a17c497f1`) accepted by App Store Connect, processed by Apple, lives in TestFlight. Air Cart Maximizer ships through the store. Workstreams 1-6 done. W6 added 23 release-script regression tests so accidental rollbacks of any App Store fix get caught at `mix test` time rather than in an Apple-validator round trip. Total wall time ~5 hours vs 2-3 day estimate. Per-feature capability NIF compile-out tracked separately as a follow-on (no longer in this plan's scope).
 
 ---
 
@@ -167,19 +167,33 @@ binary with everything statically linked, bundles only `.beam` files.
 
 **Goal**: this doesn't regress; users find current docs.
 
-- [ ] Tests for `mix mob.release --app-store`:
-  - [ ] Generated link command shape (right archives, right flags)
-  - [ ] Bundled `.app` contents (no `.so`/`.a`/standalone bins)
-  - [ ] Info.plist key presence (MinimumOSVersion, DTPlatformName)
-- [ ] Tests for `mix mob.cross_build_nif`:
-  - [ ] Idempotent caching
-  - [ ] Error on unknown build system
-- [ ] Update `mob_dev/guides/publishing_to_testflight.md`:
-  - [ ] Remove "Known limitation" section
-  - [ ] Replace with the working happy path
-- [ ] Update `mob/guides/publishing.md`: drop the limitation note
-- [ ] Update `mob/future_developments.md`: move this entry to a "Done"
-      section or delete it
+- [x] Tests for `mix mob.release` (mob_dev 0.3.32 —
+      `test/mob_dev/release_script_test.exs`, 23 assertions):
+  - [x] Strip-from-bundle: `.so`, `.a`, priv/bin executables, erts/bin
+        executables, unused OTP libs (megaco, runtime_tools, etc.)
+  - [x] Test-harness compile-out: `-DMOB_RELEASE` lands on both
+        mob_nif.m AND mob_beam.m compile commands
+  - [x] Info.plist defensive keys: `MinimumOSVersion`, `DTPlatformName`,
+        full DT* set, `UIDeviceFamily`, `CFBundleSupportedPlatforms`
+  - [x] DTXcode encoding formula (4-digit MAJOR×100+MINOR×10+PATCH)
+  - [x] IPA packaging: `ditto` (not `zip`), `--norsrc`/`--noextattr`/
+        `--noqtn`/`--keepParent`, `cp -RP`, `dot_clean` defense
+  - [x] Code signing: `--timestamp`, `--options runtime`, profile
+        embedded, signature verified, no `get-task-allow` in
+        entitlements heredoc
+  - [x] Order of operations: OTP rsync runs before strip pass
+- [x] Tests for `mix mob.cross_build_nif`: **N/A** — the task was never
+      built because workstream 1 collapsed (existing pipeline already
+      produces static archives)
+- [x] Update `mob_dev/guides/publishing_to_testflight.md`:
+  - [x] Remove "Known limitation" section (mob_dev 0.3.31)
+  - [x] Replace with the working happy path + every error pattern
+        we hit captured in troubleshooting
+- [x] Update `mob/guides/publishing.md`: drop the limitation note,
+      add "Status" section pointing at proven versions (mob 0.5.13 /
+      mob_dev 0.3.32)
+- [x] Update `mob/future_developments.md`: collapsed to one-line
+      pointer at the plan file
 
 ## Open questions to revisit as work progresses
 
