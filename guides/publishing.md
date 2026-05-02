@@ -16,7 +16,7 @@ release loop you'll do for every build.
 - **Pick a real bundle ID** — `com.example.*` won't fly with Apple
 - **Update `ios/Info.plist`** — bundle ID, display name, semver version
 - **Update `android/app/build.gradle`** — `applicationId` to match
-- **Strip unused permissions** from Info.plist (camera/mic/location/etc. that the framework template scaffolds but your app may not use)
+- **Keep usage strings in Info.plist** — counterintuitive but important. Don't strip `NSCameraUsageDescription` etc. just because your app doesn't use them. The framework's NIFs reference those APIs and Apple's secondary scanner will reject the build. ([why](https://hexdocs.pm/mob_dev/publishing_to_testflight.html#13-keep-usage-strings-in-infoplist-counterintuitive--read-this))
 - **Register the App ID** at [developer.apple.com](https://developer.apple.com/account/resources/identifiers/list) — manual web-portal step
 - **Create an Apple Distribution certificate** — Xcode → Settings → Accounts → Manage Certificates → +
 - **Create an App Store provisioning profile** — at [developer.apple.com](https://developer.apple.com/account/resources/profiles/list) — bind cert + App ID
@@ -46,24 +46,20 @@ the TestFlight tab. Add testers there.
 - **Profile names don't matter** — `mob_dev` discovers profiles by UUID, so name them however you like
 - **The `.p8` API key downloads once** — Apple doesn't store the private half
 - **`mix mob.publish` goes silent for several minutes** — `altool` is uploading. Use `--verbose` to see progress.
+- **Bump `CFBundleVersion` before every upload** — Apple rejects re-uploads with the same build number
+- **"Upload accepted" ≠ "build is in TestFlight"** — Apple runs a secondary scan after upload. Check email if the build doesn't appear in TestFlight after ~20 min ([why](https://hexdocs.pm/mob_dev/publishing_to_testflight.html#part-3--two-stage-validation))
 
-## Known limitation (mob 0.5.10)
+## Status
 
-The release pipeline produces a signed `.ipa` and uploads it to App
-Store Connect successfully, but Apple's automated validator currently
-rejects the build because Mob bundles the OTP runtime tree (containing
-`.so`/`.a` files Apple doesn't allow) and uses test-harness NIFs that
-reference private UIKit selectors.
+The release pipeline produces App Store-validated builds end-to-end.
+First proven by Air Cart Maximizer landing in TestFlight on
+2026-05-02. Tested with mob 0.5.12 + mob_dev 0.3.30 on Xcode 26.
 
-The build IS sideload-able to a connected device via Xcode for ad-hoc
-testing.
-
-The framework work to clear App Store validation (switch to statically
-linked `libbeam.a`, compile out test-harness NIFs in release mode, fix
-Info.plist + IPA packaging) is tracked separately. See the [detailed
-guide's "Known limitation"
-section](https://hexdocs.pm/mob_dev/publishing_to_testflight.html#known-limitation-app-store-validator-rejects-the-bundle)
-for the specific errors and the static-link approach.
+If you're on older versions and getting validator rejections, upgrade
+both — the App Store-clearing fixes were spread across mob 0.5.12
+(test harness compile-out) and mob_dev 0.3.27 → 0.3.30 (provisioning,
+bundle stripping, full DT* / `UIDeviceFamily` /
+`CFBundleSupportedPlatforms` plist keys, ditto packaging).
 
 ---
 
