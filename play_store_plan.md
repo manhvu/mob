@@ -4,7 +4,7 @@ Working document for the framework work to make `mix mob.republish
 --android` produce Play-Store-shippable `.aab` files. Mirrors the
 shape of `app_store_plan.md` (which delivered the iOS path).
 
-**Status (2026-05-02):** Workstream 1 done — surfaced a structural gap (no Android OTP-bundling path exists). Surfaced to user before continuing W2; estimate jumped from 1-2 days to 2-3.
+**Status (2026-05-02):** Workstreams 1, 2, 2.5 substantially complete. W2 added release signing config to air_cart_max + keystore.properties.example template (user-side `keytool` step pending). W2.5 delivered the Kotlin extractor in MobBridge (+ mob_new template) and `MobDev.OtpAssetBundle` strip+zip helper with 7 tests. Next: W3 (build pipeline that wires OtpAssetBundle into `mix mob.release --android` and produces the signed `.aab`).
 
 ---
 
@@ -118,22 +118,28 @@ runtime on first launch (since they can't `adb push` like dev builds).
 
 Mirrors the elixir-desktop example-app pattern. Adds:
 
-- [ ] Strip-from-bundle pass for the OTP tree (same as iOS — drop
+- [x] Strip-from-bundle pass for the OTP tree (same as iOS — drop
       unused libs like megaco, drop standalone executables, etc.)
-- [ ] `zip -9r android/app/src/main/assets/otp.zip ...` (excluding
-      `.so` files; those go to `jniLibs/`)
+      — `MobDev.OtpAssetBundle.build/3` (mob_dev)
+- [x] `zip -9r android/app/src/main/assets/otp.zip ...` (excluding
+      `.so` files; those go to `jniLibs/`) — same module
 - [ ] Copy `.so` files from OTP into
       `android/app/src/main/jniLibs/<abi>/` (mob already has this
-      mechanism for ERTS helpers like `erl_child_setup`)
-- [ ] Kotlin extractor in `MobBridge.kt` (or new `MobOtpExtractor.kt`):
-  - [ ] On startup, check `<filesDir>/otp/.installed_version`
-  - [ ] If absent or doesn't match `packageInfo.lastUpdateTime`,
+      mechanism for ERTS helpers like `erl_child_setup`) — deferred
+      to W3 build pipeline since it's tied to where build outputs land
+- [x] Kotlin extractor in `MobBridge.kt` (or new `MobOtpExtractor.kt`):
+  - [x] On startup, check `<filesDir>/otp/.installed_version`
+  - [x] If absent or doesn't match `packageInfo.lastUpdateTime`,
         delete `<filesDir>/otp/` and extract `assets/otp.zip` into it
-  - [ ] Write `lastUpdateTime` to `.installed_version`
-  - [ ] Then proceed with the existing BEAM startup (which reads
+  - [x] Write `lastUpdateTime` to `.installed_version`
+  - [x] Then proceed with the existing BEAM startup (which reads
         `<filesDir>/otp/`)
-- [ ] mob_new template gets the extractor too — every fresh app
+- [x] mob_new template gets the extractor too — every fresh app
       ships with the asset-bundling path ready
+
+**Status: W2.5 substantially done.** Only the `.so` → jniLibs copy
+is deferred; that lives more naturally in W3 alongside the bundle
+output path resolution.
 
 ### Workstream 3 — Build pipeline (`mix mob.release --android`) (~3 hrs)
 
