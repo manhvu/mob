@@ -31,3 +31,7 @@ user_issues.md
 /docs
 
 *.DS_Store*
+.dexter.db*
+
+# Rust binary artifacts
+/target/

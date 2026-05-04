@@ -13,7 +13,9 @@ defmodule Mob.MixProject do
       source_url: "https://github.com/genericjam/mob",
       homepage_url: "https://hexdocs.pm/mob",
       package: package(),
-      docs: docs()
+      docs: docs(),
+      # Rustler configuration
+      rustler_crates: rustler_crates()
     ]
   end
 
@@ -96,6 +98,16 @@ defmodule Mob.MixProject do
 
   defp before_closing_body_tag(_), do: ""
 
+  # Rustler crate configuration
+  defp rustler_crates do
+    [
+      mob_nif: [
+        path: "native/mob_nif",
+        mode: (if Mix.env() == :prod, do: :release, else: :debug)
+      ]
+    ]
+  end
+
   defp elixirc_paths(:test), do: ["lib", "test/onboarding", "test/onboarding/support"]
   defp elixirc_paths(_), do: ["lib"]
 
@@ -117,6 +129,7 @@ defmodule Mob.MixProject do
       # HTML/HEEx template engine — same one Phoenix uses
       # {:phoenix_live_view, "~> 1.0", optional: true},  # add when HEEx rendering lands
       {:nimble_parsec, "~> 1.0"},
+      {:rustler, "~> 0.37.3", runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:jump_credo_checks, "~> 0.1.0", only: [:dev, :test], runtime: false}
