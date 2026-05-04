@@ -23,15 +23,186 @@ defmodule Mob.WebView do
         # A navigation attempt was blocked by the allow: whitelist
         {:noreply, socket}
       end
+
+  ## Interact API
+
+  Similar to `Mob.Test`, `Mob.WebView.interact/2` provides a high-level API
+  for driving WebView content from Elixir. This is useful for automation,
+  testing, or programmatic control of WebView content:
+
+      # Tap an element by selector
+      Mob.WebView.interact(socket, {:tap, ".submit-button"})
+
+      # Type text into an input
+      Mob.WebView.interact(socket, {:type, "#search", "query text"})
+
+      # Evaluate JS and get result via handle_info
+      Mob.WebView.interact(socket, {:eval, "document.title"})
+
+  Results arrive as:
+
+      handle_info({:webview, :eval_result, %{"result" => ...}}, socket)
+      handle_info({:webview, :interact_result, %{"action" => ..., "success" => ...}}, socket)
   """
 
   @doc """
   Evaluate arbitrary JavaScript in the current WebView and return the result
   asynchronously via `handle_info({:webview, :eval_result, result}, socket)`.
+
+  The result is JSON-decoded before delivery.
   """
   @spec eval_js(Phoenix.LiveView.Socket.t(), String.t()) :: Phoenix.LiveView.Socket.t()
   def eval_js(socket, code) when is_binary(code) do
     :mob_nif.webview_eval_js(code)
+    socket
+  end
+
+  @doc """
+  Navigate to a new URL in the WebView.
+  """
+  @spec navigate(Phoenix.LiveView.Socket.t(), String.t()) :: Phoenix.LiveView.Socket.t()
+  def navigate(socket, url) when is_binary(url) do
+    js = "window.location.href = #{Jason.encode!(url)}"
+    :mob_nif.webview_eval_js(js)
+    socket
+  end
+
+  @doc """
+  Reload the current page.
+  """
+  @spec reload(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def reload(socket) do
+    :mob_nif.webview_eval_js("window.location.reload()")
+    socket
+  end
+
+  @doc """
+  Stop loading the current page.
+  """
+  @spec stop_loading(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def stop_loading(socket) do
+    :mob_nif.webview_eval_js("window.stop()")
+    socket
+  end
+
+  @doc """
+  Go forward in the WebView history (if possible).
+  """
+  @spec go_forward(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def go_forward(socket) do
+    :mob_nif.webview_eval_js("if (window.history.length > 1) window.history.forward()")
+    socket
+  end
+
+  @doc """
+  High-level interact API for driving WebView content programmatically.
+
+  Actions:
+    * `{:tap, selector}` - Tap an element matching CSS selector
+    * `{:type, selector, text}` - Type text into an input element
+    * `{:clear, selector}` - Clear an input element
+    * `{:eval, js_code}` - Evaluate JS and return result via `:eval_result`
+    * `{:scroll, selector, dx, dy}` - Scroll an element by delta
+    * `{:wait, selector, timeout_ms}` - Wait for element to appear (via polling)
+
+  Results arrive as `handle_info({:webview, :interact_result, %{"action" => ..., "success" => ...}}, socket)`.
+  """
+  @spec interact(Phoenix.LiveView.Socket.t(), tuple()) :: Phoenix.LiveView.Socket.t()
+  def interact(socket, action) do
+    js = interact_js(action)
+    :mob_nif.webview_eval_js(js)
+    socket
+  end
+
+  defp interact_js({:tap, selector}) when is_binary(selector) do
+    """
+    (function() {
+      var el = document.querySelector(#{Jason.encode!(selector)});
+      if (el) { el.click(); return {action: "tap", success: true, selector: #{Jason.encode!(selector)}}; }
+      return {action: "tap", success: false, error: "Element not found"};
+    })()
+    """
+  end
+
+  defp interact_js({:type, selector, text}) when is_binary(selector) and is_binary(text) do
+    """
+    (function() {
+      var el = document.querySelector(#{Jason.encode!(selector)});
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        el.value = #{Jason.encode!(text)};
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        return {action: "type", success: true, selector: #{Jason.encode!(selector)}};
+      }
+      return {action: "type", success: false, error: "Input element not found"};
+    })()
+    """
+  end
+
+  defp interact_js({:clear, selector}) when is_binary(selector) do
+    """
+    (function() {
+      var el = document.querySelector(#{Jason.encode!(selector)});
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        el.value = '';
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        return {action: "clear", success: true};
+      }
+      return {action: "clear", success: false};
+    })()
+    """
+  end
+
+  defp interact_js({:eval, code}) when is_binary(code) do
+    code
+  end
+
+  defp interact_js({:scroll, selector, dx, dy})
+       when is_binary(selector) and is_number(dx) and is_number(dy) do
+    """
+    (function() {
+      var el = document.querySelector(#{Jason.encode!(selector)});
+      if (el) { el.scrollLeft += #{dx}; el.scrollTop += #{dy}; return {action: "scroll", success: true}; }
+      return {action: "scroll", success: false};
+    })()
+    """
+  end
+
+  defp interact_js({:wait, selector, timeout_ms})
+       when is_binary(selector) and is_integer(timeout_ms) do
+    """
+    (function() {
+      var timeout = #{timeout_ms};
+      var interval = 100;
+      var elapsed = 0;
+      var check = function() {
+        if (document.querySelector(#{Jason.encode!(selector)})) {
+          return {action: "wait", success: true, selector: #{Jason.encode!(selector)}};
+        }
+        elapsed += interval;
+        if (elapsed >= timeout) {
+          return {action: "wait", success: false, error: "Timeout waiting for element"};
+        }
+        setTimeout(check, interval);
+      };
+      check();
+    })()
+    """
+  end
+
+  defp interact_js(_), do: "throw new Error('Unknown interact action')"
+
+  @doc """
+  Take a screenshot of the WebView content.
+
+  Returns the PNG data as a binary via:
+
+      handle_info({:webview, :screenshot, png_data}, socket)
+
+  Note: Currently not implemented on all platforms.
+  """
+  @spec screenshot(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def screenshot(socket) do
+    :mob_nif.webview_screenshot()
     socket
   end
 

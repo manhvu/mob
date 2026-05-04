@@ -1,8 +1,8 @@
 // MobRootView.swift — SwiftUI entry point. Observes MobViewModel and renders the
 // node tree pushed by BEAM NIFs via MobViewModel.setRoot().
 
-import SwiftUI
 import AVKit
+import SwiftUI
 import WebKit
 
 // ── Native view component registry ───────────────────────────────────────────
@@ -17,7 +17,8 @@ import WebKit
 //   }
 
 public typealias MobNativeSend = (_ event: String, _ payload: [String: Any]) -> Void
-public typealias MobNativeViewFactory = (_ props: [String: Any], _ send: @escaping MobNativeSend) -> AnyView
+public typealias MobNativeViewFactory = (_ props: [String: Any], _ send: @escaping MobNativeSend) ->
+    AnyView
 
 public final class MobNativeViewRegistry {
     public static let shared = MobNativeViewRegistry()
@@ -29,12 +30,14 @@ public final class MobNativeViewRegistry {
 
     func view(for node: MobNode) -> AnyView? {
         guard let name = node.nativeViewModule,
-              let factory = factories[name],
-              let props = node.nativeViewProps as? [String: Any] else { return nil }
+            let factory = factories[name],
+            let props = node.nativeViewProps as? [String: Any]
+        else { return nil }
         let handle = node.nativeViewHandle
         let send: MobNativeSend = { event, payload in
             if let data = try? JSONSerialization.data(withJSONObject: payload),
-               let json = String(data: data, encoding: .utf8) {
+                let json = String(data: data, encoding: .utf8)
+            {
                 mob_send_component_event(handle, event, json)
             }
         }
@@ -60,11 +63,8 @@ extension View {
     @ViewBuilder
     func mobGestures(_ node: MobNode) -> some View {
         let hasSwipe =
-            node.onSwipe != nil ||
-            node.onSwipeLeft != nil ||
-            node.onSwipeRight != nil ||
-            node.onSwipeUp != nil ||
-            node.onSwipeDown != nil
+            node.onSwipe != nil || node.onSwipeLeft != nil || node.onSwipeRight != nil
+            || node.onSwipeUp != nil || node.onSwipeDown != nil
 
         self
             .ifLet(node.onLongPress) { view, cb in
@@ -87,11 +87,11 @@ extension View {
                             }
                             n.onSwipe?(direction)
                             switch direction {
-                            case "left":  n.onSwipeLeft?()
+                            case "left": n.onSwipeLeft?()
                             case "right": n.onSwipeRight?()
-                            case "up":    n.onSwipeUp?()
-                            case "down":  n.onSwipeDown?()
-                            default:      break
+                            case "up": n.onSwipeUp?()
+                            case "down": n.onSwipeDown?()
+                            default: break
                             }
                         }
                 )
@@ -110,34 +110,34 @@ extension MobNode: Identifiable {
 // power users use raw SF Symbol identifiers (e.g. "globe.americas.fill").
 private func sfSymbolName(_ logical: String) -> String {
     switch logical {
-    case "settings":      return "gear"
-    case "back":          return "chevron.left"
-    case "forward":       return "chevron.right"
-    case "close":         return "xmark"
-    case "add":           return "plus"
-    case "remove":        return "minus"
-    case "edit":          return "pencil"
-    case "check":         return "checkmark"
+    case "settings": return "gear"
+    case "back": return "chevron.left"
+    case "forward": return "chevron.right"
+    case "close": return "xmark"
+    case "add": return "plus"
+    case "remove": return "minus"
+    case "edit": return "pencil"
+    case "check": return "checkmark"
     case "chevron_right": return "chevron.right"
-    case "chevron_left":  return "chevron.left"
-    case "chevron_up":    return "chevron.up"
-    case "chevron_down":  return "chevron.down"
-    case "info":          return "info.circle"
-    case "warning":       return "exclamationmark.triangle"
-    case "error":         return "xmark.circle"
-    case "search":        return "magnifyingglass"
-    case "trash":         return "trash"
-    case "share":         return "square.and.arrow.up"
-    case "more":          return "ellipsis"
-    case "menu":          return "line.3.horizontal"
-    case "refresh":       return "arrow.clockwise"
-    case "favorite":      return "heart"
+    case "chevron_left": return "chevron.left"
+    case "chevron_up": return "chevron.up"
+    case "chevron_down": return "chevron.down"
+    case "info": return "info.circle"
+    case "warning": return "exclamationmark.triangle"
+    case "error": return "xmark.circle"
+    case "search": return "magnifyingglass"
+    case "trash": return "trash"
+    case "share": return "square.and.arrow.up"
+    case "more": return "ellipsis"
+    case "menu": return "line.3.horizontal"
+    case "refresh": return "arrow.clockwise"
+    case "favorite": return "heart"
     case "favorite_filled": return "heart.fill"
-    case "star":          return "star"
-    case "star_filled":   return "star.fill"
-    case "user":          return "person"
-    case "home":          return "house"
-    default:              return logical  // raw SF Symbol pass-through
+    case "star": return "star"
+    case "star_filled": return "star.fill"
+    case "user": return "person"
+    case "home": return "house"
+    default: return logical  // raw SF Symbol pass-through
     }
 }
 
@@ -149,10 +149,10 @@ extension MobNode {
     /// EdgeInsets that honour per-edge padding props (padding_top etc.).
     /// Falls back to the uniform `padding` value for any unset edge.
     var paddingEdgeInsets: EdgeInsets {
-        let top    = paddingTop    >= 0 ? paddingTop    : padding
-        let right  = paddingRight  >= 0 ? paddingRight  : padding
+        let top = paddingTop >= 0 ? paddingTop : padding
+        let right = paddingRight >= 0 ? paddingRight : padding
         let bottom = paddingBottom >= 0 ? paddingBottom : padding
-        let left   = paddingLeft   >= 0 ? paddingLeft   : padding
+        let left = paddingLeft >= 0 ? paddingLeft : padding
         return EdgeInsets(top: top, leading: left, bottom: bottom, trailing: right)
     }
 
@@ -161,12 +161,12 @@ extension MobNode {
         let size: CGFloat = textSize > 0 ? textSize : 16.0
         let weight: Font.Weight = {
             switch fontWeight {
-            case "bold":     return .bold
+            case "bold": return .bold
             case "semibold": return .semibold
-            case "medium":   return .medium
-            case "light":    return .light
-            case "thin":     return .thin
-            default:         return .regular
+            case "medium": return .medium
+            case "light": return .light
+            case "thin": return .thin
+            default: return .regular
             }
         }()
         var font: Font
@@ -183,16 +183,16 @@ extension MobNode {
     var textAlignEnum: TextAlignment {
         switch textAlign {
         case "center": return .center
-        case "right":  return .trailing
-        default:       return .leading
+        case "right": return .trailing
+        default: return .leading
         }
     }
 
     var frameTextAlignment: Alignment {
         switch textAlign {
         case "center": return .center
-        case "right":  return .trailing
-        default:       return .leading
+        case "right": return .trailing
+        default: return .leading
         }
     }
 
@@ -214,7 +214,9 @@ struct MobNodeView: View {
             switch node.nodeType {
             case .column:
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
+                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                        MobNodeView(node: child)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(node.paddingEdgeInsets)
@@ -226,7 +228,9 @@ struct MobNodeView: View {
 
             case .row:
                 HStack(spacing: 0) {
-                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
+                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                        MobNodeView(node: child)
+                    }
                 }
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
@@ -237,7 +241,9 @@ struct MobNodeView: View {
 
             case .box:
                 ZStack(alignment: .topLeading) {
-                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
+                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                        MobNodeView(node: child)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(node.paddingEdgeInsets)
@@ -249,8 +255,10 @@ struct MobNodeView: View {
                     // taps inside the border's bounding rect to the overlay instead of
                     // the box's children, swallowing tap events on every nested button.
                     RoundedRectangle(cornerRadius: node.cornerRadius)
-                        .stroke(node.borderColor.map { Color($0) } ?? Color.clear,
-                                lineWidth: node.borderWidth)
+                        .stroke(
+                            node.borderColor.map { Color($0) } ?? Color.clear,
+                            lineWidth: node.borderWidth
+                        )
                         .allowsHitTesting(false)
                 )
                 .ifLet(node.onTap) { view, tap in
@@ -310,12 +318,16 @@ struct MobNodeView: View {
                 ScrollView(axes, showsIndicators: node.showIndicator) {
                     if isHorizontal {
                         HStack(alignment: .top, spacing: 0) {
-                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
+                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                                MobNodeView(node: child)
+                            }
                         }
                         .frame(maxHeight: .infinity, alignment: .topLeading)
                     } else {
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in MobNodeView(node: child) }
+                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                                MobNodeView(node: child)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -404,23 +416,37 @@ struct MobNodeView: View {
 
             case .video:
                 if let src = node.src {
-                    MobVideoPlayer(src: src, autoplay: node.videoAutoplay,
-                                   loop: node.videoLoop, controls: node.videoControls)
-                        .ifLet(node.fixedWidth  > 0 ? node.fixedWidth  : nil) { v, w in v.frame(width:  CGFloat(w)) }
-                        .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
-                        .padding(node.paddingEdgeInsets)
+                    MobVideoPlayer(
+                        src: src, autoplay: node.videoAutoplay,
+                        loop: node.videoLoop, controls: node.videoControls
+                    )
+                    .ifLet(node.fixedWidth > 0 ? node.fixedWidth : nil) { v, w in
+                        v.frame(width: CGFloat(w))
+                    }
+                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in
+                        v.frame(height: CGFloat(h))
+                    }
+                    .padding(node.paddingEdgeInsets)
                 }
 
             case .cameraPreview:
                 MobCameraPreviewView(facing: node.cameraFacing)
-                    .ifLet(node.fixedWidth  > 0 ? node.fixedWidth  : nil) { v, w in v.frame(width:  CGFloat(w)) }
-                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
+                    .ifLet(node.fixedWidth > 0 ? node.fixedWidth : nil) { v, w in
+                        v.frame(width: CGFloat(w))
+                    }
+                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in
+                        v.frame(height: CGFloat(h))
+                    }
                     .padding(node.paddingEdgeInsets)
 
             case .webView:
                 MobWebView(node: node)
-                    .ifLet(node.fixedWidth  > 0 ? node.fixedWidth  : nil) { v, w in v.frame(width:  CGFloat(w)) }
-                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in v.frame(height: CGFloat(h)) }
+                    .ifLet(node.fixedWidth > 0 ? node.fixedWidth : nil) { v, w in
+                        v.frame(width: CGFloat(w))
+                    }
+                    .ifLet(node.fixedHeight > 0 ? node.fixedHeight : nil) { v, h in
+                        v.frame(height: CGFloat(h))
+                    }
                     .padding(node.paddingEdgeInsets)
 
             case .nativeView:
@@ -443,10 +469,12 @@ private struct MobTabView: View {
 
     var body: some View {
         let activeId = node.activeTab ?? (tabs.first?["id"] as? String ?? "")
-        TabView(selection: Binding(
-            get: { activeId },
-            set: { newId in node.onTabSelect?(newId) }
-        )) {
+        TabView(
+            selection: Binding(
+                get: { activeId },
+                set: { newId in node.onTabSelect?(newId) }
+            )
+        ) {
             ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
                 if index < node.childNodes.count {
                     let child = node.childNodes[index]
@@ -489,7 +517,8 @@ private struct MobVideoPlayer: UIViewControllerRepresentable {
         if loop {
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
-                object: player.currentItem, queue: .main) { _ in
+                object: player.currentItem, queue: .main
+            ) { _ in
                 player.seek(to: .zero)
                 player.play()
             }
@@ -557,15 +586,11 @@ extension Notification.Name {
 // ── WebView ───────────────────────────────────────────────────────────────────
 
 private let kMobJsShimSwift =
-    "(function(){" +
-    "if(window.mob)return;" +
-    "var _h=[];" +
-    "window.mob={" +
-      "send:function(d){window.webkit.messageHandlers.mob.postMessage(JSON.stringify(d));}," +
-      "onMessage:function(h){_h.push(h);return function(){_h=_h.filter(function(x){return x!==h;});};}," +
-      "_dispatch:function(j){try{var d=JSON.parse(j);_h.forEach(function(h){h(d);});}catch(e){}}" +
-    "};" +
-    "})();"
+    "(function(){" + "if(window.mob)return;" + "var _h=[];" + "window.mob={"
+    + "send:function(d){window.webkit.messageHandlers.mob.postMessage(JSON.stringify(d));},"
+    + "onMessage:function(h){_h.push(h);return function(){_h=_h.filter(function(x){return x!==h;});};},"
+    + "_dispatch:function(j){try{var d=JSON.parse(j);_h.forEach(function(h){h(d);});}catch(e){}}"
+    + "};" + "})();"
 
 private struct MobWebView: View {
     let node: MobNode
@@ -593,9 +618,10 @@ private struct MobWKWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.userContentController.add(context.coordinator, name: "mob")
-        let shim = WKUserScript(source: kMobJsShimSwift,
-                                injectionTime: .atDocumentStart,
-                                forMainFrameOnly: true)
+        let shim = WKUserScript(
+            source: kMobJsShimSwift,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true)
         config.userContentController.addUserScript(shim)
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.navigationDelegate = context.coordinator
@@ -617,22 +643,55 @@ private struct MobWKWebView: UIViewRepresentable {
 
         // JS → Elixir: window.mob.send(data) arrives here.
         // Delegates to mob_deliver_webview_message() in mob_nif.m.
-        func userContentController(_ ucc: WKUserContentController,
-                                   didReceive message: WKScriptMessage) {
+        func userContentController(
+            _ ucc: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
             guard message.name == "mob", let json = message.body as? String else { return }
             mob_deliver_webview_message(json)
         }
 
+        // Handle JS evaluation results and deliver to Elixir
+        func webView(_ wv: WKWebView, didFinishEvaluatingJavaScript jsResult: Any?, error: Error?) {
+        if let error = error {
+            let errorJson = "{\"error\": \"\(error.localizedDescription)\""}\n            mob_deliver_webview_eval_result(errorJson)
+        } else if let result = jsResult {
+            let json: String
+            if let stringResult = result as? String {
+                json = "{\"result\": \"\(stringResult)\""}\n            } else if let numberResult = result as? NSNumber {
+                json = "{\"result\": \(numberResult)}\n            } else if let boolResult = result as? Bool {
+                json = "{\"result\": \(boolResult)}\n            } else {
+                json = "{\"result\": null}"\n            }\n            mob_deliver_webview_eval_result(json)\n        }\n        }
+
+        
+        // Take screenshot of WebView content
+        func takeScreenshot(_ wv: WKWebView, completion: @escaping (Data?) -> Void) {
+            let config = WKSnapshotConfiguration()
+            wv.takeSnapshot(with: config) { image, error in
+                if let image = image {
+                    completion(image.pngData())
+                } else {
+                    completion(nil)
+                }
+            }
+        }
+
         // URL whitelist enforcement.
-        func webView(_ wv: WKWebView,
-                     decidePolicyFor action: WKNavigationAction,
-                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        func webView(
+            _ wv: WKWebView,
+            decidePolicyFor action: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
             guard let url = action.request.url?.absoluteString else {
-                decisionHandler(.allow); return
+                decisionHandler(.allow)
+                return
             }
             let allowStr = node.webViewAllow ?? ""
             let allowList = allowStr.split(separator: ",").map(String.init).filter { !$0.isEmpty }
-            guard !allowList.isEmpty else { decisionHandler(.allow); return }
+            guard !allowList.isEmpty else {
+                decisionHandler(.allow)
+                return
+            }
             if allowList.contains(where: { url.hasPrefix($0) }) {
                 decisionHandler(.allow)
             } else {
@@ -661,22 +720,22 @@ private struct MobTextField: View {
 
     private var keyboardType: UIKeyboardType {
         switch node.keyboardTypeStr {
-        case "number":  return .numberPad
+        case "number": return .numberPad
         case "decimal": return .decimalPad
-        case "email":   return .emailAddress
-        case "phone":   return .phonePad
-        case "url":     return .URL
-        default:        return .default
+        case "email": return .emailAddress
+        case "phone": return .phonePad
+        case "url": return .URL
+        default: return .default
         }
     }
 
     private var submitLabel: SubmitLabel {
         switch node.returnKeyStr {
-        case "next":   return .next
-        case "go":     return .go
+        case "next": return .next
+        case "go": return .go
         case "search": return .search
-        case "send":   return .send
-        default:       return .done
+        case "send": return .send
+        default: return .done
         }
     }
 
@@ -694,8 +753,7 @@ private struct MobTextField: View {
                 node.onChangeStr?(newValue)
             }
             .onChange(of: isFocused) { _, focused in
-                if focused { node.onFocus?() }
-                else       { node.onBlur?() }
+                if focused { node.onFocus?() } else { node.onBlur?() }
             }
             // Sync from parent when the `value:` prop changes externally —
             // but only if the user isn't actively typing (which would yank
@@ -779,8 +837,9 @@ private struct MobImage: View {
     var body: some View {
         Group {
             if let src = node.src {
-                if (src.hasPrefix("http://") || src.hasPrefix("https://")),
-                   let url = URL(string: src) {
+                if src.hasPrefix("http://") || src.hasPrefix("https://"),
+                    let url = URL(string: src)
+                {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
@@ -801,7 +860,7 @@ private struct MobImage: View {
             }
         }
         .frame(
-            width:  node.fixedWidth  > 0 ? node.fixedWidth  : nil,
+            width: node.fixedWidth > 0 ? node.fixedWidth : nil,
             height: node.fixedHeight > 0 ? node.fixedHeight : nil
         )
         .clipShape(RoundedRectangle(cornerRadius: node.cornerRadius))
@@ -907,13 +966,13 @@ public struct MobRootView: View {
         switch t {
         case "push":
             return .asymmetric(
-                insertion:  .move(edge: .trailing),
-                removal:    .move(edge: .leading)
+                insertion: .move(edge: .trailing),
+                removal: .move(edge: .leading)
             )
         case "pop":
             return .asymmetric(
-                insertion:  .move(edge: .leading),
-                removal:    .move(edge: .trailing)
+                insertion: .move(edge: .leading),
+                removal: .move(edge: .trailing)
             )
         case "reset":
             return .opacity

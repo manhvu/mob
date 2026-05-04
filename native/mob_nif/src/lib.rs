@@ -1,4 +1,9 @@
 use rustler::{Env, NifResult, Term};
+use std::sync::Mutex;
+
+lazy_static::lazy_static! {
+    static ref CACHED_ENV: Mutex<Option<usize>> = Mutex::new(None);
+}
 
 // Platform detection
 #[cfg(target_os = "android")]
@@ -27,6 +32,50 @@ fn term_or_error<'a>(env: Env<'a>, opt: Option<Term<'a>>) -> NifResult<Term<'a>>
     match opt {
         Some(t) => Ok(t),
         None => Ok(atom(env, "error")),
+    }
+}
+
+// Cache the Erlang environment for use by ObjC callbacks
+#[rustler::nif]
+fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    let env_ptr = env.as_c_arg() as usize;
+    let mut cached = CACHED_ENV.lock().unwrap();
+    *cached = Some(env_ptr);
+    ok(env)
+}
+
+// Deliver webview eval result to Elixir
+// This is called from ObjC when JS evaluation completes
+//
+// TODO: Properly send message to :mob_screen process:
+// 1. Get the :mob_screen pid using erlang:whereis/1 or similar
+// 2. Use rustler::env::env_send() to send the tuple
+// 3. Message format: {:webview, :eval_result, json_binary}
+#[no_mangle]
+pub extern "C" fn mob_deliver_webview_eval_result(json_utf8: *const std::ffi::c_char) {
+    unsafe {
+        if json_utf8.is_null() {
+            return;
+        }
+
+        let json = {
+            let cstr = std::ffi::CStr::from_ptr(json_utf8);
+            match cstr.to_str() {
+                Ok(s) => s.to_string(),
+                Err(_) => return,
+            }
+        };
+
+        // For now, just log the result
+        eprintln!("[Mob] WebView eval result: {}", json);
+
+        // TODO: Send to :mob_screen process
+        // let env = ...; // Need to get Env from cached pointer
+        // let webview_atom = ...;
+        // let eval_result_atom = ...;
+        // let json_term = ...;
+        // let message = (webview_atom, eval_result_atom, json_term);
+        // rustler::env::env_send(&env, pid, message);
     }
 }
 
@@ -418,6 +467,7 @@ fn toast_show<'a>(env: Env<'a>, _message: Term<'a>, _duration: Term<'a>) -> NifR
 #[rustler::nif]
 fn webview_eval_js<'a>(env: Env<'a>, _code: Term<'a>) -> NifResult<Term<'a>> {
     let _c: String = _code.decode()?;
+    // On Android, we need JNIEnv - for now just call the stub
     platform_webview_eval_js(&_c);
     ok(env)
 }
@@ -440,6 +490,14 @@ fn webview_can_go_back<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
 fn webview_go_back<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
     platform_webview_go_back();
     ok(env)
+}
+
+#[rustler::nif]
+fn webview_screenshot<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    // TODO: Capture WebView content as PNG data
+    // iOS: Use WKWebView.takeSnapshot()
+    // Android: Use WebView.capturePicture() or draw to bitmap
+    Ok(atom(env, "not_implemented"))
 }
 
 // ============================================================================
@@ -550,4 +608,70 @@ fn swipe_xy<'a>(
 // Initialize NIF
 // ============================================================================
 
-rustler::init!("Elixir.Mob.Native");
+rustler::init!(
+    "Elixir.Mob.Native",
+    [
+        cache_env,
+        platform,
+        log,
+        log_level,
+        set_transition,
+        set_root,
+        set_taps,
+        register_tap,
+        clear_taps,
+        exit_app,
+        safe_area,
+        haptic,
+        clipboard_put,
+        clipboard_get,
+        share_text,
+        request_permission,
+        biometric_authenticate,
+        location_get_once,
+        location_start,
+        location_stop,
+        camera_capture_photo,
+        camera_capture_video,
+        camera_start_preview,
+        camera_stop_preview,
+        photos_pick,
+        files_pick,
+        audio_start_recording,
+        audio_stop_recording,
+        audio_play,
+        audio_stop_playback,
+        audio_set_volume,
+        motion_start,
+        motion_stop,
+        scanner_scan,
+        notify_schedule,
+        notify_cancel,
+        notify_register_push,
+        take_launch_notification,
+        storage_dir,
+        storage_save_to_photo_library,
+        storage_save_to_media_store,
+        storage_external_files_dir,
+        alert_show,
+        action_sheet_show,
+        toast_show,
+        webview_eval_js,
+        webview_post_message,
+        webview_can_go_back,
+        webview_go_back,
+        webview_screenshot,
+        register_component,
+        deregister_component,
+        ui_tree,
+        ui_debug,
+        tap,
+        tap_xy,
+        type_text,
+        delete_backward,
+        key_press,
+        clear_text,
+        long_press_xy,
+        swipe_xy
+    ]
+);

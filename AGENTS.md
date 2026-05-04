@@ -205,6 +205,23 @@ These are the things we've burned ourselves on. Following them isn't optional.
     No manual `config :nx, ...` or `config :emlx, ...` needed!
     See `examples/ml_app/` for a ready-to-run YOLO detection app.
 
+## 15. **WebView interact API for programmatic control.**
+    `Mob.WebView.interact/2` provides a high-level API for driving WebView
+    content from Elixir, similar to `Mob.Test` but for production use.
+    
+    Available actions:
+    - `{:tap, selector}` - Tap an element by CSS selector
+    - `{:type, selector, text}` - Type text into input fields
+    - `{:clear, selector}` - Clear input fields
+    - `{:eval, js_code}` - Evaluate JS and get result via `handle_info({:webview, :eval_result, ...})`
+    - `{:scroll, selector, dx, dy}` - Scroll elements programmatically
+    - `{:wait, selector, timeout_ms}` - Wait for elements to appear
+    
+    Results arrive as `handle_info({:webview, :interact_result, %{"action" => ..., "success" => ...}}, socket)`.
+    
+    Also added: `navigate/2`, `reload/1`, `stop_loading/1`, `go_forward/1`
+    for complete WebView navigation control.
+
 ## Where to look
 
 | Question | File |

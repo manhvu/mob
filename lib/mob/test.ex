@@ -914,7 +914,118 @@ defmodule Mob.Test do
     end
   end
 
-  # ── Internals ─────────────────────────────────────────────────────────────────
+  # ── WebView ─────────────────────────────────────────────────────────────
+  #
+  # These functions drive the WebView component programmatically.
+  # They call Mob.WebView.interact/2 via RPC.
+
+  @doc """
+  Evaluate JavaScript in the WebView and return the result.
+
+  Result arrives asynchronously via:
+
+      handle_info({:webview, :eval_result, result}, socket)
+
+  Fire-and-forget.
+  """
+  @spec webview_eval(node(), String.t()) :: :ok
+  def webview_eval(node, code) when is_binary(code) do
+    :rpc.call(node, Mob.WebView, :eval_js, [code])
+    :ok
+  end
+
+  @doc """
+  Send a message to the WebView page via window.mob._dispatch().
+
+  Fire-and-forget.
+  """
+  @spec webview_post_message(node(), term()) :: :ok
+  def webview_post_message(node, data) do
+    :rpc.call(node, Mob.WebView, :post_message, [data])
+    :ok
+  end
+
+  @doc """
+  Navigate the WebView to a new URL.
+  """
+  @spec webview_navigate(node(), String.t()) :: :ok
+  def webview_navigate(node, url) when is_binary(url) do
+    :rpc.call(node, Mob.WebView, :navigate, [url])
+    :ok
+  end
+
+  @doc """
+  Reload the current WebView page.
+  """
+  @spec webview_reload(node()) :: :ok
+  def webview_reload(node) do
+    :rpc.call(node, Mob.WebView, :reload, [])
+    :ok
+  end
+
+  @doc """
+  Stop loading the current WebView page.
+  """
+  @spec webview_stop_loading(node()) :: :ok
+  def webview_stop_loading(node) do
+    :rpc.call(node, Mob.WebView, :stop_loading, [])
+    :ok
+  end
+
+  @doc """
+  Go forward in the WebView history.
+  """
+  @spec webview_go_forward(node()) :: :ok
+  def webview_go_forward(node) do
+    :rpc.call(node, Mob.WebView, :go_forward, [])
+    :ok
+  end
+
+  @doc """
+  Tap an element in the WebView by CSS selector.
+
+  Result arrives via:
+
+      handle_info({:webview, :interact_result, %{"action" => "tap", "success" => ...}}, socket)
+  """
+  @spec webview_tap(node(), String.t()) :: :ok
+  def webview_tap(node, selector) when is_binary(selector) do
+    :rpc.call(node, Mob.WebView, :interact, [{:tap, selector}])
+    :ok
+  end
+
+  @doc """
+  Type text into a WebView input element by CSS selector.
+  """
+  @spec webview_type(node(), String.t(), String.t()) :: :ok
+  def webview_type(node, selector, text) when is_binary(selector) and is_binary(text) do
+    :rpc.call(node, Mob.WebView, :interact, [{:type, selector, text}])
+    :ok
+  end
+
+  @doc """
+  Clear a WebView input element by CSS selector.
+  """
+  @spec webview_clear(node(), String.t()) :: :ok
+  def webview_clear(node, selector) when is_binary(selector) do
+    :rpc.call(node, Mob.WebView, :interact, [{:clear, selector}])
+    :ok
+  end
+
+  @doc """
+  Take a screenshot of the WebView content.
+
+  Result arrives via:
+
+      handle_info({:webview, :screenshot, png_data}, socket)
+  """
+  @spec webview_screenshot(node()) :: :ok
+  def webview_screenshot(node) do
+    :rpc.call(node, Mob.WebView, :screenshot, [])
+    :ok
+  end
+
+  # ── Internals ─────────────────────────────────────────────────────────
 
   defp nav(node, action) do
     :rpc.call(node, GenServer, :call, [:mob_screen, {:navigate, action}])
