@@ -183,8 +183,27 @@ These are the things we've burned ourselves on. Following them isn't optional.
 | Per-feature deep dives (events, navigation, theming, ...) | `guides/*.md` |
 | Architecture decisions (one ADR per cross-cutting decision) | `docs/decisions/` |
 | iOS device deployment (provisioning, build chain, gotchas) | `guides/ios_physical_device.md` |
+| iOS ML support (Nx, Axon, EMLX) | `guides/ios_ml_support.md`, `lib/mob/ml/` |
 | Generator templates (mob_new) | `mob_new/priv/templates/mob.new/` |
 | Build / release tooling | `mob_dev/scripts/release/`, `mob_dev/build_release.md` |
+
+## iOS ML Support (Nx ecosystem)
+
+Mob supports machine learning on iOS via the Nx ecosystem:
+
+- **Nx**: Pure Elixir, works on any platform ✅
+- **Axon**: Neural networks, pure Elixir ✅
+- **EMLX**: MLX backend for Apple Silicon — **recommended for iOS** ⚠️
+
+**Not supported on iOS:** Emily (macOS-only), NxIREE, EXLA/XLA, Torchx.
+
+Key constraints:
+1. **No JIT on iOS devices** — W^X policy blocks JIT. Set `LIBMLX_ENABLE_JIT=false`.
+2. **Metal GPU available** — EMLX uses MLX with Metal on iOS devices and simulator.
+3. **Unified memory** — Apple Silicon's shared CPU/GPU memory makes EMLX efficient.
+
+Helper modules: `Mob.ML.EMLX`, `Mob.ML.Nx` in `lib/mob/ml/`.
+Full guide: `guides/ios_ml_support.md`
 
 ## Conventions worth knowing
 

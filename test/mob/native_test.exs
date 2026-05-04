@@ -241,7 +241,7 @@ defmodule Mob.NativeTest do
 
     test "webview_can_go_back returns :true or :false" do
       result = Mob.Native.webview_can_go_back()
-      assert result in [:true, :false]
+      assert result in [true, false]
     end
 
     test "webview_go_back returns :ok" do

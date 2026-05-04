@@ -103,7 +103,7 @@ defmodule Mob.MixProject do
     [
       mob_nif: [
         path: "native/mob_nif",
-        mode: (if Mix.env() == :prod, do: :release, else: :debug)
+        mode: if(Mix.env() == :prod, do: :release, else: :debug)
       ]
     ]
   end

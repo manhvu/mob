@@ -1,0 +1,166 @@
+# iOS ML Support Guide
+
+This guide covers adding machine learning capabilities to Mob apps on iOS using the Nx ecosystem.
+
+## Overview
+
+For iOS development, only these libraries are supported:
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Nx** | ✅ Ready | Pure Elixir, works on any platform |
+| **Axon** | ✅ Ready | Neural networks, pure Elixir |
+| **EMLX** | ⚠️ Setup needed | MLX backend - **recommended for iOS** |
+
+**Not supported on iOS:** Emily (macOS-only), NxIREE, EXLA/XLA, Torchx.
+
+
+
+## Quick Start
+
+### 1. Add Dependencies
+
+In your Mob app's `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:nx, github: "elixir-nx/nx", sparse: "nx"},
+    {:axon, "~> 0.6"},
+    {:emlx, github: "elixir-nx/emlx", branch: "main"}
+  ]
+end
+```
+
+### 2. Configure for iOS
+
+Create or update `config/config.exs`:
+
+```elixir
+# Disable JIT for iOS devices (W^X policy)
+config :emlx, :jit_enabled, false
+
+# Use Metal GPU on iOS (unified memory architecture)
+config :nx, :default_backend, {EMLX.Backend, device: :gpu}
+
+# Or use CPU backend:
+# config :nx, :default_backend, {EMLX.Backend, device: :cpu}
+```
+
+### 3. Initialize in Your App
+
+In your app's startup (e.g., `Mob.App.start/2`):
+
+```elixir
+defmodule MyApp.App do
+  use Mob.App
+
+  def start(_type, _args) do
+    # Initialize ML backend for iOS
+    Mob.ML.Nx.init_for_ios()
+
+    # ... rest of your app startup
+  end
+end
+```
+
+## EMLX on iOS
+
+### Key Considerations
+
+1. **JIT Compilation**: iOS devices enforce W^X (Write XOR Execute) memory protection. JIT compilation is blocked on real devices. Set `LIBMLX_ENABLE_JIT=false` (default).
+
+2. **iOS Simulator**: JIT works in the simulator. You can enable it with `LIBMLX_ENABLE_JIT=true` for development.
+
+3. **Metal GPU**: EMLX uses MLX which leverages Apple's Metal framework. The unified memory architecture of Apple Silicon makes CPU↔GPU data transfer essentially free.
+
+4. **64-bit Floats**: Metal doesn't support 64-bit floats. MLX and EMLX use 32-bit floats.
+
+### Device vs Simulator
+
+```elixir
+# Check if running on iOS device or simulator
+Mob.ML.EMLX.ios_device?()    # true for real device
+Mob.ML.EMLX.ios_simulator?() # true for simulator
+
+# Get platform-appropriate config
+Mob.ML.EMLX.platform_config()
+# Returns %{device: :gpu, jit_enabled: false, metal_jit: false} for device
+```
+
+## Example: Simple Neural Network
+
+```elixir
+defmodule MyApp.Model do
+  require Axon
+
+  def create_model do
+    Axon.input("input", shape: {nil, 784})
+    |> Axon.dense(128, activation: :relu)
+    |> Axon.dropout(rate: 0.5)
+    |> Axon.dense(10, activation: :softmax)
+  end
+
+  def train(model, data, labels) do
+    model
+    |> Axon.Loop.trainer(:categorical_cross_entropy, Axon.Optimizers.adam(0.001))
+    |> Axon.Loop.run(data, labels, epochs: 10)
+  end
+end
+```
+
+## Building for iOS
+
+### Native Build with EMLX
+
+EMLX requires the MLX library. The build process:
+
+1. **For iOS Simulator**: Standard `mix mob.deploy --native` should work.
+
+2. **For iOS Device**: Cross-compile MLX for iOS arm64:
+   - Download precompiled MLX iOS binaries from [mlx-build](https://github.com/cocoa-xu/mlx-build)
+   - Or build from source with iOS SDK
+
+3. **Disable JIT in OTP**: Ensure your OTP build has `--disable-jit` flag.
+
+### Environment Variables
+
+```bash
+# Disable JIT for iOS device builds
+export LIBMLX_ENABLE_JIT=false
+
+# Use specific MLX version
+export LIBMLX_VERSION=0.31.2
+
+# Cache directory for downloaded binaries
+export LIBMLX_CACHE=~/.cache/libmlx
+```
+
+## Limitations
+
+1. **64-bit float operations**: Not supported by Metal. Use 32-bit floats.
+
+2. **Model training**: While possible, training large models on-device is limited by memory and compute. Consider:
+   - Training in the cloud, deploying to device
+   - Using pre-trained models
+   - Quantization for smaller models (EMLX supports 4-bit quantization)
+
+## Troubleshooting
+
+### "JIT not allowed" errors
+Ensure `LIBMLX_ENABLE_JIT=false` and OTP is built with `--disable-jit`.
+
+### "MLX not found" errors
+Check that MLX binaries are available for iOS arm64. You may need to:
+1. Set `LIBMLX_BUILD=true` to build from source
+2. Or provide precompiled binaries via `MLX_ARCHIVE_PATH`
+
+### Memory issues
+Use `EMLX.clear_cache/0` and `EMLX.set_memory_limit/1` to manage GPU memory.
+
+## See Also
+
+- [EMLX Documentation](https://hexdocs.pm/emlx)
+- [Nx Documentation](https://hexdocs.pm/nx)
+- [Axon Documentation](https://hexdocs.pm/axon)
+- [MLX GitHub](https://github.com/ml-explore/mlx)
