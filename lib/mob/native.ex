@@ -106,6 +106,39 @@ defmodule Mob.Native do
   def webview_can_go_back, do: :erlang.nif_error(:nif_not_loaded)
   def webview_go_back, do: :erlang.nif_error(:nif_not_loaded)
 
+  # Linking
+  @doc "Open URL externally"
+  def linking_open_url(_url), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Check if URL can be opened"
+  def linking_can_open(_url), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Get initial URL that launched the app"
+  def linking_initial_url, do: :erlang.nif_error(:nif_not_loaded)
+
+  # Settings
+  @doc "Get a setting value"
+  def settings_get(_key), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Set a setting value"
+  def settings_set(_key, _value), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Watch a setting key for changes"
+  def settings_watch(_key), do: :erlang.nif_error(:nif_not_loaded)
+
+  # Blob
+  @doc "Create a blob from binary data"
+  def blob_create(_data, _type), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Slice a blob"
+  def blob_slice(_ref, _start, _end), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Convert blob to base64"
+  def blob_to_base64(_ref), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Save blob to file"
+  def blob_to_file(_ref, _path), do: :erlang.nif_error(:nif_not_loaded)
+
   # Native view components
   def register_component(_pid), do: :erlang.nif_error(:nif_not_loaded)
   def deregister_component(_handle), do: :erlang.nif_error(:nif_not_loaded)

@@ -203,6 +203,42 @@ defmodule Mob.Renderer do
     },
     progress: %{
       color: :primary
+    },
+    image: %{
+      resize_mode: :cover
+    },
+    switch: %{
+      value: false,
+      track_color: :primary
+    },
+    activity_indicator: %{
+      size: :small,
+      animating: true,
+      color: :primary
+    },
+    modal: %{
+      visible: false,
+      presentation_style: :full_screen
+    },
+    refresh_control: %{
+      refreshing: false
+    },
+    scroll: %{
+      horizontal: false
+    },
+    pressable: %{},
+    safe_area: %{},
+    status_bar: %{
+      bar_style: :default,
+      hidden: false
+    },
+    progress_bar: %{
+      progress: 0.0,
+      indeterminate: false,
+      color: :primary
+    },
+    list: %{
+      scroll: true
     }
   }
 
@@ -329,7 +365,6 @@ defmodule Mob.Renderer do
       {:on_select, {pid, tag}} when is_pid(pid) ->
         [{"on_select", nif.register_tap({pid, tag})}]
 
-      # ── Gestures (Batch 4) ────────────────────────────────────────────────
       # Each maps to a UIGestureRecognizer (iOS) / GestureDetector (Android).
       # The native side fires the registered handle when the gesture ends in
       # the recognized state. Per-widget opt-in — most widgets don't carry
