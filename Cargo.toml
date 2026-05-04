@@ -2,3 +2,5 @@
 resolver = "2"
 
 members = ["native/mob_nif", "native/mob_beam"]
+
+exclude = ["android/jni/rust", "ios/rust"]

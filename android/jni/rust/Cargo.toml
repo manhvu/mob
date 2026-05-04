@@ -1,0 +1,24 @@
+[package]
+name = "mob-beam-android"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mob_beam"
+crate-type = ["cdylib"]  # Dynamic library for JNI
+
+[dependencies]
+jni = { version = "0.21", default-features = false }
+log = "0.4"
+
+[features]
+default = []
+
+# BEAM tuning profiles (mirrors C defines)
+beam_untuned = []
+beam_sbwt_only = []
+beam_full_nerves = []
+beam_use_custom_flags = []
+
+[build-dependencies]
+cbindgen = "0.26"

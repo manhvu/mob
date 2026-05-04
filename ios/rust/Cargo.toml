@@ -1,0 +1,14 @@
+[package]
+name = "mob-beam-ios"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mob_beam_ios"
+crate-type = ["staticlib"]  # Static library for iOS
+
+[dependencies]
+
+[features]
+default = []
+static_sqlite_nif = []
