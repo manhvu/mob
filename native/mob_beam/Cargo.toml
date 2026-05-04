@@ -1,0 +1,27 @@
+[package]
+name = "mob_beam"
+version = "0.1.0"
+authors = []
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = { version = "0.21", default-features = false }
+jni-sys = "0.4"
+lazy_static = "1.5"
+
+[features]
+default = []
+no_beam = []  # Config A: skip BEAM launch for battery baseline
+beam_untuned = []
+beam_sbwt_only = []
+beam_full_nerves = []
+beam_use_custom_flags = []
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-logger = "0.13"
+
+# Custom beam flags can be provided via build.rs when beam_use_custom_flags is enabled
+[build-dependencies]

@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
 
-members = ["native/mob_nif"]
+members = ["native/mob_nif", "native/mob_beam"]
