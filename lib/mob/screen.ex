@@ -564,7 +564,7 @@ defmodule Mob.Screen do
     socket = ensure_safe_area(socket, platform)
 
     # Skip render if nothing changed (except for navigation)
-    changed = socket.__mob__[:changed] || MapSet.new()
+    changed = socket.__mob__.changed
     has_changes = MapSet.size(changed) > 0
     is_navigation = transition != :none
 
@@ -579,7 +579,9 @@ defmodule Mob.Screen do
       socket = Mob.Socket.clear_changed(socket)
       Mob.Socket.put_root_view(socket, :rendered)
     else
-      # Nothing changed, keep existing UI
+      # Nothing changed, keep existing UI but still clear the changed set
+      # so the next render doesn't incorrectly think something changed
+      socket = Mob.Socket.clear_changed(socket)
       socket
     end
   end

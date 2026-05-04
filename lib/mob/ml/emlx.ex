@@ -2,68 +2,81 @@ defmodule Mob.ML.EMLX do
   @moduledoc """
   iOS integration layer for EMLX (MLX backend for Nx).
 
-  This module provides iOS-specific configuration and helpers for using
-  EMLX on iOS devices and simulator.
+  This module provides automatic iOS-specific configuration for using
+  EMLX on iOS devices and simulator. No manual configuration needed.
 
   ## iOS Constraints
 
-  - **Real iOS devices**: JIT is blocked by W^X policy. Set `LIBMLX_ENABLE_JIT=false`
-    (default) and use `--disable-jit` BEAM flag.
-  - **iOS Simulator**: JIT works; can enable with `LIBMLX_ENABLE_JIT=true`.
-  - **Metal GPU**: Available on both devices and simulator with unified memory.
+  - **Real iOS devices**: JIT is automatically disabled (W^X policy)
+  - **iOS Simulator**: JIT works and is auto-enabled for development
+  - **Metal GPU**: Automatically used on Apple Silicon (unified memory)
 
-  ## Usage
+  ## Usage (Zero config!)
 
-      # In your Mob app's config/config.exs:
-      config :nx, :default_backend, {EMLX.Backend, device: :cpu}
+      # That's it! Just use Nx/EMLX as normal.
+      # The backend is automatically configured when your app starts.
 
-      # For GPU (Metal):
-      config :nx, :default_backend, {EMLX.Backend, device: :gpu}
-
-      # Disable JIT for iOS device builds:
-      config :emlx, :jit_enabled, false
+      tensor = Nx.tensor([1.0, 2.0, 3.0])
+      Nx.sum(tensor)  # Uses EMLX backend on iOS, Nx.BinaryBackend elsewhere
   """
 
   @doc """
-  Returns the appropriate EMLX configuration for the current iOS platform.
+  Auto-configures EMLX for the current platform.
 
-  Detects whether running on iOS device or simulator and configures
-  EMLX accordingly.
+  Call this once at app startup. It will:
+  1. Detect if running on iOS device or simulator
+  2. Disable JIT on real devices (required by W^X policy)
+  3. Enable Metal GPU acceleration on Apple Silicon
+  4. Set EMLX as the default Nx backend
+
+  Safe to call multiple times. On non-iOS platforms, this is a no-op.
   """
-  def platform_config do
-    if ios_device?() do
-      %{
-        device: default_device(),
-        jit_enabled: false,
-        metal_jit: false
-      }
+  def setup do
+    if ios_device?() or ios_simulator?() do
+      config = platform_config()
+
+      # Set environment variables for EMLX
+      System.put_env("LIBMLX_ENABLE_JIT", to_string(config.jit_enabled))
+
+      # Set Nx default backend to EMLX with appropriate device
+      Nx.default_backend({EMLX.Backend, device: config.device})
+
+      :mob_nif.log("Mob.ML.EMLX: configured for #{config.device}, JIT=#{config.jit_enabled}")
+      {:ok, config}
     else
-      # iOS Simulator
-      %{
-        device: default_device(),
-        jit_enabled: System.get_env("LIBMLX_ENABLE_JIT", "false") == "true",
-        metal_jit: System.get_env("LIBMLX_ENABLE_JIT", "false") == "true"
-      }
+      # Non-iOS: use default Nx backend
+      :ok
     end
   end
 
   @doc """
-  Sets up EMLX for iOS by configuring environment variables before loading.
+  Returns the appropriate EMLX configuration for the current iOS platform.
 
-  Call this early in your app startup (before any Nx/EMLX calls).
+  Automatically detects device vs simulator and configures appropriately.
   """
-  def setup_for_ios do
-    config = platform_config()
+  def platform_config do
+    cond do
+      ios_device?() ->
+        %{
+          # Metal GPU on Apple Silicon
+          device: :gpu,
+          # JIT blocked by W^X policy
+          jit_enabled: false,
+          metal_jit: false
+        }
 
-    unless config.jit_enabled do
-      # Ensure JIT is disabled for iOS devices
-      System.put_env("LIBMLX_ENABLE_JIT", "false")
+      ios_simulator?() ->
+        %{
+          # Metal GPU in simulator too
+          device: :gpu,
+          # JIT works in simulator
+          jit_enabled: true,
+          metal_jit: true
+        }
+
+      true ->
+        %{device: :cpu, jit_enabled: false, metal_jit: false}
     end
-
-    # Set default device
-    Nx.default_backend({EMLX.Backend, device: config.device})
-
-    :ok
   end
 
   @doc """

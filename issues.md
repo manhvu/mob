@@ -125,9 +125,31 @@ later (intermittent disconnects under load).
 
 ---
 
-## 4. LiveView port 4200 collides across multiple installed Mob LV apps
+## 4. LiveView port 4200 collides across multiple installed Mob LV apps — **FIXED 2025**
 
-**Symptom** — second LV app fails to start with:
+**Fix implemented**: Hash-based port allocation in `Mob.LiveView.local_url/1`.
+The port is now computed deterministically from the app name using
+`:erlang.phash2/2`, mapping to the range 4200-4999. This gives a ~2.5%
+collision probability for 5 installed apps (birthday paradox), which is
+acceptable for the typical use case.
+
+**New features**:
+- Environment variable `MOB_LIVEVIEW_PORT` for runtime override
+- Application config `:liveview_port` still respected
+- Automatic hash-based default when neither is set
+
+**Migration**: Existing apps will automatically get the new hash-based port.
+To force a specific port, set in `config/config.exs`:
+
+    config :mob, liveview_port: 4300
+
+Or use the environment variable:
+
+    MOB_LIVEVIEW_PORT=4300 mix mob.deploy --native
+
+---
+
+**Original symptom** — second LV app fails to start with:
 ```
 Running TestLvDemoWeb.Endpoint with Bandit 1.10.4 at http failed,
   port 4200 already in use

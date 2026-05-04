@@ -38,6 +38,9 @@ defmodule Mob.NativeLogger do
   Checks the platform via the NIF; if `:host`, returns `:ok` without adding
   any handler. Safe to call multiple times.
 
+  On non-mobile platforms (dev/test on Mac/Linux), ensures the default
+  Logger handler is present so logs appear in the console.
+
   Options:
   - `:nif` — NIF module to use (default `:mob_nif`; override in tests)
   """
@@ -51,7 +54,14 @@ defmodule Mob.NativeLogger do
         {:error, {:already_exist, @handler_id}} -> :ok
       end
     else
-      :ok
+      # Non-mobile: ensure default handler exists for console output
+      case :logger.get_handler_config(:default) do
+        {:ok, _} ->
+          :ok
+
+        {:error, :not_found} ->
+          :logger.add_handler(:default, :logger_std_h, %{})
+      end
     end
   end
 

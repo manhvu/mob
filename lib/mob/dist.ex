@@ -66,7 +66,18 @@ defmodule Mob.Dist do
         :crypto.hash(:sha256, app_name) |> Base.encode16() |> String.to_atom()
 
       cookie_str ->
-        String.to_atom(cookie_str)
+        # Validate cookie format to prevent issues
+        if String.length(cookie_str) == 0 or String.length(cookie_str) > 255 do
+          :mob_nif.log("Mob.Dist: invalid cookie length in " <> env_var <> ", using fallback")
+          :crypto.hash(:sha256, app_name) |> Base.encode16() |> String.to_atom()
+        else
+          # Log warning about atom creation (atoms are not GC'd)
+          :mob_nif.log(
+            "Mob.Dist: using cookie from " <> env_var <> " (atoms are not garbage collected)"
+          )
+
+          String.to_atom(cookie_str)
+        end
     end
   end
 

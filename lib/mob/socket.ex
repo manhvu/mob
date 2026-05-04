@@ -32,7 +32,7 @@ defmodule Mob.Socket do
               view_tree: %{},
               nav_stack: [],
               nav_action: nil,
-              # Track changed assigns
+              # Track changed assigns - initialized here so pattern matching always works
               changed: MapSet.new()
             }
 

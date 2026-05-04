@@ -12,7 +12,8 @@ defmodule Mob.App do
         end
 
         def on_start do
-          Mob.Screen.start_root(MyApp.HomeScreen)
+          # Pattern-match start_root so failures crash loudly instead of hanging
+          {:ok, _pid} = Mob.Screen.start_root(MyApp.HomeScreen)
           # ⚠️ Use secure cookies - never hardcode in production!
           cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
           Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)

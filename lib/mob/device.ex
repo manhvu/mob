@@ -165,7 +165,7 @@ defmodule Mob.Device do
         :ok
 
       {:error, reason} ->
-        :logger.warning("Mob.Device: NIF dispatcher not set: #{inspect(reason)}")
+        Logger.warning("Mob.Device: NIF dispatcher not set: #{inspect(reason)}")
     end
 
     {:ok, %{subscribers: %{}, monitors: %{}}}

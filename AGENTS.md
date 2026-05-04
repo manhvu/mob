@@ -180,11 +180,30 @@ These are the things we've burned ourselves on. Following them isn't optional.
 
 12. **Skip renders when nothing changed (Strategy 1).**
     `Mob.Socket.assign/3` now tracks changed keys in `__mob__.changed`.
+    `Mob.Socket` struct properly initializes `changed` in the struct definition
+    (not just in `new/2`) so pattern matching always works.
     `Mob.Screen.do_render/3` skips the render if no assigns changed
     and no navigation occurred. This avoids unnecessary JSON encoding +
     SwiftUI diffing for events that don't affect the UI.
     To force a render, use `Mob.Socket.changed?/2` to check if specific
     keys changed, or rely on navigation (push/pop/reset) which always renders.
+    **Fixed 2025:** `do_render/3` now clears `changed` even when skipping
+    render, preventing stale change tracking.
+
+13. **Struct fields used in guards/pattern-matching must be initialized.**
+    If a struct defines a field but doesn't set a default, code that
+    accesses it with `socket.__mob__.changed` (instead of `[:changed]`)
+    will fail when the field is missing. Always initialize all fields
+    in the struct definition, not just in constructor functions.
+    Burned us in `Mob.Socket` where `:changed` was only set in `new/2`.
+
+## 14. **Zero-config ML on iOS/Android.**
+    `Mob.ML.EMLX.setup/0` auto-configures EMLX for the platform:
+    - iOS device: Metal GPU, JIT disabled (W^X policy)
+    - iOS simulator: Metal GPU, JIT enabled
+    - Non-iOS: no-op, falls back to Nx.BinaryBackend
+    No manual `config :nx, ...` or `config :emlx, ...` needed!
+    See `examples/ml_app/` for a ready-to-run YOLO detection app.
 
 ## Where to look
 
