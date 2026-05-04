@@ -19,15 +19,56 @@ defmodule Mob.Dist do
 
   ## Usage (in your app's start/0)
 
-      Mob.Dist.ensure_started(node: :"mob_demo@127.0.0.1", cookie: :mob_secret)
+      # ⚠️ NEVER use hardcoded cookies in production!
+      # Generate a secure cookie per app and store it securely.
+      cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+      Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
 
   Options:
   - `:node`   — node name atom, e.g. `:"mob_demo@127.0.0.1"` (required on Android)
-  - `:cookie` — cookie atom, e.g. `:mob_secret` (required on Android)
+  - `:cookie` — cookie atom (required on Android) — use `cookie_from_env/2`
   - `:delay`  — ms to wait before starting dist on Android (default: 3_000)
   """
 
   @default_delay 3_000
+
+  @doc """
+  Generate a secure distribution cookie from environment or derive from app name.
+
+  Looks up `env_var` first; if not set, derives a deterministic cookie from
+  the `app_name` string using a hash. The derived cookie is *not* cryptographically
+  random — it just avoids the worst practice of hardcoded atoms like `:secret`.
+
+  For production, **always set the environment variable** to a strong random value:
+
+      # Generate with: openssl rand -hex 32
+      MY_APP_DIST_COOKIE=9f3a... mix mob.deploy
+
+  Examples:
+
+      # From env (recommended):
+      cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+
+      # Fallback (development only):
+      cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", :my_app)
+
+  """
+  @spec cookie_from_env(String.t(), atom() | String.t()) :: atom()
+  def cookie_from_env(env_var, app_name) when is_atom(app_name) do
+    cookie_from_env(env_var, Atom.to_string(app_name))
+  end
+
+  def cookie_from_env(env_var, app_name) when is_binary(app_name) do
+    case System.get_env(env_var) do
+      nil ->
+        # Development fallback: derive from app name
+        :mob_nif.log("Mob.Dist: no " <> env_var <> " set, deriving cookie from app name")
+        :crypto.hash(:sha256, app_name) |> Base.encode16() |> String.to_atom()
+
+      cookie_str ->
+        String.to_atom(cookie_str)
+    end
+  end
 
   @doc """
   Ensure Erlang distribution is running for the current platform.
@@ -52,6 +93,15 @@ defmodule Mob.Dist do
   Android shell launcher reads `mob_node_suffix` from the launch intent
   extras and exports it). When present, the resolved node becomes
   `<base_name>_<suffix>@<host>` — e.g. `test_nif_android_zy22cr@127.0.0.1`.
+
+  ## Security notes
+
+  - **Never commit distribution cookies** to source control.
+  - **Never use hardcoded atoms** like `:secret` or `:mob_secret` in production.
+  - Store cookies in environment variables or secure key storage.
+  - Rotate cookies periodically using `Node.set_cookie/1`.
+  - The `Mob.Diag` module is a permanent target if credentials leak —
+    see `Mob.Diag` docs for mitigation strategies.
   """
   @spec ensure_started(keyword()) :: :ok
   def ensure_started(opts \\ []) do

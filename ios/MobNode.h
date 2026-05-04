@@ -207,6 +207,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Children
 @property (nonatomic, strong, nonnull) NSMutableArray<MobNode*>* children;
 
+/// Create a MobNode tree from a parsed JSON dictionary (Elixir map → NSDictionary).
+/// Returns nil if the dictionary is malformed.
++ (nullable instancetype)fromDictionary:(nonnull NSDictionary*)dict;
+
 @end
 
 NS_ASSUME_NONNULL_END

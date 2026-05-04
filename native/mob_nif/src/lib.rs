@@ -77,8 +77,16 @@ fn set_transition<'a>(env: Env<'a>, transition: Term<'a>) -> NifResult<Term<'a>>
 }
 
 #[rustler::nif]
-fn set_root<'a>(env: Env<'a>, _json: Term<'a>) -> NifResult<Term<'a>> {
-    let _json_str: String = _json.decode()?;
+fn set_root<'a>(env: Env<'a>, json: Term<'a>) -> NifResult<Term<'a>> {
+    let json_str: String = json.decode()?;
+    let transition = get_transition_and_clear();
+    platform_set_root(&json_str, &transition);
+    ok(env)
+}
+
+#[rustler::nif]
+fn set_taps<'a>(env: Env<'a>, _taps: Term<'a>) -> NifResult<Term<'a>> {
+    // TODO: implement batch tap registration
     ok(env)
 }
 

@@ -21,7 +21,7 @@ beam_full_nerves = []
 beam_use_custom_flags = []
 
 [target.'cfg(target_os = "android")'.dependencies]
-android-logger = "0.13"
+android_logger = "0.13"
 
 # Custom beam flags can be provided via build.rs when beam_use_custom_flags is enabled
 [build-dependencies]

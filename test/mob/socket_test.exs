@@ -73,11 +73,17 @@ defmodule Mob.SocketTest do
   end
 
   describe "assign/2 — does not mutate __mob__" do
-    test "assign does not touch __mob__ metadata" do
+    test "assign updates changed set" do
       socket = Socket.new(MyScreen)
-      original_mob = socket.__mob__
       socket = Socket.assign(socket, :foo, :bar)
-      assert socket.__mob__ == original_mob
+      # __mob__ should now have :foo in changed set
+      assert Socket.changed?(socket, :foo)
+    end
+
+    test "assign tracks multiple changes" do
+      socket = Socket.new(MyScreen)
+      socket = Socket.assign(socket, count: 1, name: "test")
+      assert Socket.changed?(socket, [:count, :name])
     end
   end
 

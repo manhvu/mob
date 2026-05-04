@@ -287,3 +287,19 @@ pub fn share_text(text: &str) {
         let _: () = msg_send![init, autorelease];
     }
 }
+
+// ============================================================================
+// UI / Rendering
+// ============================================================================
+
+pub fn set_root(json: &str, transition: &str) {
+    unsafe {
+        let vm: *mut Object = msg_send![class!(MobViewModel), shared];
+        if vm.is_null() {
+            return;
+        }
+        let ns_json = ns_string_from_str(json);
+        let ns_transition = ns_string_from_str(transition);
+        let _: () = msg_send![vm, setRootFromJSON: ns_json, transition: ns_transition];
+    }
+}

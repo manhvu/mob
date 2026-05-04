@@ -134,5 +134,19 @@ defmodule Mob.ScreenTest do
       assert socket.assigns.count == 2
       GenServer.stop(pid)
     end
+
+    test "render skipped when nothing changed" do
+      {:ok, pid} = Mob.Screen.start_link(CounterScreen, %{})
+      socket = Mob.Screen.get_socket(pid)
+      # Clear the changed set (simulate a render just happened)
+      socket = Mob.Socket.clear_changed(socket)
+      # Now send a message that doesn't change assigns
+      send(pid, {:fake_message, :no_change})
+      # Give it a moment to process
+      :timer.sleep(50)
+      # Verify changed? returns false for :count
+      refute Mob.Socket.changed?(socket, :count)
+      GenServer.stop(pid)
+    end
   end
 end

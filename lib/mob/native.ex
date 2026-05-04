@@ -28,6 +28,9 @@ defmodule Mob.Native do
   @doc "Set the root UI tree from JSON"
   def set_root(json), do: :erlang.nif_error(:nif_not_loaded)
 
+  @doc "Batch register tap handlers (replaces clear_taps + individual register_tap)"
+  def set_taps(taps), do: :erlang.nif_error(:nif_not_loaded)
+
   @doc "Register a tap handler, returns handle"
   def register_tap(pid), do: :erlang.nif_error(:nif_not_loaded)
 

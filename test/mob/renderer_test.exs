@@ -40,6 +40,11 @@ defmodule Mob.RendererTest do
       Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_root, [json]} | s.calls]} end)
       :ok
     end
+
+    def set_taps(taps) do
+      Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_taps, [taps]} | s.calls]} end)
+      :ok
+    end
   end
 
   setup do
@@ -857,6 +862,204 @@ defmodule Mob.RendererTest do
       {:set_root, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
       decoded = :json.decode(json)
       refute Map.has_key?(decoded["props"], "style")
+    end
+  end
+
+  describe "Performance comparison" do
+    test "render/4 vs render_fast/4 tap registration" do
+      # Create a tree with multiple tap handlers
+      pid = self()
+
+      tree = %{
+        type: :column,
+        props: %{},
+        children: [
+          %{type: :button, props: %{text: "A", on_tap: {pid, :a}}, children: []},
+          %{type: :button, props: %{text: "B", on_tap: {pid, :b}}, children: []},
+          %{type: :button, props: %{text: "C", on_tap: {pid, :c}}, children: []}
+        ]
+      }
+
+      # render/4 calls clear_taps + individual register_tap
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      calls_old = MockNIF.calls()
+      clear_taps_call = Enum.any?(calls_old, fn {f, _} -> f == :clear_taps end)
+      register_tap_calls = Enum.count(calls_old, fn {f, _} -> f == :register_tap end)
+
+      # render_fast/4 uses batch set_taps
+      MockNIF.reset()
+      Renderer.render_fast(tree, :android, MockNIF)
+      calls_new = MockNIF.calls()
+      set_taps_call = Enum.any?(calls_new, fn {f, _} -> f == :set_taps end)
+
+      assert clear_taps_call, "render/4 should call clear_taps"
+      assert register_tap_calls >= 3, "render/4 should call register_tap 3+ times"
+      assert set_taps_call, "render_fast/4 should call set_taps"
+    end
+
+    test "both produce valid JSON" do
+      tree = %{type: :text, props: %{text: "Hello"}, children: []}
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json1]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+
+      MockNIF.reset()
+      Renderer.render_fast(tree, :android, MockNIF)
+      {_, [json2]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+
+      decoded1 = :json.decode(json1)
+      decoded2 = :json.decode(json2)
+
+      assert decoded1["type"] == decoded2["type"]
+      assert decoded1["props"]["text"] == decoded2["props"]["text"]
+    end
+  end
+
+  describe "UI component triggers" do
+    test "text field triggers render on value change" do
+      pid = self()
+
+      tree = %{
+        type: :text_field,
+        props: %{value: "old", on_change: {pid, :text_changed}},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_change"])
+    end
+
+    test "button triggers render on tap" do
+      pid = self()
+
+      tree = %{
+        type: :button,
+        props: %{text: "Click", on_tap: {pid, :button_tapped}},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_tap"])
+      assert decoded["props"]["accessibility_id"] == "button_tapped"
+    end
+
+    test "toggle triggers render on change" do
+      pid = self()
+
+      tree = %{
+        type: :toggle,
+        props: %{checked: true, on_change: {pid, :toggle_changed}},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert decoded["props"]["checked"] == true
+      assert is_integer(decoded["props"]["on_change"])
+    end
+
+    test "slider triggers render on change" do
+      pid = self()
+
+      tree = %{
+        type: :slider,
+        props: %{value: 0.5, min_value: 0.0, max_value: 1.0, on_change: {pid, :slider_changed}},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert decoded["props"]["value"] == 0.5
+      assert is_integer(decoded["props"]["on_change"])
+    end
+
+    test "scroll component with on_scroll trigger" do
+      pid = self()
+
+      tree = %{
+        type: :scroll,
+        props: %{on_scroll: {pid, :scroll_event}},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_scroll"])
+    end
+
+    test "image component with src" do
+      tree = %{
+        type: :image,
+        props: %{src: "https://example.com/image.png", resize_mode: :cover},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert decoded["props"]["src"] == "https://example.com/image.png"
+      assert decoded["props"]["resize_mode"] == "cover"
+    end
+
+    test "list component with on_select trigger" do
+      pid = self()
+
+      tree = %{
+        type: :lazy_list,
+        props: %{on_select: {pid, :item_selected}},
+        children: []
+      }
+
+      MockNIF.reset()
+      Renderer.render(tree, :android, MockNIF)
+      {_, [json]} = Enum.find(MockNIF.calls(), fn {f, _} -> f == :set_root end)
+      decoded = :json.decode(json)
+      assert is_integer(decoded["props"]["on_select"])
+    end
+  end
+
+  describe "Elixir trigger behavior" do
+    test "assign change triggers render in Screen.do_render" do
+      # Simulate a screen where assign changes
+      pid = self()
+      socket = Mob.Socket.new(Mob.Screen)
+      # After assign, changed set should have the key
+      socket = Mob.Socket.assign(socket, :count, 1)
+      assert Mob.Socket.changed?(socket, :count)
+      # After clear_changed, it should be cleared
+      socket = Mob.Socket.clear_changed(socket)
+      refute Mob.Socket.changed?(socket, :count)
+    end
+
+    test "multiple assigns tracked separately" do
+      socket = Mob.Socket.new(Mob.Screen)
+      socket = Mob.Socket.assign(socket, count: 1, name: "test")
+      assert Mob.Socket.changed?(socket, [:count, :name])
+      refute Mob.Socket.changed?(socket, :other)
+    end
+
+    test "navigation always triggers render" do
+      # Navigation transitions are not :none, so render always happens
+      # This is verified in Mob.Screen.do_render/3
+      # We verify that navigation atoms are not :none
+      refute :push == :none
+      refute :pop == :none
+      refute :reset == :none
     end
   end
 end

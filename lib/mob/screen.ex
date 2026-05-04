@@ -270,7 +270,7 @@ defmodule Mob.Screen do
   def handle_cast(:__mob_hot_reload__, {module, socket, nav_history, render_mode}) do
     new_socket =
       if render_mode == :render do
-        do_render(module, socket)
+        do_render(module, socket, :hot_reload)
       else
         socket
       end
@@ -563,14 +563,25 @@ defmodule Mob.Screen do
     list_renderers = Map.get(socket.__mob__, :list_renderers, %{})
     socket = ensure_safe_area(socket, platform)
 
-    {tree, active_component_keys} =
-      module.render(socket.assigns)
-      |> Mob.List.expand(list_renderers, self())
-      |> Mob.Component.expand(self(), platform)
+    # Skip render if nothing changed (except for navigation)
+    changed = socket.__mob__[:changed] || MapSet.new()
+    has_changes = MapSet.size(changed) > 0
+    is_navigation = transition != :none
 
-    Mob.ComponentRegistry.reconcile(self(), active_component_keys)
-    {:ok, token} = Mob.Renderer.render(tree, platform, :mob_nif, transition)
-    Mob.Socket.put_root_view(socket, token)
+    if has_changes or is_navigation do
+      {tree, active_component_keys} =
+        module.render(socket.assigns)
+        |> Mob.List.expand(list_renderers, self())
+        |> Mob.Component.expand(self(), platform)
+
+      Mob.ComponentRegistry.reconcile(self(), active_component_keys)
+      {:ok, _token} = Mob.Renderer.render(tree, platform, :mob_nif, transition)
+      socket = Mob.Socket.clear_changed(socket)
+      Mob.Socket.put_root_view(socket, :rendered)
+    else
+      # Nothing changed, keep existing UI
+      socket
+    end
   end
 
   defp ensure_safe_area(socket, platform) do

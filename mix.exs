@@ -46,7 +46,8 @@ defmodule Mob.MixProject do
         "guides/testing.md": [title: "Testing"],
         "guides/publishing.md": [title: "Publishing to App Store / TestFlight"],
         "guides/troubleshooting.md": [title: "Troubleshooting"],
-        "guides/agentic_coding.md": [title: "Agentic Coding"]
+        "guides/agentic_coding.md": [title: "Agentic Coding"],
+        "guides/security.md": [title: "Security Guide"]
       ],
       groups_for_extras: [
         Guides: ~r/guides\/.*/

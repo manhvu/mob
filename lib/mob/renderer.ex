@@ -277,6 +277,34 @@ defmodule Mob.Renderer do
     {:ok, :json_tree}
   end
 
+  # Optimized version that batches tap registrations
+  @spec render_fast(Mob.Screen.t(), atom(), module(), atom()) :: {:ok, :json_tree}
+  def render_fast(tree, platform, nif \\ @default_nif, transition \\ :none) do
+    theme = Theme.current()
+
+    ctx = %{
+      colors: Theme.color_map(theme),
+      spacing: Theme.spacing_map(theme),
+      radii: Theme.radius_map(theme),
+      type_scale: theme.type_scale
+    }
+
+    nif.set_transition(transition)
+
+    {prepared, taps} = prepare_with_taps(tree, nif, platform, ctx)
+
+    # Batch register taps (avoids clear_taps + individual register_tap)
+    nif.set_taps(taps)
+
+    json =
+      prepared
+      |> :json.encode()
+      |> IO.iodata_to_binary()
+
+    nif.set_root(json)
+    {:ok, :json_tree}
+  end
+
   @doc "Return the full color palette map (token → ARGB integer)."
   @spec colors() :: %{atom() => non_neg_integer()}
   def colors, do: @colors
@@ -566,4 +594,73 @@ defmodule Mob.Renderer do
     do: Atom.to_string(v)
 
   defp encode_native_value(v), do: v
+
+  # ── Optimized tree preparation with tap batching ──────────────────────
+
+  defp prepare_with_taps(%{type: type, props: props, children: children}, nif, platform, ctx) do
+    defaults = Map.get(@component_defaults, type, %{})
+    with_defaults = Map.merge(defaults, props)
+
+    {prepared_children, all_taps} =
+      children
+      |> Enum.map(&prepare_with_taps(&1, nif, platform, ctx))
+      |> Enum.unzip()
+
+    {prepared_props, prop_taps} = prepare_props_with_taps(with_defaults, nif, platform, ctx)
+
+    node = %{
+      "type" => Atom.to_string(type),
+      "props" => prepared_props,
+      "children" => prepared_children
+    }
+
+    taps = List.flatten([prop_taps | all_taps])
+    {node, taps}
+  end
+
+  defp prepare_props_with_taps(props, nif, platform, ctx) do
+    {style, base} = Map.pop(props, :style)
+
+    merged =
+      case style do
+        %Mob.Style{props: sp} -> Map.merge(sp, base)
+        nil -> base
+      end
+
+    ios_extras = Map.get(merged, :ios, %{})
+    android_extras = Map.get(merged, :android, %{})
+    platform_extra = if platform == :ios, do: ios_extras, else: android_extras
+
+    final =
+      merged
+      |> Map.delete(:ios)
+      |> Map.delete(:android)
+      |> Map.merge(platform_extra)
+
+    {prepared, taps} =
+      final
+      |> Enum.reduce({%{}, []}, fn
+        {key, value}, {acc, taps} when is_tuple(value) and tuple_size(value) >= 2 ->
+          {pid, tag} = value
+
+          if is_pid(pid) do
+            handle = nif.register_tap({pid, tag})
+            props = Map.put(acc, Atom.to_string(key), handle)
+
+            props =
+              if key == :on_tap,
+                do: Map.put(props, "accessibility_id", Atom.to_string(tag)),
+                else: props
+
+            {props, [handle | taps]}
+          else
+            {Map.put(acc, Atom.to_string(key), resolve_token(key, value, ctx)), taps}
+          end
+
+        {key, value}, {acc, taps} ->
+          {Map.put(acc, Atom.to_string(key), resolve_token(key, value, ctx)), taps}
+      end)
+
+    {prepared, taps}
+  end
 end

@@ -13,7 +13,9 @@ defmodule Mob.App do
 
         def on_start do
           Mob.Screen.start_root(MyApp.HomeScreen)
-          Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
+          # ⚠️ Use secure cookies - never hardcode in production!
+          cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+          Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
         end
       end
 

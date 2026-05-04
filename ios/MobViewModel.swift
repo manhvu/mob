@@ -1,8 +1,8 @@
 // MobViewModel.swift — Shared state store between BEAM NIFs and SwiftUI.
 // NIFs call setRoot() from any thread; the @Published triggers SwiftUI re-render on main.
 
-import SwiftUI
 import Combine
+import SwiftUI
 
 @objc public class MobViewModel: NSObject, ObservableObject {
     @objc public static let shared = MobViewModel()
@@ -27,12 +27,42 @@ import Combine
 
     @objc public func setRoot(_ node: MobNode?, transition: String) {
         DispatchQueue.main.async {
+            // Lightweight check: if node type and child count match, skip rebuild
+            if let new = node, let old = self.root,
+                new.nodeType == old.nodeType,
+                new.children.count == old.children.count
+            {
+                // Quick bail: same structure, just update in place
+                // (SwiftUI will diff the view tree automatically)
+                self.root = new
+                self.rootVersion += 1
+                return
+            }
             self.transition = transition
             self.root = node
             self.rootVersion += 1
             if transition != "none" {
                 self.navVersion += 1
             }
+        }
+    }
+
+    /// Parse JSON string and update root. Called from Rust NIF via ObjC bridge.
+    @objc public func setRootFromJSON(_ json: String, transition: String) {
+        guard let data = json.data(using: .utf8) else {
+            NSLog("[Mob] Failed to convert JSON string to data")
+            return
+        }
+        do {
+            let obj = try JSONSerialization.jsonObject(with: data)
+            guard let dict = obj as? [String: Any] else {
+                NSLog("[Mob] JSON root is not a dictionary")
+                return
+            }
+            let node = MobNode.fromDictionary(dict)
+            setRoot(node, transition: transition)
+        } catch {
+            NSLog("[Mob] JSON parse error: %@", error.localizedDescription)
         }
     }
 

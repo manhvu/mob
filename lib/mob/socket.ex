@@ -31,7 +31,9 @@ defmodule Mob.Socket do
               root_view: nil,
               view_tree: %{},
               nav_stack: [],
-              nav_action: nil
+              nav_action: nil,
+              # Track changed assigns
+              changed: MapSet.new()
             }
 
   @doc """
@@ -63,8 +65,12 @@ defmodule Mob.Socket do
       socket = assign(socket, :count, 0)
   """
   @spec assign(t(), atom(), term()) :: t()
-  def assign(%__MODULE__{assigns: assigns} = socket, key, value) when is_atom(key) do
-    %{socket | assigns: Map.put(assigns, key, value)}
+  def assign(%__MODULE__{assigns: assigns, __mob__: mob} = socket, key, value)
+      when is_atom(key) do
+    # Track that this key changed
+    changed = Map.get(mob, :changed, MapSet.new())
+    changed = MapSet.put(changed, key)
+    %{socket | assigns: Map.put(assigns, key, value), __mob__: Map.put(mob, :changed, changed)}
   end
 
   @doc """
@@ -74,8 +80,18 @@ defmodule Mob.Socket do
       socket = assign(socket, %{count: 0})
   """
   @spec assign(t(), keyword() | map()) :: t()
-  def assign(%__MODULE__{assigns: assigns} = socket, kw) when is_list(kw) or is_map(kw) do
-    %{socket | assigns: Map.merge(assigns, Map.new(kw))}
+  def assign(%__MODULE__{assigns: assigns, __mob__: mob} = socket, kw)
+      when is_list(kw) or is_map(kw) do
+    # Track which keys changed
+    changed = Map.get(mob, :changed, MapSet.new())
+    new_assigns = Map.new(kw)
+
+    changed =
+      Enum.reduce(Map.keys(new_assigns), changed, fn key, acc ->
+        MapSet.put(acc, key)
+      end)
+
+    %{socket | assigns: Map.merge(assigns, new_assigns), __mob__: Map.put(mob, :changed, changed)}
   end
 
   @doc """
@@ -91,6 +107,30 @@ defmodule Mob.Socket do
   @spec put_mob(t(), atom(), term()) :: t()
   def put_mob(%__MODULE__{__mob__: mob} = socket, key, value) do
     %{socket | __mob__: Map.put(mob, key, value)}
+  end
+
+  @doc false
+  @spec clear_changed(t()) :: t()
+  def clear_changed(%__MODULE__{__mob__: mob} = socket) do
+    %{socket | __mob__: Map.put(mob, :changed, MapSet.new())}
+  end
+
+  @doc """
+  Check if any of the given keys have changed since last render.
+
+      if Socket.changed?(socket, [:count, :name]) do
+        # Re-render needed
+      end
+  """
+  @spec changed?(t(), atom() | [atom()]) :: boolean()
+  def changed?(%__MODULE__{__mob__: mob}, key) when is_atom(key) do
+    changed = Map.get(mob, :changed, MapSet.new())
+    MapSet.member?(changed, key)
+  end
+
+  def changed?(%__MODULE__{__mob__: mob}, keys) when is_list(keys) do
+    changed = Map.get(mob, :changed, MapSet.new())
+    Enum.any?(keys, &MapSet.member?(changed, &1))
   end
 
   # ── Navigation API ────────────────────────────────────────────────────────

@@ -170,6 +170,22 @@ These are the things we've burned ourselves on. Following them isn't optional.
     bootstrap), `Logger` output goes to stderr and is invisible. Use
     `:mob_nif.log("message")` for diagnostics during early init.
 
+11. **UI render path: Elixir → JSON → Rust NIF → ObjC → SwiftUI.**
+    The render pipeline flows: `Mob.Renderer.render/4` prepares the tree,
+    encodes to JSON, calls `Mob.Native.set_root(json)`. The Rust NIF
+    (`mob_nif`) passes this to `MobViewModel.setRootFromJSON()` via ObjC.
+    For better performance, use `render_fast/4` which batches tap
+    registrations instead of clearing + re-registering on every render.
+    See `ios/MobNode.m` for JSON-to-UI-node parsing.
+
+12. **Skip renders when nothing changed (Strategy 1).**
+    `Mob.Socket.assign/3` now tracks changed keys in `__mob__.changed`.
+    `Mob.Screen.do_render/3` skips the render if no assigns changed
+    and no navigation occurred. This avoids unnecessary JSON encoding +
+    SwiftUI diffing for events that don't affect the UI.
+    To force a render, use `Mob.Socket.changed?/2` to check if specific
+    keys changed, or rely on navigation (push/pop/reset) which always renders.
+
 ## Where to look
 
 | Question | File |

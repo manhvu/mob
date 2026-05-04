@@ -9,6 +9,32 @@ defmodule Mob.Diag do
   so the functions are present in every shipped app, not just at build
   time on the developer's machine.
 
+  ## Security warnings
+
+  This module is a **permanent target for remote execution** if distribution
+  credentials leak. Any node that can connect to your app's Erlang node
+  can call these functions.
+
+  ### Mitigation strategies
+
+  1. **Use strong, unique cookies** — generate per-app random cookies:
+     ```elixir
+     cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+     ```
+
+  2. **Never commit cookies** to source control.
+
+  3. **Rotate cookies periodically** using `Node.set_cookie/1`.
+
+  4. **Limit network exposure** — use firewalls/VPC to restrict port 9100
+     and 4369 access to trusted machines only.
+
+  5. **Strip in production** — consider removing or disabling this module
+     in release builds by setting `MOB_RELEASE=1` or using code trimming.
+
+  6. **Monitor connections** — log and alert on unexpected `Node.connect`
+     attempts in production.
+
   Don't expand the API surface here without thinking — anything added
   is permanently shipped to every Mob app and a permanent target for
   remote-execution if dist credentials leak.
