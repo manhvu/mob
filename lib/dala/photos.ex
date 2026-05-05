@@ -1,4 +1,5 @@
 defmodule Dala.Photos do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Photo / video library picker.
 

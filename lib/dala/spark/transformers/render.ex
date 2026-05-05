@@ -22,11 +22,12 @@ defmodule Dala.Spark.Transformers.Render do
         render_tree = build_render_tree(screen_entity.children)
 
         # Generate render/1 function
-        render_fn = quote do
-          def render(assigns) do
-            unquote(render_tree)
+        render_fn =
+          quote do
+            def render(assigns) do
+              unquote(render_tree)
+            end
           end
-        end
 
         # Inject the generated code into the module
         {:ok, Spark.Dsl.Transformer.eval(dsl_state, [], render_fn)}
@@ -62,10 +63,11 @@ defmodule Dala.Spark.Transformers.Render do
     struct_module = entity.__struct__
 
     # Get the struct fields (excluding __spark_metadata__)
-    fields = struct_module.__struct__()
-    |> Map.from_struct()
-    |> Map.keys()
-    |> Enum.filter(&(&1 != :__spark_metadata__))
+    fields =
+      struct_module.__struct__()
+      |> Map.from_struct()
+      |> Map.keys()
+      |> Enum.filter(&(&1 != :__spark_metadata__))
 
     # Extract only the props that are set (not nil)
     Enum.reduce(fields, %{}, fn field, acc ->

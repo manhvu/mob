@@ -1,4 +1,5 @@
 defmodule Dala.ML.EMLX do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   iOS integration layer for EMLX (MLX backend for Nx).
 

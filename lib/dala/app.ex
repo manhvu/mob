@@ -193,6 +193,7 @@ defmodule Dala.App do
         raise ArgumentError, "#{inspect(mod)} is not a valid Dala.Screen module"
       end
     end)
+
     :ok
   end
 end

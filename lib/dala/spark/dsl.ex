@@ -68,7 +68,13 @@ defmodule Dala.Spark.Dsl do
 
   # WebView struct module
   defmodule WebView do
-    defstruct url: nil, allow: nil, show_url: nil, title: nil, width: nil, height: nil, __spark_metadata__: nil
+    defstruct url: nil,
+              allow: nil,
+              show_url: nil,
+              title: nil,
+              width: nil,
+              height: nil,
+              __spark_metadata__: nil
   end
 
   # WebView Entity
@@ -123,7 +129,12 @@ defmodule Dala.Spark.Dsl do
 
   # Image struct module
   defmodule Image do
-    defstruct src: nil, resize_mode: nil, width: nil, height: nil, corner_radius: nil, __spark_metadata__: nil
+    defstruct src: nil,
+              resize_mode: nil,
+              width: nil,
+              height: nil,
+              corner_radius: nil,
+              __spark_metadata__: nil
   end
 
   # Image Entity
@@ -143,7 +154,11 @@ defmodule Dala.Spark.Dsl do
 
   # Switch struct module
   defmodule Switch do
-    defstruct value: nil, on_toggle: nil, track_color: nil, thumb_color: nil, __spark_metadata__: nil
+    defstruct value: nil,
+              on_toggle: nil,
+              track_color: nil,
+              thumb_color: nil,
+              __spark_metadata__: nil
   end
 
   # Switch Entity
@@ -352,26 +367,37 @@ defmodule Dala.Spark.Dsl do
       # Validate that all on_tap handlers referenced in buttons exist
       buttons = Spark.Dsl.Transformer.get_entities(dsl_state, [:screen, :button])
 
-      Enum.each(buttons, fn button ->
-        if on_tap = Map.get(button, :on_tap) do
-          # Check that the handler is a valid atom
-          unless is_atom(on_tap) do
-            Spark.Dsl.Verifier.add_error(dsl_state, "button on_tap must be an atom, got: #{inspect(on_tap)}")
+      errors =
+        Enum.flat_map(buttons, fn button ->
+          if on_tap = Map.get(button, :on_tap) do
+            unless is_atom(on_tap) do
+              ["button on_tap must be an atom, got: #{inspect(on_tap)}"]
+            else
+              []
+            end
+          else
+            []
           end
-        end
-      end)
+        end)
 
       # Validate attributes have valid types
       attributes = Spark.Dsl.Transformer.get_entities(dsl_state, [:attributes, :attribute])
 
-      Enum.each(attributes, fn attr ->
-        type = Map.get(attr, :type)
-        unless type in [:integer, :string, :boolean, :float] do
-          Spark.Dsl.Verifier.add_error(dsl_state, "attribute #{inspect(Map.get(attr, :name))} has invalid type: #{inspect(type)}")
-        end
-      end)
+      attr_errors =
+        Enum.flat_map(attributes, fn attr ->
+          type = Map.get(attr, :type)
 
-      {:ok, dsl_state}
+          unless type in [:integer, :string, :boolean, :float] do
+            ["attribute #{inspect(Map.get(attr, :name))} has invalid type: #{inspect(type)}"]
+          else
+            []
+          end
+        end)
+
+      case errors ++ attr_errors do
+        [] -> :ok
+        msgs -> {:error, Enum.join(msgs, "; ")}
+      end
     end
   end
 

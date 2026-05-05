@@ -1,4 +1,5 @@
 defmodule Dala.Location do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Device location (GPS / network).
 

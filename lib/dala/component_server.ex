@@ -1,4 +1,5 @@
 defmodule Dala.ComponentServer do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc false
   # GenServer wrapping a Dala.Component module. Each native_view instance on a
   # screen gets its own process. Started unlinked (isolated from the screen).

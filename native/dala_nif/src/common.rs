@@ -256,6 +256,7 @@ pub fn platform_biometric_authenticate(_reason: &str) {
     println!("[Dala] biometric_authenticate stub");
 }
 
+#[allow(dead_code)]
 pub fn platform_request_permission(_cap: &str) {
     println!("[Dala] request_permission({}) stub", _cap);
 }

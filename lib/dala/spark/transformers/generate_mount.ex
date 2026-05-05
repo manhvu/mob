@@ -28,12 +28,13 @@ defmodule Dala.Spark.Transformers.GenerateMount do
         end)
 
       # Generate the mount function
-      mount_fn = quote do
-        def mount(_params, _session, socket) do
-          socket = unquote_splicing(assign_calls)
-          {:ok, socket}
+      mount_fn =
+        quote do
+          def mount(_params, _session, socket) do
+            socket = unquote_splicing(assign_calls)
+            {:ok, socket}
+          end
         end
-      end
 
       # Inject the generated code into the module
       {:ok, Spark.Dsl.Transformer.eval(dsl_state, [], mount_fn)}

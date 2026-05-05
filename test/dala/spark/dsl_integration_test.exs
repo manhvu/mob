@@ -10,11 +10,11 @@ defmodule Dala.Spark.DslIntegrationTest do
         # Define screen with all UI components
         screen "test_screen" do
           column do
-            text text: "Hello World"
+            text(text: "Hello World")
 
             row do
-              button text: "Button 1", on_tap: :increment
-              button text: "Button 2", on_tap: :decrement
+              button(text: "Button 1", on_tap: :increment)
+              button(text: "Button 2", on_tap: :decrement)
             end
           end
         end
@@ -32,7 +32,8 @@ defmodule Dala.Spark.DslIntegrationTest do
       assert Code.ensure_loaded?(TestAllComponentsScreen)
 
       # Verify mount was generated and works
-      {:ok, socket} = TestAllComponentsScreen.mount(%{}, %{}, Dala.Socket.new(TestAllComponentsScreen))
+      {:ok, socket} =
+        TestAllComponentsScreen.mount(%{}, %{}, Dala.Socket.new(TestAllComponentsScreen))
 
       # Verify render was generated and works
       render_result = TestAllComponentsScreen.render(socket.assigns)
@@ -49,7 +50,7 @@ defmodule Dala.Spark.DslIntegrationTest do
         use Dala.Screen
 
         screen "simple" do
-          text text: "Hello"
+          text(text: "Hello")
         end
       end
 

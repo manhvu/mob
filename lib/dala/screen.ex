@@ -1,4 +1,5 @@
 defmodule Dala.Screen do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Screen behaviour and Spark DSL entry point.
 

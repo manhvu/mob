@@ -1,5 +1,4 @@
 use rustler::{Env, NifResult, Term};
-use std::sync::Mutex;
 
 // Platform detection
 #[cfg(target_os = "android")]
@@ -603,70 +602,4 @@ fn swipe_xy<'a>(
 // Initialize NIF
 // ============================================================================
 
-rustler::init!(
-    "Elixir.Dala.Native",
-    [
-        cache_env,
-        platform,
-        log,
-        log_level,
-        set_transition,
-        set_root,
-        set_taps,
-        register_tap,
-        clear_taps,
-        exit_app,
-        safe_area,
-        haptic,
-        clipboard_put,
-        clipboard_get,
-        share_text,
-        request_permission,
-        biometric_authenticate,
-        location_get_once,
-        location_start,
-        location_stop,
-        camera_capture_photo,
-        camera_capture_video,
-        camera_start_preview,
-        camera_stop_preview,
-        photos_pick,
-        files_pick,
-        audio_start_recording,
-        audio_stop_recording,
-        audio_play,
-        audio_stop_playback,
-        audio_set_volume,
-        motion_start,
-        motion_stop,
-        scanner_scan,
-        notify_schedule,
-        notify_cancel,
-        notify_register_push,
-        take_launch_notification,
-        storage_dir,
-        storage_save_to_photo_library,
-        storage_save_to_media_store,
-        storage_external_files_dir,
-        alert_show,
-        action_sheet_show,
-        toast_show,
-        webview_eval_js,
-        webview_post_message,
-        webview_can_go_back,
-        webview_go_back,
-        webview_screenshot,
-        register_component,
-        deregister_component,
-        ui_tree,
-        ui_debug,
-        tap,
-        tap_xy,
-        type_text,
-        delete_backward,
-        key_press,
-        clear_text,
-        long_press_xy,
-        swipe_xy
-    ]
-);
+rustler::init!("Elixir.Dala.Native");

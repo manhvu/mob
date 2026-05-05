@@ -34,12 +34,12 @@ defmodule Dala.BiometricTest do
     test "success result structure" do
       message = {:biometric, :success}
       assert {:biometric, :success} = message
-    end;
+    end
 
     test "failure result structure" do
       message = {:biometric, :failure}
       assert {:biometric, :failure} = message
-    end;
+    end
 
     test "not_available result structure" do
       message = {:biometric, :not_available}

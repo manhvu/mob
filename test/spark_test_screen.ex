@@ -6,13 +6,13 @@ defmodule Dala.SparkTestScreen do
   use Dala.Spark.Dsl
 
   dala do
-    attribute :count, :integer, default: 0
-    attribute :message, :string, default: "Hello"
+    attribute(:count, :integer, default: 0)
+    attribute(:message, :string, default: "Hello")
 
     screen name: :spark_test do
-      text "Count: @count"
-      button "Increment", on_tap: :increment
-      text "@message"
+      text("Count: @count")
+      button("Increment", on_tap: :increment)
+      text("@message")
     end
   end
 

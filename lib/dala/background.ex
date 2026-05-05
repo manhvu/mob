@@ -1,4 +1,5 @@
 defmodule Dala.Background do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Background execution keep-alive via a silent audio session.
 

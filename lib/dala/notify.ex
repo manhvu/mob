@@ -1,4 +1,5 @@
 defmodule Dala.Notify do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Local and push notifications.
 

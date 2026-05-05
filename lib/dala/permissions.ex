@@ -1,4 +1,5 @@
 defmodule Dala.Permissions do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Request OS-level permissions from the user.
 

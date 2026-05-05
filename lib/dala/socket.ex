@@ -92,7 +92,11 @@ defmodule Dala.Socket do
         MapSet.put(acc, key)
       end)
 
-    %{socket | assigns: Map.merge(assigns, new_assigns), __dala__: Map.put(dala, :changed, changed)}
+    %{
+      socket
+      | assigns: Map.merge(assigns, new_assigns),
+        __dala__: Map.put(dala, :changed, changed)
+    }
   end
 
   @doc """

@@ -1,4 +1,5 @@
 defmodule Dala.Clipboard do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   System clipboard access. No permission required.
 

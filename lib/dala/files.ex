@@ -1,4 +1,5 @@
 defmodule Dala.Files do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   System file picker. Opens the OS document picker (Files app on iOS, SAF on Android).
 

@@ -1,4 +1,5 @@
 defmodule Dala.WebView do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Bidirectional JS bridge for the native WebView component.
 

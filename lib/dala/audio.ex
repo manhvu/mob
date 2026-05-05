@@ -1,4 +1,5 @@
 defmodule Dala.Audio do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Microphone recording and audio playback.
 

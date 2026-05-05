@@ -1,4 +1,5 @@
 defmodule Dala.Scanner do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   QR code and barcode scanner.
 

@@ -1,4 +1,5 @@
 defmodule Dala.Dist do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Platform-aware Erlang distribution startup.
 

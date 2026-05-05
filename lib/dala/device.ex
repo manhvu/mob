@@ -1,4 +1,5 @@
 defmodule Dala.Device do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Cross-platform device events and queries.
 
@@ -44,6 +45,7 @@ defmodule Dala.Device do
   """
 
   use GenServer
+  require Logger
 
   @categories [:app, :display, :audio, :appearance, :power, :thermal, :memory]
   @default_categories [:app, :display, :audio, :appearance, :memory]
@@ -165,7 +167,7 @@ defmodule Dala.Device do
         :ok
 
       {:error, reason} ->
-        Logger.warn("Dala.Device: NIF dispatcher not set: #{inspect(reason)}")
+        Logger.warning("Dala.Device: NIF dispatcher not set: #{inspect(reason)}")
     end
 
     {:ok, %{subscribers: %{}, monitors: %{}}}

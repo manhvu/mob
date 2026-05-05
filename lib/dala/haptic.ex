@@ -1,4 +1,5 @@
 defmodule Dala.Haptic do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Haptic feedback. No permission required on either platform.
 

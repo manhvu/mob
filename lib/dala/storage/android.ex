@@ -1,4 +1,5 @@
 defmodule Dala.Storage.Android do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Android-specific storage locations and MediaStore integration.
 

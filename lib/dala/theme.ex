@@ -1,4 +1,5 @@
 defmodule Dala.Theme do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   Design token system for Dala apps.
 

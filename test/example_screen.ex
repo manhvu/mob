@@ -10,8 +10,8 @@ defmodule Example.SparkScreen do
     end
 
     column padding: 16 do
-      text text: "Hello from Spark DSL!"
-      button text: "Tap me", on_tap: :tapped
+      text(text: "Hello from Spark DSL!")
+      button(text: "Tap me", on_tap: :tapped)
     end
   end
 
@@ -20,5 +20,5 @@ defmodule Example.SparkScreen do
     {:noreply, socket}
   end
 
-  handle_info(_msg, socket), do: {:noreply, socket}
+  def handle_info(_msg, socket), do: {:noreply, socket}
 end

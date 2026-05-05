@@ -28,6 +28,8 @@ defmodule Dala.Storage do
 
   @locations [:temp, :documents, :cache, :app_support]
 
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+
   @doc "Resolve a location atom to its absolute path on the current device."
   @spec dir(atom()) :: String.t()
   def dir(location) when location in @locations do

@@ -10,13 +10,14 @@ defmodule Dala.RendererPerfTest do
     @tag :performance
     test "render/4 handles large trees (1000+ nodes)" do
       # Create a large tree with 1000 text nodes
-      children = Enum.map(1..1000, fn i ->
-        %{
-          type: :text,
-          props: %{text: "Node #{i}"},
-          children: []
-        }
-      end)
+      children =
+        Enum.map(1..1000, fn i ->
+          %{
+            type: :text,
+            props: %{text: "Node #{i}"},
+            children: []
+          }
+        end)
 
       tree = %{
         type: :column,
@@ -41,13 +42,14 @@ defmodule Dala.RendererPerfTest do
 
     test "render_fast/4 handles large trees efficiently" do
       # Create a large tree with tap handlers
-      children = Enum.map(1..1000, fn i ->
-        %{
-          type: :button,
-          props: %{text: "Button #{i}", on_tap: {self(), :"tap_#{i}"}},
-          children: []
-        }
-      end)
+      children =
+        Enum.map(1..1000, fn i ->
+          %{
+            type: :button,
+            props: %{text: "Button #{i}", on_tap: {self(), :"tap_#{i}"}},
+            children: []
+          }
+        end)
 
       tree = %{
         type: :column,
@@ -72,13 +74,14 @@ defmodule Dala.RendererPerfTest do
 
     test "render/4 performance regression baseline" do
       # Simple tree (10 nodes) - baseline measurement
-      children = Enum.map(1..10, fn i ->
-        %{
-          type: :text,
-          props: %{text: "Node #{i}"},
-          children: []
-        }
-      end)
+      children =
+        Enum.map(1..10, fn i ->
+          %{
+            type: :text,
+            props: %{text: "Node #{i}"},
+            children: []
+          }
+        end)
 
       tree = %{
         type: :column,
@@ -90,13 +93,14 @@ defmodule Dala.RendererPerfTest do
       Dala.Renderer.render(tree, :android, MockNIF)
 
       # Timed runs
-      times = Enum.map(1..5, fn _ ->
-        MockNIF.reset()
-        start = System.monotonic_time(:microsecond)
-        Dala.Renderer.render(tree, :android, MockNIF)
-        stop = System.monotonic_time(:microsecond)
-        stop - start
-      end)
+      times =
+        Enum.map(1..5, fn _ ->
+          MockNIF.reset()
+          start = System.monotonic_time(:microsecond)
+          Dala.Renderer.render(tree, :android, MockNIF)
+          stop = System.monotonic_time(:microsecond)
+          stop - start
+        end)
 
       avg_time = Enum.sum(times) / length(times)
       IO.puts("Average render time for 10 nodes: #{avg_time}μs")
@@ -123,13 +127,14 @@ defmodule Dala.RendererPerfTest do
 
     test "wide tree (1000 children) performance" do
       # Create a very wide tree (flat, 1000 children)
-      children = Enum.map(1..1000, fn i ->
-        %{
-          type: :text,
-          props: %{text: "Wide #{i}"},
-          children: []
-        }
-      end)
+      children =
+        Enum.map(1..1000, fn i ->
+          %{
+            type: :text,
+            props: %{text: "Wide #{i}"},
+            children: []
+          }
+        end)
 
       tree = %{
         type: :column,
@@ -149,13 +154,19 @@ defmodule Dala.RendererPerfTest do
 
     test "mixed component tree performance" do
       # Create a tree with different component types
-      children = Enum.map(1..500, fn i ->
-        case rem(i, 3) do
-          0 -> %{type: :text, props: %{text: "Text #{i}"}, children: []}
-          1 -> %{type: :button, props: %{text: "Btn #{i}", on_tap: {self(), :tap}}, children: []}
-          _ -> %{type: :image, props: %{src: "img#{i}.jpg"}, children: []}
-        end
-      end)
+      children =
+        Enum.map(1..500, fn i ->
+          case rem(i, 3) do
+            0 ->
+              %{type: :text, props: %{text: "Text #{i}"}, children: []}
+
+            1 ->
+              %{type: :button, props: %{text: "Btn #{i}", on_tap: {self(), :tap}}, children: []}
+
+            _ ->
+              %{type: :image, props: %{src: "img#{i}.jpg"}, children: []}
+          end
+        end)
 
       tree = %{
         type: :column,
@@ -175,13 +186,14 @@ defmodule Dala.RendererPerfTest do
 
     test "render with large text content" do
       # Create nodes with large text content
-      children = Enum.map(1..100, fn i ->
-        %{
-          type: :text,
-          props: %{text: String.duplicate("Large content ", 1000) <> " #{i}"},
-          children: []
-        }
-      end)
+      children =
+        Enum.map(1..100, fn i ->
+          %{
+            type: :text,
+            props: %{text: String.duplicate("Large content ", 1000) <> " #{i}"},
+            children: []
+          }
+        end)
 
       tree = %{
         type: :column,

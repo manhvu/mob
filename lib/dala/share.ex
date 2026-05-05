@@ -1,4 +1,5 @@
 defmodule Dala.Share do
+  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
   @moduledoc """
   System share sheet. Opens the OS share dialog with a piece of content.
   Fire-and-forget — no response arrives in the BEAM.
