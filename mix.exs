@@ -115,9 +115,9 @@ defmodule Dala.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/genericjam/dala"},
+      links: %{"GitHub" => "https://github.com/manhvu/dala"},
       files: ~w(
-        lib src priv
+        lib native priv
         android ios assets
         mix.exs mix.lock
         README.md LICENSE

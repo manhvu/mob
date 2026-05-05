@@ -7,6 +7,8 @@ BEAM-on-device dalaile framework for Elixir. OTP runs inside your iOS and Androi
 
 > **Status:** Early development. Android emulator and iOS simulator confirmed working. Not yet ready for production use.
 
+original repo [mob](https://github.com/GenericJam/mob)
+
 ## What it is
 
 ```

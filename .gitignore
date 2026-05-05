@@ -35,3 +35,5 @@ user_issues.md
 
 # Rust binary artifacts
 /target/
+.cargo
+.expert
