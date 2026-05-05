@@ -17,6 +17,8 @@ Dala takes an unusual position in the dalaile framework landscape. To understand
                              │  render/1 → component tree
                    ┌─────────▼─────────┐
                    │   Dala.Renderer     │  serialise + token resolution
+                   │   - render/4       │  standard render
+                   │   - render_fast/4  │  batch tap registration (skip clear+re-register)
                    └─────────┬─────────┘
                              │  JSON (set_root NIF call)
               ┌──────────────┴──────────────┐
@@ -29,6 +31,46 @@ Dala takes an unusual position in the dalaile framework landscape. To understand
 BEAM and OTP run **on the device** — embedded inside the APK and the iOS app bundle. There is no server. Your screen logic, navigation state, and business logic all execute locally in the same BEAM node that the user has installed.
 
 The rendering layer is thin: `render/1` returns a plain Elixir map (the component tree), `Dala.Renderer` serialises it to JSON and passes it to the native side via a NIF call. Compose or SwiftUI diff and display it. UI events travel back as NIF callbacks that send messages to the screen GenServer. The BEAM owns state; the native UI is a thin view.
+
+### Dala.Socket changes tracking
+
+`Dala.Socket` now tracks changed assign keys in `__dala__.changed` (initialized in the struct definition, not just in `new/2`). `Dala.Screen.do_render/3` skips rendering when nothing changed and no navigation occurred — avoids unnecessary JSON encoding + native diffing.
+
+Use `Dala.Socket.changed?/2` to check if specific keys changed:
+
+```elixir
+def handle_info({:some_event}, socket) do
+  socket = Dala.Socket.assign(socket, :data, new_data)
+  if Dala.Socket.changed?(socket, :data) do
+    # side effect only when data actually changed
+  end
+  {:noreply, socket}
+end
+```
+
+The `changed` map is cleared after each render (even when skipping), preventing stale tracking.
+
+### Dala.App — the app module
+
+`Dala.App` is the entry point macro. It defines:
+- `navigation/1` callback — declares stack/tab/drawer structure
+- `screens/1` helper — registers screen modules with compile-time validation
+- `otp/1` callback — configures OTP apps to start (e.g., `Ecto.Repo`, `Phoenix.PubSub`)
+
+```elixir
+defmodule MyApp do
+  use Dala.App
+
+  def navigation(_platform) do
+    screens([MyApp.HomeScreen, MyApp.SettingsScreen])
+    stack(:home, root: MyApp.HomeScreen)
+  end
+
+  def otp(_platform) do
+    [MyApp.Repo, MyApp.PubSub]
+  end
+end
+```
 
 ## Erlang distribution for development
 

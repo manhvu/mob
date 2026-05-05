@@ -35,15 +35,25 @@ Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :dala_secret)
 #   openssl rand -hex 32
 #   9f3a7b2c8d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f
 
-# In your app's on_start/0:
+# Option 1: Use Dala.Dist.cookie_from_env/2 (recommended)
 def on_start do
-  cookie = Dala.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+  # Reads from env var, falls back to a default for development
+  cookie = Dala.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app_dev")
+  Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
+end
+
+# Option 2: Manual env var handling
+def on_start do
+  cookie = System.get_env("MY_APP_DIST_COOKIE", "my_app_dev")
+           |> String.to_atom()
   Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
 end
 
 # Set the env var at deploy time:
 MY_APP_DIST_COOKIE=9f3a... mix dala.deploy --device <udid>
 ```
+
+`Dala.Dist.cookie_from_env/2` is the **recommended approach** — it handles secure cookie retrieval from environment variables with a development fallback, and converts to atom safely.
 
 **Rotate cookies periodically:**
 

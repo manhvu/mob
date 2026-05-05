@@ -49,7 +49,31 @@ config :nx, :default_backend, {EMLX.Backend, device: :gpu}
 
 ### 3. Initialize in Your App
 
-In your app's startup (e.g., `Dala.App.start/2`):
+#### Zero-config approach (recommended)
+
+`Dala.ML.EMLX.setup/0` auto-configures EMLX for the platform — no manual `config` needed:
+
+```elixir
+defmodule MyApp.App do
+  use Dala.App
+
+  def start(_type, _args) do
+    # Auto-configures based on platform:
+    # - iOS device: Metal GPU, JIT disabled (W^X policy)
+    # - iOS simulator: Metal GPU, JIT enabled
+    # - Non-iOS: no-op, falls back to Nx.BinaryBackend
+    Dala.ML.EMLX.setup()
+
+    # ... rest of your app startup
+  end
+end
+```
+
+This is the **recommended approach** — no manual `config :nx, ...` or `config :emlx, ...` needed!
+
+#### Manual configuration (advanced)
+
+If you need custom settings, initialize manually:
 
 ```elixir
 defmodule MyApp.App do
@@ -66,11 +90,23 @@ end
 
 ## EMLX on iOS
 
+### Zero-Config Auto-Configuration
+
+`Dala.ML.EMLX.setup/0` handles all platform-specific configuration automatically:
+
+| Platform | GPU | JIT | Notes |
+|----------|-----|-----|-------|
+| iOS device | Metal (`:gpu`) | Disabled | W^X policy blocks JIT |
+| iOS simulator | Metal (`:gpu`) | Enabled | Shares Mac's network stack |
+| Non-iOS | Nx.BinaryBackend | N/A | Falls back to pure Elixir |
+
+Call it once at app startup — no other config needed.
+
 ### Key Considerations
 
-1. **JIT Compilation**: iOS devices enforce W^X (Write XOR Execute) memory protection. JIT compilation is blocked on real devices. Set `LIBMLX_ENABLE_JIT=false` (default).
+1. **JIT Compilation**: iOS devices enforce W^X (Write XOR Execute) memory protection. JIT compilation is blocked on real devices. `Dala.ML.EMLX.setup/0` sets `LIBMLX_ENABLE_JIT=false` automatically for devices.
 
-2. **iOS Simulator**: JIT works in the simulator. You can enable it with `LIBMLX_ENABLE_JIT=true` for development.
+2. **iOS Simulator**: JIT works in the simulator. `Dala.ML.EMLX.setup/0` enables it automatically.
 
 3. **Metal GPU**: EMLX uses MLX which leverages Apple's Metal framework. The unified memory architecture of Apple Silicon makes CPU↔GPU data transfer essentially free.
 

@@ -40,6 +40,13 @@ Key functions for test-mode screens:
 - `Dala.Screen.get_current_module/1` — returns the current screen module (after navigation)
 - `Dala.Screen.get_nav_history/1` — returns the navigation stack as `[{module, socket}]`
 
+`get_current_module/1` and `get_nav_history/1` are also available via `Dala.Test` on live nodes:
+
+```elixir
+Dala.Test.screen(node)         #=> current module (alias for get_current_module)
+Dala.Test.get_nav_history(node) #=> full navigation stack
+```
+
 ## Testing handle_info
 
 Send messages directly to the screen process:
@@ -66,13 +73,30 @@ After `mix dala.connect`, `Dala.Test` gives you a remote view into the running a
 ```elixir
 node = :"my_app_ios@127.0.0.1"
 
+# Current screen module
 Dala.Test.screen(node)    #=> MyApp.HomeScreen
+
+# Live socket assigns
 Dala.Test.assigns(node)   #=> %{count: 3, safe_area: %{top: 62.0, ...}}
+
+# Full widget tree
 Dala.Test.tree(node)      #=> %{type: :column, props: %{...}, children: [...]}
+
+# Find widget by visible text
 Dala.Test.find(node, "Increment")
-#=> [{[0, 1], %{"type" => "button", "props" => %{"text" => "Increment", ...}}}]
-Dala.Test.inspect(node)   # full snapshot: screen + assigns + nav_history + tree
+#=> [{[0, 1], %{"type" => "button", "props" => %{"text" => "Increment", ...}}}]}
+
+# Full snapshot (screen + assigns + nav stack + widget tree)
+Dala.Test.inspect(node)
+#=> %{
+#=>   screen: MyApp.HomeScreen,
+#=>   assigns: %{count: 3, ...},
+#=>   nav_history: [{MyApp.HomeScreen, %{...}}, {MyApp.DetailScreen, %{...}}],
+#=>   tree: %{type: :column, ...}
+#=> }
 ```
+
+`Dala.Test.inspect/1` is the fastest way to get full state — one RPC instead of four.
 
 ### Taps
 

@@ -43,6 +43,7 @@ defmodule Dala.MixProject do
         "guides/navigation.md": [title: "Navigation"],
         "guides/device_capabilities.md": [title: "Device Capabilities"],
         "guides/data.md": [title: "Data & Persistence"],
+        "guides/render_engine.md": [title: "Render Engine"],
         "guides/testing.md": [title: "Testing"],
         "guides/publishing.md": [title: "Publishing to App Store / TestFlight"],
         "guides/troubleshooting.md": [title: "Troubleshooting"],

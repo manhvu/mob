@@ -327,3 +327,11 @@ Dala.Test.inspect(node)
 Or just read the screen's `render/1` function — every interactive widget has a tag
 in its props. The tag atom in `on_tap: {self(), :my_tag}` is what you pass to
 `Dala.Test.tap(node, :my_tag)`.
+
+## Further Reading
+
+- [Render Engine Deep Dive](render_engine.md) — Elixir → JSON → NIF → native pipeline
+- [Components](components.md) — Detailed sigil syntax and component reference
+- [Spark DSL](spark_dsl.md) — In-depth DSL documentation
+- [Theming](theming.md) — Colors, spacing, and typography tokens
+- [Events](events.md) — Event system and message passing

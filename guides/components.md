@@ -439,3 +439,20 @@ bottom_save_tap = {self(), :bottom_save}
 <Button text="Bottom Save" on_tap={bottom_save_tap} />
 """
 ```
+
+## Screen registration with `Dala.App.screens/1`
+
+Register screen modules in your app's `navigation/1` callback using `screens/1`. This validates at compile time that modules are valid `Dala.Screen` modules:
+
+```elixir
+defmodule MyApp do
+  use Dala.App
+
+  def navigation(_platform) do
+    screens([MyApp.HomeScreen, MyApp.SettingsScreen])
+    stack(:home, root: MyApp.HomeScreen)
+  end
+end
+```
+
+See [Navigation](navigation.md) for full details.

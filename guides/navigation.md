@@ -11,12 +11,13 @@ defmodule MyApp do
   use Dala.App
 
   def navigation(_platform) do
+    screens([MyApp.HomeScreen, MyApp.SettingsScreen])
     stack(:home, root: MyApp.HomeScreen)
   end
 end
 ```
 
-Use the helper functions `stack/2`, `tab_bar/1`, and `drawer/1` (imported from `Dala.App`):
+Use `screens/1` to register screen modules (validates at compile time). Then use the helper functions `stack/2`, `tab_bar/1`, and `drawer/1` (imported from `Dala.App`):
 
 ### Stack
 
@@ -145,6 +146,9 @@ The framework automatically picks the right animation based on the navigation ac
 - **Push** — slide in from right (iOS) / slide up (Android)
 - **Pop** — reverse slide
 - **Reset** — cross-fade (no directional animation, no back history)
+- **Tab switch** — cross-fade between tab roots
+
+Animations are native (UIKit / Compose) and respect the current platform's gesture system. The system back gesture (Android hardware back / iOS edge-pan) triggers `pop_screen/1` with the platform's default pop animation.
 
 ## Passing data on pop
 

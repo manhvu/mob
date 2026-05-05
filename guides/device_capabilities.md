@@ -401,6 +401,66 @@ def handle_info({:webview, :blocked, url}, socket) do
 end
 ```
 
+### Programmatic WebView control with `interact/2`
+
+`Dala.WebView.interact/2` provides a high-level API for driving WebView content from Elixir, similar to `Dala.Test` but for production use.
+
+```elixir
+def handle_event("submit", _, socket) do
+  # Tap an element by CSS selector
+  socket = Dala.WebView.interact(socket, {:tap, ".submit-button"})
+  {:noreply, socket}
+end
+
+def handle_event("fill_form", _, socket) do
+  # Type text into an input field
+  socket = Dala.WebView.interact(socket, {:type, "#name", "John Doe"})
+  {:noreply, socket}
+end
+
+def handle_event("clear_input", _, socket) do
+  # Clear an input field
+  socket = Dala.WebView.interact(socket, {:clear, "#name"})
+  {:noreply, socket}
+end
+
+def handle_event("eval_js", _, socket) do
+  # Evaluate JS and get result via handle_info
+  socket = Dala.WebView.interact(socket, {:eval, "document.title"})
+  {:noreply, socket}
+end
+
+def handle_event("scroll_content", _, socket) do
+  # Scroll an element programmatically
+  socket = Dala.WebView.interact(socket, {:scroll, ".content", 0, 100})
+  {:noreply, socket}
+end
+
+def handle_event("wait_for_element", _, socket) do
+  # Wait for an element to appear (with timeout in ms)
+  socket = Dala.WebView.interact(socket, {:wait, ".loaded", 5000})
+  {:noreply, socket}
+end
+
+# Results arrive as:
+def handle_info({:webview, :interact_result, %{"action" => action, "success" => success}}, socket) do
+  {:noreply, socket}
+end
+```
+
+Available actions:
+
+| Action | Format | Description |
+|--------|--------|-------------|
+| Tap | `{:tap, selector}` | Tap an element by CSS selector |
+| Type | `{:type, selector, text}` | Type text into input fields |
+| Clear | `{:clear, selector}` | Clear input fields |
+| Eval | `{:eval, js_code}` | Evaluate JS and get result via `handle_info({:webview, :interact_result, ...})` |
+| Scroll | `{:scroll, selector, dx, dy}` | Scroll elements programmatically |
+| Wait | `{:wait, selector, timeout_ms}` | Wait for elements to appear |
+
+Also available: `Dala.WebView.navigate/2`, `Dala.WebView.reload/1`, `Dala.WebView.stop_loading/1`, `Dala.WebView.go_forward/1` for complete WebView navigation control.
+
 Push a message from Elixir into the page (calls `window.dala.onMessage` handlers):
 
 ```elixir

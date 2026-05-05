@@ -45,6 +45,78 @@ behaviour, distribution quirks, and platform-specific edge cases.
 
 Common issues encountered during development and how to resolve them.
 
+## Screen never renders — `Dala.Screen.start_root` silent failure
+
+**Symptom:** App sits on "Starting BEAM…" splash forever. No crash, no progress.
+
+**Cause:** `Dala.Screen.start_root/1` returns `{:error, reason}` or crashes inside `init/1`.
+If you don't pattern-match the return value, the screen never renders and the failure is silent.
+(Agents.md rule 2)
+
+**Fix:** Always pattern-match in `on_start/0`:
+
+```elixir
+# lib/my_app/application.ex
+{:ok, _pid} = Dala.Screen.start_root(MyApp.HomeScreen)
+```
+
+If it crashes, the `= ` forces a loud failure. Check device logs:
+
+```bash
+adb logcat | grep Elixir   # Android
+# iOS: Console.app → select device → filter "dala"
+```
+
+---
+
+## Early startup debugging — no Logger output
+
+**Symptom:** You added `Logger.info/1` in `on_start/0` or `init/1` but see nothing.
+
+**Cause:** `Logger` isn't rerouted to NSLog/logcat until `Dala.App.start` runs.
+Before that point, `Logger` output goes to stderr and is invisible on device.
+(Agents.md rule 10)
+
+**Fix:** Use `:dala_nif.log/1` for early startup diagnostics:
+
+```elixir
+:dala_nif.log("Reached on_start")
+# ... your init code ...
+:dala_nif.log("About to start root screen")
+```
+
+Switch to `Logger` once the screen is running and you see "Dala.App started" in the log.
+
+---
+
+## `Path.expand` crashes on Android — default args evaluate eagerly
+
+**Symptom:** App crashes on Android with `System.user_home!/1` error.
+
+**Cause:** Code like `System.get_env("ROOTDIR", Path.expand("~/..."))` evaluates
+`Path.expand` *every call*, regardless of whether `ROOTDIR` is set. On Android,
+`HOME` env var isn't set, so `Path.expand` calls `System.user_home!()` which raises.
+(Agents.md rule 1)
+
+**Fix:** Use `case` or `||` to defer expansion:
+
+```elixir
+# Wrong
+defp root_dir do
+  System.get_env("ROOTDIR", Path.expand("~/my_app"))
+end
+
+# Right
+defp root_dir do
+  case System.get_env("ROOTDIR") do
+    nil -> Path.expand("~/my_app")
+    dir -> dir
+  end
+end
+```
+
+---
+
 ## Elixir or Hex version too old
 
 **Symptom:** `mix deps.get` or `mix dala.install` fails with errors like

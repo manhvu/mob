@@ -214,6 +214,43 @@ The unmatched platform's block is silently dropped before serialisation. Use thi
 
 ---
 
+## Dala.Style
+
+`Dala.Style` provides a reusable style struct that can be applied to components:
+
+```elixir
+defmodule MyApp.Styles do
+  import Dala.Style
+
+  def card_style do
+    style(
+      background: :surface,
+      padding: :space_md,
+      corner_radius: :radius_md,
+      border_color: :border,
+      border_width: 1
+    )
+  end
+end
+
+# Apply in render:
+%{type: :box, props: MyApp.Styles.card_style(), children: [...]}
+```
+
+Styles merge with component props — explicit props win over style values.
+
+## Theme integration
+
+All color props resolve through the active `Dala.Theme`. When you use semantic tokens (`:primary`, `:surface`, etc.), changing the theme via `Dala.Theme.set/1` updates every component on the next render.
+
+```elixir
+# Uses theme's primary color
+type: :button, props: %{background: :primary}
+
+# Override theme for a single component
+Dala.Theme.set(Dala.Theme.Citrus)  # All :primary refs become lime-green
+```
+
 ## Component defaults
 
 The renderer injects these defaults for missing styling props. Explicit props always win.

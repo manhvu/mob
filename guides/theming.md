@@ -88,7 +88,7 @@ Dala ships three built-in themes:
 
 There are two ways to set a theme:
 
-**At startup** — pass it to `use Dala.App`. This sets the theme before any screen mounts:
+**At startup** — pass it to `use Dala.App`. This calls `Dala.Theme.set/1` automatically before any screen mounts:
 
 ```elixir
 defmodule MyApp do
@@ -97,7 +97,9 @@ defmodule MyApp do
 end
 ```
 
-**At runtime** — call `Dala.Theme.set/1` from `mount/3` or any event handler. Use this when you want the user to be able to switch themes:
+The `use Dala.App, theme: [...]` option is syntactic sugar for calling `Dala.Theme.set/1` at app start.
+
+**At runtime** — call `Dala.Theme.set/1` directly from `mount/3` or any event handler. Use this when you want the user to be able to switch themes:
 
 ```elixir
 def mount(_params, _session, socket) do

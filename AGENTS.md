@@ -277,6 +277,7 @@ These are the things we've burned ourselves on. Following them isn't optional.
 | Open known issues with diagnoses + fixes | `issues.md` |
 | Speculative ideas, longer-term plans | `future_developments.md`, `wire_tap.md`, `PLAN.md` |
 | Per-feature deep dives (events, navigation, theming, ...) | `guides/*.md` |
+| Render engine deep dive (Elixir → native data transfer) | `guides/render_engine.md` |
 | UI design patterns (sigil vs DSL style) | `guides/ui_design.md` |
 | Architecture decisions (one ADR per cross-cutting decision) | `docs/decisions/` |
 | iOS device deployment (provisioning, build chain, gotchas) | `guides/ios_physical_device.md` |

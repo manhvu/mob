@@ -146,10 +146,61 @@ Called when the screen process is about to stop. Use it for cleanup — cancel t
 
 The default is a no-op. Most screens don't need to implement this.
 
+## Starting screens
+
+### `Dala.Screen.start_root/3`
+
+Called by `Dala.App` to start the root screen of the navigation stack. This is the entry point for your app's UI. If it returns `{:error, reason}`, the app crashes loudly (see AGENTS.md rule #2).
+
+```elixir
+{:ok, pid} = Dala.Screen.start_root(MyApp.HomeScreen, %{}, nil)
+```
+
+### `Dala.Screen.start_link/3`
+
+Starts a screen in `:no_render` mode for testing. Skips NIF calls but runs all Elixir callbacks. Used in `ExUnit` tests:
+
+```elixir
+{:ok, pid} = Dala.Screen.start_link(MyApp.CounterScreen, %{})
+```
+
+### `Dala.Screen.start_link/2` (with `:test` option)
+
+Equivalent to `start_link/3` with `nil` as the third argument. Convenience for tests.
+
+## Event handling: handle_info vs handle_event
+
+### `handle_info/2` — Primary callback
+
+All UI events (taps, text changes, device API results) arrive here as messages sent to the screen process. This is the main event callback for user interactions.
+
+```elixir
+def handle_info({:tap, :save}, socket) do
+  save_data(socket.assigns)
+  {:noreply, socket}
+end
+```
+
+### `handle_event/3` — Programmatic dispatch
+
+Called only via `Dala.Screen.dispatch/3` — used in tests to send string-keyed events. Not invoked for normal UI interactions (those go through `handle_info/2`).
+
+```elixir
+# In tests:
+Dala.Screen.dispatch(pid, "tap", %{"tag" => "save"})
+
+# In the screen:
+def handle_event("tap", %{"tag" => tag}, socket) do
+  {:noreply, socket}
+end
+```
+
+**Rule of thumb:** Use `handle_info/2` for UI events. Use `handle_event/3` only for test dispatch.
+
 ## Lifecycle flow
 
 ```
-start_root/2 or push_screen/2
+start_root/3 or start_link/3
         │
         ▼
    mount/3  ──────────────────────────────────────────────┐
@@ -165,8 +216,26 @@ start_root/2 or push_screen/2
         │                                                  │
         ├── send(pid, msg)  ──────► handle_info/2  ──► render/1
         │                                                  │
+        ├── dispatch event ───────► handle_event/3  ──► render/1 (test only)
+        │                                                  │
         └── screen popped from stack ─► terminate/2  ──────┘
 ```
+
+## terminate/2 — Cleanup callback
+
+Called when the screen process stops (popped from stack, app exit, or error). Use for resource cleanup:
+
+```elixir
+def terminate(_reason, socket) do
+  # Stop camera preview, cancel timers, release resources
+  if preview = socket.assigns[:camera_preview] do
+    Dala.Native.stop_camera_preview(preview)
+  end
+  :ok
+end
+```
+
+The default is a no-op. Most screens don't need it.
 
 ## The socket
 

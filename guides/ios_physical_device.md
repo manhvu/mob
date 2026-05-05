@@ -27,6 +27,28 @@ that gives no obvious error.
 
 ## Happy path
 
+### Build paths: simulator vs device
+
+Dala uses two separate build scripts for iOS:
+
+| Script | Purpose | Called by |
+|--------|---------|----------|
+| `ios/build.sh` | iOS simulator builds | `DalaDev.NativeBuild.build_ios/1` |
+| `ios/build_device.sh` | iOS physical device builds | `DalaDev.NativeBuild.build_ios_physical/2` |
+
+When deploying with `mix dala.deploy`, pass `--device <udid>` to target a physical device:
+
+```bash
+# Simulator (default)
+mix dala.deploy
+
+# Physical device
+mix dala.devices                    # list devices and get the UDID
+mix dala.deploy --device <udid>    # deploy to specific device
+```
+
+`dala_dev` resolves the UDID via `DalaDev.Discovery.IOS.list_devices/0` and selects the correct build path automatically. Do not shortcut this — the simulator and device build chains are different (static linking, OTP bundling, EPMD as in-process thread, etc.).
+
 ### 1. Build OTP from source for `arm64-apple-ios`
 
 ```bash

@@ -220,8 +220,11 @@ Dala.UI.webview(url: Dala.LiveView.local_url("/"))           # http://127.0.0.1:
 Dala.UI.webview(url: Dala.LiveView.local_url("/dashboard"))  # http://127.0.0.1:4000/dashboard
 ```
 
-Use `127.0.0.1` explicitly — not `localhost`. On Android, `localhost` may resolve
-to the host machine rather than the device's own loopback interface.
+Use `127.0.0.1` explicitly — not `localhost`. On Android, `localhost` may resolve to the host machine rather than the device's own loopback interface.
+
+### Port conflict warning
+
+LV port 4200 is **global per device**. Two installed Dala LV apps + one running = the second can't bind. Workaround for now: force-stop the squatter. Real fix tracked in `issues.md` #4 (hash bundle id into port).
 
 ---
 

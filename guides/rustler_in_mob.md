@@ -4,6 +4,11 @@
 
 Dala uses [Rustler](https://github.com/ruster/rustler) to create NIFs (Native Implemented Functions) that bridge Elixir with native code written in Rust. This guide explains how to extend Dala with your own Rust code.
 
+> **Architecture note:** Dala's NIF no longer caches `Env` across calls (unsafe).
+> `cache_env/1` is a stub kept for API compatibility. Message sending from
+> ObjC/Java callbacks uses platform-specific dispatch, not cached env.
+> See `rustler_message_sending.md` for the current approach.
+
 ## When to Use Rustler in Dala
 
 Use Rustler when you need to:
@@ -16,8 +21,9 @@ Use Rustler when you need to:
 
 Dala's Rust code lives in:
 - `dala/native/dala_nif/` - Main NIF library (Rustler-based)
-- `dala/ios/rust/` - iOS-specific Rust code
-- `dala/android/jni/rust/` - Android-specific Rust code
+- `dala/native/dala_nif/src/ios.rs` - iOS-specific (ObjC messaging)
+- `dala/native/dala_nif/src/android.rs` - Android-specific (JNI)
+- `dala/native/dala_nif/src/common.rs` - Shared code and platform dispatch
 
 ## Creating a New NIF Function
 
@@ -169,39 +175,34 @@ pub fn android_specific_task(env: &mut JNIEnv) {
 
 ### Message Delivery from Native to Elixir
 
-To send messages from native code to Elixir processes:
+See `rustler_message_sending.md` for the current approach.
+Dala uses platform-specific dispatch (ObjC message passing on iOS,
+JNI on Android) rather than cached `Env`.
+
+Current status (as of dala 0.5.x):
+- ✅ `cache_env` stub exists for API compatibility
+- ✅ `dala_deliver_webview_eval_result` logs results via `eprintln!`
+- ❌ Direct message sending from callbacks not yet implemented
+
+For now, use `eprintln!` for debugging from native callbacks.
+
+### Environment Handling
+
+Dala's NIF does **not** cache `Env` across NIF calls (unsafe, lifetime issues).
+`cache_env/1` is a no-op stub kept for API compatibility:
 
 ```rust
-#[no_mangle]
-pub extern "C" fn deliver_to_elixir(json_utf8: *const std::ffi::c_char) {
-    unsafe {
-        // Convert C string to Rust string
-        let cstr = std::ffi::CStr::from_ptr(json_utf8);
-        let json = cstr.to_str().unwrap();
-        
-        // Use cached environment to send message
-        // (Implementation depends on your message passing design)
-    }
-}
-```
-
-### Caching Environment for Callbacks
-
-Dala caches the Erlang environment for use by ObjC callbacks:
-
-```rust
-lazy_static::lazy_static! {
-    static ref CACHED_ENV: Mutex<Option<*mut std::ffi::c_void>> = Mutex::new(None);
-}
-
+// lib.rs
 #[rustler::nif]
 fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
-    let env_ptr = env.as_c_arg() as *mut std::ffi::c_void;
-    let mut cached = CACHED_ENV.lock().unwrap();
-    *cached = Some(env_ptr);
+    // Env cannot be safely cached - lifetime tied to NIF call
+    // This stub exists for API compatibility
     ok(env)
 }
 ```
+
+Message sending from ObjC/Java callbacks uses platform-specific dispatch
+(see `rustler_message_sending.md`), not a cached environment.
 
 ## Debugging Tips
 

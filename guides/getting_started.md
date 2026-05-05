@@ -620,6 +620,21 @@ them via Dala would silently break unrelated work.
 
 ## Your first screen
 
+First, register your screen modules in your app module:
+
+```elixir
+defmodule MyApp do
+  use Dala.App
+
+  def navigation(_platform) do
+    screens([MyApp.HomeScreen])  # compile-time validation
+    stack(:home, root: MyApp.HomeScreen)
+  end
+end
+```
+
+Then define the screen:
+
 ```elixir
 defmodule MyApp.HomeScreen do
   use Dala.Screen
@@ -648,6 +663,9 @@ end
 `mount/3` initialises assigns. `render/1` returns the component tree via the `~dala`
 sigil. `handle_info/2` updates state in response to user events. After each update,
 the framework calls `render/1` again and pushes the diff to the native layer.
+
+Use `Dala.Socket.changed?/2` to check if specific keys changed before triggering
+side effects. The `changed` map is tracked automatically — no manual bookkeeping.
 
 ---
 

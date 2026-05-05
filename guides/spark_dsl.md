@@ -194,6 +194,23 @@ def handle_event(:increment, _params, socket) do
 end
 ```
 
+## Integration with Dala.App
+
+Register Spark DSL screens in your app's `navigation/1` using `Dala.App.screens/1`:
+
+```elixir
+defmodule MyApp do
+  use Dala.App
+
+  def navigation(_) do
+    screens([MyApp.HomeScreen, MyApp.CounterScreen, MyApp.SettingsScreen])
+    stack(:home, root: MyApp.HomeScreen)
+  end
+end
+```
+
+`screens/1` validates at compile time that the modules are valid `Dala.Screen` modules (including Spark DSL screens).
+
 ## Migration from Manual Screens
 
 To migrate an existing screen to the Spark DSL:

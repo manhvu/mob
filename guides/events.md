@@ -5,24 +5,20 @@ device. For the underlying design, see [`event_model.md`](event_model.md).
 
 ## TL;DR
 
-Every event in Dala — taps, text changes, gestures, scroll, device lifecycle —
-arrives in your handler as one of two shapes:
+All events arrive as messages to `handle_info/2`. Two shapes:
 
 ```elixir
-# Legacy / Phase 1-3 widgets:
+# Simple (most common):
 {:tap, tag}
 {:change, tag, value}
-{:focus, tag}  {:blur, tag}  {:submit, tag}
+{:compose, tag, %{phase: :committed, text: text}}  # IME composition
 
-# Canonical envelope (recommended for new code):
+# Canonical envelope (includes screen/component context):
 {:dala_event, %Dala.Event.Address{}, event_atom, payload}
 ```
 
-Either path delivers the same logical event; the canonical envelope just
-includes more context (screen, component path, render generation).
-
-`Dala.Event.Bridge` converts legacy → canonical so screens can opt into the
-new shape one at a time.
+Use simple tuples for taps, text, gestures. Use canonical for advanced routing.
+`Dala.Event.Bridge` converts simple → canonical automatically.
 
 ## Quick reference
 
