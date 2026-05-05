@@ -508,3 +508,10 @@ User alias "Nova" = macOS + Nix-managed toolchain throughout.
 - `android/jni/dala_nif.c` — Android NIF implementation (JNI bridge)
 - `ios/dala_beam.m` — iOS BEAM launcher
 - `android/jni/dala_beam.c` — Android BEAM launcher
+
+## Extenal documents
+
+- `spark`  - https://hexdocs.pm/spark/Spark.html
+- `spark repo` - https://github.com/ash-project/spark
+- `rustler` -https://hexdocs.pm/rustler/readme.html
+- `rustler repo` - https://github.com/rusterlium/rustler

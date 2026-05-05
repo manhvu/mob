@@ -96,104 +96,72 @@ defmodule Dala.Socket do
   end
 
   @doc """
-  Store the root view ref returned by the renderer into `__dala__.root_view`.
-  Called internally after the initial render.
+  Queue a push_screen navigation action.
+
+  The screen process will process this on the next render cycle.
   """
-  @spec put_root_view(t(), term()) :: t()
-  def put_root_view(%__MODULE__{__dala__: dala} = socket, ref) do
-    %{socket | __dala__: %{dala | root_view: ref}}
+  @spec push_screen(t(), module(), map()) :: t()
+  def push_screen(%__MODULE__{__dala__: dala} = socket, dest, params \\ %{}) do
+    %{socket | __dala__: Map.put(dala, :nav_action, {:push, dest, params})}
   end
 
-  @doc false
+  @doc """
+  Queue a pop_screen navigation action.
+
+  Pops the current screen from the navigation stack.
+  """
+  @spec pop_screen(t()) :: t()
+  def pop_screen(%__MODULE__{__dala__: dala} = socket) do
+    %{socket | __dala__: Map.put(dala, :nav_action, {:pop})}
+  end
+
+  @doc """
+  Get a value from the internal `__dala__` metadata.
+
+  Used internally by the screen process.
+  """
+  @spec get_dala(t(), atom()) :: term()
+  def get_dala(%__MODULE__{__dala__: dala}, key) do
+    Map.get(dala, key)
+  end
+
+  @doc """
+  Put a value into the internal `__dala__` metadata.
+
+  Used internally by the screen process.
+  """
   @spec put_dala(t(), atom(), term()) :: t()
   def put_dala(%__MODULE__{__dala__: dala} = socket, key, value) do
     %{socket | __dala__: Map.put(dala, key, value)}
   end
 
-  @doc false
-  @spec clear_changed(t()) :: t()
-  def clear_changed(%__MODULE__{__dala__: dala} = socket) do
-    %{socket | __dala__: Map.put(dala, :changed, MapSet.new())}
+  @doc """
+  Store the root view ref returned by the renderer into `__dala__.root_view`.
+  Called internally after the initial render.
+  """
+  @spec put_root_view(t(), term()) :: t()
+  def put_root_view(%__MODULE__{__dala__: dala} = socket, view) do
+    %{socket | __dala__: Map.put(dala, :root_view, view)}
   end
 
   @doc """
-  Check if any of the given keys have changed since last render.
+  Check if a specific key has changed since the last render.
 
-      if Socket.changed?(socket, [:count, :name]) do
-        # Re-render needed
-      end
+  Returns `true` if the key was assigned since the last render.
   """
-  @spec changed?(t(), atom() | [atom()]) :: boolean()
-  def changed?(%__MODULE__{__dala__: dala}, key) when is_atom(key) do
+  @spec changed?(t(), atom()) :: boolean()
+  def changed?(%__MODULE__{__dala__: dala}, key) do
     changed = Map.get(dala, :changed, MapSet.new())
     MapSet.member?(changed, key)
   end
 
-  def changed?(%__MODULE__{__dala__: dala}, keys) when is_list(keys) do
-    changed = Map.get(dala, :changed, MapSet.new())
-    Enum.any?(keys, &MapSet.member?(changed, &1))
-  end
-
-  # ── Navigation API ────────────────────────────────────────────────────────
-
   @doc """
-  Push a new screen onto the navigation stack.
+  Clear the changed set after a render.
 
-  `dest` is either a registered atom name (e.g. `:counter`) or a screen module
-  (e.g. `dalaDemo.CounterScreen`). `params` are passed to the new screen's
-  `mount/3` as the first argument.
-
-  The push is applied after the current callback returns — `do_render` in
-  `Dala.Screen` detects the nav_action and mounts the new module.
+  Called internally after rendering to reset the change tracking.
   """
-  @spec push_screen(t(), atom() | module(), map()) :: t()
-  def push_screen(socket, dest, params \\ %{}) do
-    put_dala(socket, :nav_action, {:push, dest, params})
-  end
-
-  @doc """
-  Pop the current screen, returning to the previous one.
-
-  No-op if already at the root of the stack.
-  """
-  @spec pop_screen(t()) :: t()
-  def pop_screen(socket) do
-    put_dala(socket, :nav_action, {:pop})
-  end
-
-  @doc """
-  Pop the stack until the screen registered under `dest` is at the top.
-
-  `dest` is a registered atom name or module. No-op if not found in history.
-  """
-  @spec pop_to(t(), atom() | module()) :: t()
-  def pop_to(socket, dest) do
-    put_dala(socket, :nav_action, {:pop_to, dest})
-  end
-
-  @doc """
-  Pop to the root of the current navigation stack.
-  """
-  @spec pop_to_root(t()) :: t()
-  def pop_to_root(socket) do
-    put_dala(socket, :nav_action, {:pop_to_root})
-  end
-
-  @doc """
-  Replace the entire navigation stack with a single new screen.
-
-  Used for auth transitions (post-login → home with no back button to login).
-  """
-  @spec reset_to(t(), atom() | module(), map()) :: t()
-  def reset_to(socket, dest, params \\ %{}) do
-    put_dala(socket, :nav_action, {:reset, dest, params})
-  end
-
-  @doc """
-  Switch to the named tab in a tab_bar or drawer layout.
-  """
-  @spec switch_tab(t(), atom()) :: t()
-  def switch_tab(socket, tab) when is_atom(tab) do
-    put_dala(socket, :nav_action, {:switch_tab, tab})
+  @spec clear_changed(t()) :: t()
+  def clear_changed(%__MODULE__{__dala__: dala} = socket) do
+    %{socket | __dala__: Map.put(dala, :changed, MapSet.new())}
   end
 end

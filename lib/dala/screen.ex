@@ -57,10 +57,16 @@ defmodule Dala.Screen do
   @optional_callbacks [handle_event: 3, handle_info: 2, terminate: 2]
 
   defmacro __using__(_opts) do
+    # 1. Set up Spark DSL at module level (outside quote so it affects the caller)
+    use Spark.Dsl.Extension, extensions: [Dala.Spark.Dsl]
+
+    # 2. Inject default implementations inside quote
     quote do
       @behaviour Dala.Screen
       import Dala.Sigil
+      import Dala.Spark.Dsl
 
+      # Default handle_info implementation
       def handle_info(_message, socket), do: {:noreply, socket}
 
       def terminate(_reason, _socket), do: :ok
