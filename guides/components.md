@@ -1,11 +1,11 @@
 # Components
 
-The `~MOB` sigil (imported automatically by `use Mob.Screen`) is the primary way to write Mob UI. It compiles to plain Elixir maps at compile time — there is no runtime overhead.
+The `~dala` sigil (imported automatically by `use Dala.Screen`) is the primary way to write Dala UI. It compiles to plain Elixir maps at compile time — there is no runtime overhead.
 
 ## Sigil syntax
 
 ```elixir
-~MOB"""
+~dala"""
 <Column padding={16}>
   <Text text="Hello" text_size={:xl} />
   <Button text="Save" on_tap={tap} />
@@ -18,7 +18,7 @@ Expression attributes use `{...}` and support any Elixir expression. For `on_tap
 ```elixir
 def render(assigns) do
   save_tap = {self(), :save}
-  ~MOB"""
+  ~dala"""
   <Column padding={16}>
     <Text text={"Count: #{assigns.count}"} text_size={:xl} />
     <Button text="Save" on_tap={save_tap} />
@@ -30,10 +30,10 @@ end
 Expression child slots use `{...}` and accept a single node map or a list:
 
 ```elixir
-~MOB"""
+~dala"""
 <Column>
   {Enum.map(assigns.items, fn item ->
-    ~MOB(<Text text={item} />)
+    ~dala(<Text text={item} />)
   end)}
 </Column>
 """
@@ -58,7 +58,7 @@ The two styles are fully interchangeable — you can mix them freely in the same
 
 ---
 
-`Mob.Renderer` serialises the component tree to JSON and passes it to the native side in a single NIF call. Compose (Android) and SwiftUI (iOS) handle diffing and rendering.
+`Dala.Renderer` serialises the component tree to JSON and passes it to the native side in a single NIF call. Compose (Android) and SwiftUI (iOS) handle diffing and rendering.
 
 ## Prop values
 
@@ -116,7 +116,7 @@ To distribute children evenly across a row, give each child a `weight` prop (ana
 ```elixir
 save_tap   = {self(), :save}
 cancel_tap = {self(), :cancel}
-~MOB"""
+~dala"""
 <Row fill_width={true}>
   <Button text="Cancel" on_tap={cancel_tap} weight={1} background={:surface} text_color={:on_surface} />
   <Spacer size={8} />
@@ -131,7 +131,7 @@ A single-child container. Use it to add background, padding, or corner radius to
 
 ```elixir
 box_style = {self(), :box}
-~MOB"""
+~dala"""
 <Box background={:surface} padding={:space_md} corner_radius={:radius_md}>
   <Text text="Card content" />
 </Box>
@@ -164,10 +164,10 @@ Inserts fixed space in a row or column, or fills available space when no `size` 
 
 ```elixir
 # Fixed gap:
-~MOB(<Spacer size={16} />)
+~dala(<Spacer size={16} />)
 
 # Push children to opposite ends of a row:
-~MOB"""
+~dala"""
 <Row>
   <Text text="Left" />
   <Spacer />
@@ -189,10 +189,10 @@ A platform-native scrolling list optimised for rendering many rows efficiently. 
 
 ```elixir
 select = {self(), :item_tapped}
-~MOB"""
+~dala"""
 <List items={assigns.names} on_select={select}>
   {Enum.map(assigns.names, fn name ->
-    ~MOB(<Text text={name} padding={:space_md} />)
+    ~dala(<Text text={name} padding={:space_md} />)
   end)}
 </List>
 """
@@ -241,8 +241,8 @@ A tappable button. Has sensible defaults injected by the renderer (primary backg
 ```elixir
 save_tap   = {self(), :save}
 cancel_tap = {self(), :cancel}
-~MOB(<Button text="Save" on_tap={save_tap} />)
-~MOB(<Button text="Cancel" on_tap={cancel_tap} background={:surface} text_color={:on_surface} />)
+~dala(<Button text="Save" on_tap={save_tap} />)
+~dala(<Button text="Cancel" on_tap={cancel_tap} background={:surface} text_color={:on_surface} />)
 ```
 
 ### `:text_field`
@@ -295,10 +295,10 @@ A boolean switch. Delivers `{:change, tag, value}` to `handle_info/2` where `val
 
 ```elixir
 toggle_change = {self(), :notifications_toggled}
-~MOB(<Toggle value={assigns.notifications_on} label="Enable notifications" on_change={toggle_change} />)
+~dala(<Toggle value={assigns.notifications_on} label="Enable notifications" on_change={toggle_change} />)
 
 def handle_info({:change, :notifications_toggled, enabled}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :notifications_on, enabled)}
+  {:noreply, Dala.Socket.assign(socket, :notifications_on, enabled)}
 end
 ```
 
@@ -316,10 +316,10 @@ A continuous value input. Delivers `{:change, tag, value}` to `handle_info/2` wh
 
 ```elixir
 volume_change = {self(), :volume_changed}
-~MOB(<Slider value={assigns.volume} min={0.0} max={1.0} on_change={volume_change} />)
+~dala(<Slider value={assigns.volume} min={0.0} max={1.0} on_change={volume_change} />)
 
 def handle_info({:change, :volume_changed, value}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :volume, value)}
+  {:noreply, Dala.Socket.assign(socket, :volume, value)}
 end
 ```
 
@@ -327,7 +327,7 @@ end
 
 ### `:webview`
 
-Embeds a native web view. Communicates bidirectionally with JS via the `window.mob` bridge. See [WebView](device_capabilities.md#webview) for the full message-passing API.
+Embeds a native web view. Communicates bidirectionally with JS via the `window.dala` bridge. See [WebView](device_capabilities.md#webview) for the full message-passing API.
 
 | Prop | Type | Description |
 |------|------|-------------|
@@ -340,7 +340,7 @@ Embeds a native web view. Communicates bidirectionally with JS via the `window.m
 | `weight` | float | Flex weight inside a `:row` or `:column` |
 
 ```elixir
-~MOB"""
+~dala"""
 <WebView url="https://example.com"
          allow={["https://example.com"]}
          show_url={true}
@@ -350,7 +350,7 @@ Embeds a native web view. Communicates bidirectionally with JS via the `window.m
 
 ### `:camera_preview`
 
-Displays a live camera feed inline. Requires an active preview session — call `Mob.Camera.start_preview/2` before rendering and `Mob.Camera.stop_preview/1` in `terminate/2`. No OS permission dialog is shown for preview alone.
+Displays a live camera feed inline. Requires an active preview session — call `Dala.Camera.start_preview/2` before rendering and `Dala.Camera.stop_preview/1` in `terminate/2`. No OS permission dialog is shown for preview alone.
 
 | Prop | Type | Description |
 |------|------|-------------|
@@ -361,13 +361,13 @@ Displays a live camera feed inline. Requires an active preview session — call 
 
 ```elixir
 def mount(_params, _session, socket) do
-  socket = Mob.Camera.start_preview(socket, facing: :back)
+  socket = Dala.Camera.start_preview(socket, facing: :back)
   {:ok, socket}
 end
 
 def render(assigns) do
   flip_tap = {self(), :flip}
-  ~MOB"""
+  ~dala"""
   <Column>
     <CameraPreview facing={:back} weight={1} />
     <Button text="Flip" on_tap={flip_tap} />
@@ -376,18 +376,18 @@ def render(assigns) do
 end
 
 def terminate(_reason, socket) do
-  Mob.Camera.stop_preview(socket)
+  Dala.Camera.stop_preview(socket)
   :ok
 end
 ```
 
-## Using `Mob.Style` for reusable styles
+## Using `Dala.Style` for reusable styles
 
 Define shared styles as module attributes and attach them via the `:style` prop. Inline props override style values:
 
 ```elixir
-@card_style %Mob.Style{props: %{background: :surface, padding: :space_md, corner_radius: :radius_md}}
-@title_style %Mob.Style{props: %{text_size: :xl, font_weight: "bold", text_color: :on_surface}}
+@card_style %Dala.Style{props: %{background: :surface, padding: :space_md, corner_radius: :radius_md}}
+@title_style %Dala.Style{props: %{text_size: :xl, font_weight: "bold", text_color: :on_surface}}
 
 def render(assigns) do
   %{type: :box, props: %{style: @card_style}, children: [
@@ -404,7 +404,7 @@ Use tagged tuples for tap handlers so you can pattern-match on the tag in `handl
 ```elixir
 def render(assigns) do
   save_tap = {self(), :save}
-  ~MOB"""
+  ~dala"""
   <Button text="Save" on_tap={save_tap} />
   """
 end
@@ -429,12 +429,12 @@ end
 
 ### Sub-component event isolation (planned, not yet implemented)
 
-A future `Mob.Component` wrapper will allow a subtree of the render tree to have its own `handle_info/2`, routing events to that component process instead of the screen. Until then, use the `tag` field to distinguish events from different parts of the same screen:
+A future `Dala.Component` wrapper will allow a subtree of the render tree to have its own `handle_info/2`, routing events to that component process instead of the screen. Until then, use the `tag` field to distinguish events from different parts of the same screen:
 
 ```elixir
 top_save_tap    = {self(), :top_save}
 bottom_save_tap = {self(), :bottom_save}
-~MOB"""
+~dala"""
 <Button text="Top Save"    on_tap={top_save_tap} />
 <Button text="Bottom Save" on_tap={bottom_save_tap} />
 """

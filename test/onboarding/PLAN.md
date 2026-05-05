@@ -1,8 +1,8 @@
-# Mob Onboarding Integration Test Plan
+# Dala Onboarding Integration Test Plan
 
 ## Goal
 
-Verify that a new user can go from zero to a running Mob app — on both iOS and Android, across all supported toolchain variants — without hitting any friction that should have been caught automatically. Every test runs in a throwaway environment that is fully torn down on success.
+Verify that a new user can go from zero to a running Dala app — on both iOS and Android, across all supported toolchain variants — without hitting any friction that should have been caught automatically. Every test runs in a throwaway environment that is fully torn down on success.
 
 ---
 
@@ -10,14 +10,14 @@ Verify that a new user can go from zero to a running Mob app — on both iOS and
 
 ### What this tests
 
-- `mix mob.new` generates a structurally valid project
-- `mix mob.install` downloads OTP runtimes and builds dependency tree
-- `mix mob.doctor` passes clean
-- `mix mob.deploy --native` produces a running app on a live simulator/emulator
+- `mix dala.new` generates a structurally valid project
+- `mix dala.install` downloads OTP runtimes and builds dependency tree
+- `mix dala.doctor` passes clean
+- `mix dala.deploy --native` produces a running app on a live simulator/emulator
 - The home screen renders with the correct content
 - Theme switching works
-- Hot-push (`mix mob.push`) changes code on the running app without restart
-- `mix mob.connect` attaches an IEx session and `Mob.Test` can read state
+- Hot-push (`mix dala.push`) changes code on the running app without restart
+- `mix dala.connect` attaches an IEx session and `Dala.Test` can read state
 
 ### What this does NOT test
 
@@ -34,7 +34,7 @@ Verify that a new user can go from zero to a running Mob app — on both iOS and
 
 | Dimension | Minimum | Maximum | Notes |
 |-----------|---------|---------|-------|
-| Elixir | 1.18.0 | 1.19.x (latest) | mob requires `~> 1.17`; keep min as 1.18 for forward safety |
+| Elixir | 1.18.0 | 1.19.x (latest) | dala requires `~> 1.17`; keep min as 1.18 for forward safety |
 | OTP | 27.0 | 28.x (latest) | |
 | Hex | 2.0.0 | latest | |
 
@@ -86,8 +86,8 @@ Runs A and B must pass before a release. C validates minimum version support. D 
 Each test run operates in a fully isolated workspace:
 
 ```
-/tmp/mob_onboarding_<run_id>/
-├── workspace/          ← WORK_DIR: mix mob.new generates project here
+/tmp/dala_onboarding_<run_id>/
+├── workspace/          ← WORK_DIR: mix dala.new generates project here
 ├── toolchain/          ← version manager installs land here (mise/asdf home)
 ├── mix_home/           ← MIX_HOME: separate archive/dep cache per run
 ├── hex_home/           ← HEX_HOME: separate Hex cache per run
@@ -97,17 +97,17 @@ Each test run operates in a fully isolated workspace:
 Key environment overrides applied for every run:
 
 ```bash
-export WORK_DIR=/tmp/mob_onboarding_$RUN_ID
+export WORK_DIR=/tmp/dala_onboarding_$RUN_ID
 export MIX_HOME=$WORK_DIR/mix_home
 export HEX_HOME=$WORK_DIR/hex_home
 export HOME_OVERRIDE=$WORK_DIR/toolchain   # used by mise/asdf
-export MOB_CACHE_DIR=$WORK_DIR/mob_cache   # overrides ~/.mob/cache
+export dala_CACHE_DIR=$WORK_DIR/dala_cache   # overrides ~/.dala/cache
 ```
 
 This ensures:
 - No cross-contamination with the developer's real environment
 - No cached archives or deps from previous runs leak in
-- The `~/.mob/cache` OTP download lands in the temp dir
+- The `~/.dala/cache` OTP download lands in the temp dir
 
 ### Teardown
 
@@ -121,14 +121,14 @@ On **failure**: `WORK_DIR` is preserved and its path is printed. Logs, the gener
 
 ### 4a. iOS simulator
 
-All management goes through `xcrun simctl`. Each test run creates a **dedicated simulator instance** with a unique name (`mob-onboarding-<run_id>`) so parallel runs never share state.
+All management goes through `xcrun simctl`. Each test run creates a **dedicated simulator instance** with a unique name (`dala-onboarding-<run_id>`) so parallel runs never share state.
 
 ```bash
 # Download runtime if absent (iOS 16 for min run)
 xcrun simctl runtime add "com.apple.CoreSimulator.SimRuntime.iOS-16-0"
 
 # Create a fresh simulator
-SIM_ID=$(xcrun simctl create "mob-onboarding-$RUN_ID" \
+SIM_ID=$(xcrun simctl create "dala-onboarding-$RUN_ID" \
   "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation" \
   "com.apple.CoreSimulator.SimRuntime.iOS-16-0")
 
@@ -156,12 +156,12 @@ sdkmanager "system-images;android-35;google_apis;arm64-v8a"
 
 # Create AVD
 echo "no" | avdmanager create avd \
-  --name "mob_onboarding_$RUN_ID" \
+  --name "dala_onboarding_$RUN_ID" \
   --package "system-images;android-28;google_apis;arm64-v8a" \
   --device "pixel_6"
 
 # Start emulator (headless)
-emulator -avd "mob_onboarding_$RUN_ID" \
+emulator -avd "dala_onboarding_$RUN_ID" \
   -no-window -no-audio -no-boot-anim \
   -gpu swiftshader_indirect &
 EMULATOR_PID=$!
@@ -174,7 +174,7 @@ adb -s emulator-5554 shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sle
 
 # Teardown
 kill $EMULATOR_PID
-avdmanager delete avd --name "mob_onboarding_$RUN_ID"
+avdmanager delete avd --name "dala_onboarding_$RUN_ID"
 ```
 
 ### 4c. Port assignment
@@ -190,7 +190,7 @@ ADB_SERIAL="emulator-$EMULATOR_PORT"
 
 ## 5. Test Stages and Assertions
 
-The test is a single ExUnit suite (`test/onboarding/onboarding_test.exs`) that runs as a Mix task (`mix mob.onboarding_test`). Each stage is a `test` block; the suite is tagged `@moduletag :onboarding`.
+The test is a single ExUnit suite (`test/onboarding/onboarding_test.exs`) that runs as a Mix task (`mix dala.onboarding_test`). Each stage is a `test` block; the suite is tagged `@moduletag :onboarding`.
 
 ### Stage 0 — Prerequisite check
 
@@ -204,44 +204,44 @@ assert_tool_present("java", min_version: "17")
 
 Fail fast here with a clear message rather than a confusing error later.
 
-### Stage 1 — `mix archive.install hex mob_new`
+### Stage 1 — `mix archive.install hex dala_new`
 
 ```
-run("mix archive.install hex mob_new --force", in: WORK_DIR)
+run("mix archive.install hex dala_new --force", in: WORK_DIR)
 assert_exit_code(0)
-assert run("mix archive") includes "mob_new-"
+assert run("mix archive") includes "dala_new-"
 ```
 
-### Stage 2 — `mix mob.new my_app`
+### Stage 2 — `mix dala.new my_app`
 
 ```
-run("mix mob.new my_app", in: WORK_DIR)
+run("mix dala.new my_app", in: WORK_DIR)
 assert_exit_code(0)
 assert_dir_exists("my_app/lib/my_app")
 assert_file_exists("my_app/lib/my_app/home_screen.ex")
-assert_file_exists("my_app/android/app/src/main/assets/mob_logo_light.png")
-assert_file_exists("my_app/android/app/src/main/assets/mob_logo_dark.png")
+assert_file_exists("my_app/android/app/src/main/assets/dala_logo_light.png")
+assert_file_exists("my_app/android/app/src/main/assets/dala_logo_dark.png")
 assert_file_exists("my_app/ios/build.sh")
-assert_file_content("my_app/lib/my_app/home_screen.ex", ~r/use Mob\.Screen/)
-assert_file_content("my_app/ios/build.sh", ~r/mob_logo/)
+assert_file_content("my_app/lib/my_app/home_screen.ex", ~r/use Dala\.Screen/)
+assert_file_content("my_app/ios/build.sh", ~r/dala_logo/)
 ```
 
-### Stage 3 — `mix mob.install`
+### Stage 3 — `mix dala.install`
 
 ```
-run("mix mob.install", in: WORK_DIR/my_app, timeout: 300_000)
+run("mix dala.install", in: WORK_DIR/my_app, timeout: 300_000)
 assert_exit_code(0)
-assert_dir_exists("$MOB_CACHE_DIR/otp-ios-sim-*/erts-*")    # iOS
-assert_dir_exists("$MOB_CACHE_DIR/otp-android-*/erts-*")     # Android
-assert_file_exists("$MOB_CACHE_DIR/otp-ios-sim-*/my_app")    # beams dir
+assert_dir_exists("$dala_CACHE_DIR/otp-ios-sim-*/erts-*")    # iOS
+assert_dir_exists("$dala_CACHE_DIR/otp-android-*/erts-*")     # Android
+assert_file_exists("$dala_CACHE_DIR/otp-ios-sim-*/my_app")    # beams dir
 ```
 
 The OTP download is the highest-risk step. On Nix the `curl` path must be the system curl — assert that download used `:httpc` (or `/usr/bin/curl` as fallback) and not a Nix-shelled curl.
 
-### Stage 4 — `mix mob.doctor`
+### Stage 4 — `mix dala.doctor`
 
 ```
-output = run("mix mob.doctor", in: WORK_DIR/my_app)
+output = run("mix dala.doctor", in: WORK_DIR/my_app)
 assert_exit_code(0)
 assert output includes "✓ Elixir"
 assert output includes "✓ OTP"
@@ -249,66 +249,66 @@ assert output includes "✓ OTP Android" or "✓ OTP iOS simulator"
 assert output does NOT include "✗"          # no hard failures
 ```
 
-### Stage 5 — `mix mob.deploy --native --ios/android`
+### Stage 5 — `mix dala.deploy --native --ios/android`
 
 ```
-run("mix mob.deploy --native --ios", env: %{"MOB_IOS_SIM_ID" => sim_id}, timeout: 180_000)
+run("mix dala.deploy --native --ios", env: %{"dala_IOS_SIM_ID" => sim_id}, timeout: 180_000)
 assert_exit_code(0)
 assert adb/simctl confirms app is installed:
-  iOS:     xcrun simctl listapps $SIM_ID | grep "com.mob.my_app"
-  Android: adb -s $ADB_SERIAL shell pm list packages | grep "com.mob.my_app"
+  iOS:     xcrun simctl listapps $SIM_ID | grep "com.dala.my_app"
+  Android: adb -s $ADB_SERIAL shell pm list packages | grep "com.dala.my_app"
 ```
 
 ### Stage 6 — App launches and renders
 
 ```
 # Launch the app
-xcrun simctl launch $SIM_ID com.mob.my_app          # iOS
+xcrun simctl launch $SIM_ID com.dala.my_app          # iOS
 adb -s $ADB_SERIAL shell am start \
-  -n com.mob.my_app/.MainActivity                    # Android
+  -n com.dala.my_app/.MainActivity                    # Android
 
 # Connect distribution
-run("mix mob.connect --no-iex", timeout: 30_000)
+run("mix dala.connect --no-iex", timeout: 30_000)
 assert node_visible(:"my_app_ios@127.0.0.1")          # or android variant
 
 # Verify home screen rendered
-screen = Mob.Test.screen(node)
+screen = Dala.Test.screen(node)
 assert screen == MyApp.HomeScreen
 
-assigns = Mob.Test.assigns(node)
+assigns = Dala.Test.assigns(node)
 assert assigns.theme == :obsidian
 
 # Verify logo image node is present
-tree = Mob.Test.tree(node)
-assert_node_present(tree, type: "image", prop: "src", matches: ~r/mob_logo/)
+tree = Dala.Test.tree(node)
+assert_node_present(tree, type: "image", prop: "src", matches: ~r/dala_logo/)
 
 # Verify three nav buttons exist
-assert length(Mob.Test.find(node, "Text Input")) == 1
-assert length(Mob.Test.find(node, "Browse List")) == 1
-assert length(Mob.Test.find(node, "Roll Dice")) == 1
+assert length(Dala.Test.find(node, "Text Input")) == 1
+assert length(Dala.Test.find(node, "Browse List")) == 1
+assert length(Dala.Test.find(node, "Roll Dice")) == 1
 
 # Verify three theme buttons exist
-assert length(Mob.Test.find(node, "Obsidian")) == 1
-assert length(Mob.Test.find(node, "Citrus")) == 1
-assert length(Mob.Test.find(node, "Birch")) == 1
+assert length(Dala.Test.find(node, "Obsidian")) == 1
+assert length(Dala.Test.find(node, "Citrus")) == 1
+assert length(Dala.Test.find(node, "Birch")) == 1
 ```
 
 ### Stage 7 — Basic interaction
 
 ```
 # Tap Citrus theme button
-Mob.Test.tap(node, :theme_citrus)
-:sys.get_state(Mob.Test.screen_pid(node))   # sync point
-assigns = Mob.Test.assigns(node)
+Dala.Test.tap(node, :theme_citrus)
+:sys.get_state(Dala.Test.screen_pid(node))   # sync point
+assigns = Dala.Test.assigns(node)
 assert assigns.theme == :citrus
 
 # Navigate to text input screen
-Mob.Test.tap(node, :open_text)
-assert Mob.Test.screen(node) == MyApp.TextScreen
+Dala.Test.tap(node, :open_text)
+assert Dala.Test.screen(node) == MyApp.TextScreen
 
 # Navigate back
-Mob.Test.pop(node)
-assert Mob.Test.screen(node) == MyApp.HomeScreen
+Dala.Test.pop(node)
+assert Dala.Test.screen(node) == MyApp.HomeScreen
 ```
 
 ### Stage 8 — Hot-push
@@ -319,16 +319,16 @@ patch_file("my_app/lib/my_app/home_screen.ex",
   old: ~s(text="BEAM running on device"),
   new: ~s(text="onboarding test patched"))
 
-run("mix mob.push", in: WORK_DIR/my_app, timeout: 30_000)
+run("mix dala.push", in: WORK_DIR/my_app, timeout: 30_000)
 assert_exit_code(0)
 
 # Give the running process time to pick up new code
 :timer.sleep(500)
-Mob.Test.tap(node, :theme_obsidian)   # any event forces code reload
-:sys.get_state(Mob.Test.screen_pid(node))
+Dala.Test.tap(node, :theme_obsidian)   # any event forces code reload
+:sys.get_state(Dala.Test.screen_pid(node))
 
 # Confirm updated text is in the tree
-tree = Mob.Test.tree(node)
+tree = Dala.Test.tree(node)
 assert_node_present(tree, type: "text", prop: "text", value: "onboarding test patched")
 ```
 
@@ -339,7 +339,7 @@ xcrun simctl shutdown $SIM_ID
 xcrun simctl delete $SIM_ID          # iOS
 
 adb -s $ADB_SERIAL emu kill          # Android
-avdmanager delete avd --name "mob_onboarding_$RUN_ID"
+avdmanager delete avd --name "dala_onboarding_$RUN_ID"
 
 File.rm_rf!(WORK_DIR)                # only on success
 ```
@@ -386,8 +386,8 @@ The Nix run uses a hermetic `flake.nix` that pins exact package versions:
 Run these in addition to the standard assertions when `env == :nix`:
 
 ```
-# Verify elixir_lib is auto-detected, not read from mob.exs
-assert mob_exs does NOT contain "elixir_lib:"
+# Verify elixir_lib is auto-detected, not read from dala.exs
+assert dala_exs does NOT contain "elixir_lib:"
 
 # Verify OTP download used :httpc (not shelled curl)
 assert_log_contains("OTP download", ~r/httpc|system curl/)
@@ -402,9 +402,9 @@ assert String.contains?(elixir_lib, "elixir-1.18")
 
 | Failure | Detection | Message shown |
 |---------|-----------|---------------|
-| Nix curl SSL error | OTP cache dir exists but empty / no `erts-*` | "OTP download failed. Try: `mix mob.install --use-system-curl`" |
-| Stale `elixir_lib` in mob.exs | `File.exists?(elixir_lib)` returns false | "elixir_lib path is stale — re-run `mix mob.install`" |
-| Old Elixir from Nix channel | `mix mob.doctor` Elixir version check fails | "Elixir 1.x found, 1.18+ required. Update your flake: `elixir_1_18`" |
+| Nix curl SSL error | OTP cache dir exists but empty / no `erts-*` | "OTP download failed. Try: `mix dala.install --use-system-curl`" |
+| Stale `elixir_lib` in dala.exs | `File.exists?(elixir_lib)` returns false | "elixir_lib path is stale — re-run `mix dala.install`" |
+| Old Elixir from Nix channel | `mix dala.doctor` Elixir version check fails | "Elixir 1.x found, 1.18+ required. Update your flake: `elixir_1_18`" |
 | adb/xcrun not in Nix PATH | Stage 0 prerequisite check | "adb not found. Add `android-tools` to your Nix shell." |
 
 ---
@@ -433,24 +433,24 @@ test/onboarding/
 Run a specific environment:
 
 ```bash
-mix mob.onboarding_test --env nix --elixir 1.18 --otp 27 \
+mix dala.onboarding_test --env nix --elixir 1.18 --otp 27 \
                         --ios ios-min --android android-min
 ```
 
 Run the full matrix:
 
 ```bash
-mix mob.onboarding_test --all
+mix dala.onboarding_test --all
 ```
 
 ### 7b. Key timeouts
 
 | Stage | Timeout |
 |-------|---------|
-| `mix mob.install` (OTP download) | 10 min |
-| `mix mob.deploy --native` (first build) | 5 min |
+| `mix dala.install` (OTP download) | 10 min |
+| `mix dala.deploy --native` (first build) | 5 min |
 | Emulator cold boot | 3 min |
-| `mix mob.connect` | 30 sec |
+| `mix dala.connect` | 30 sec |
 | Hot-push | 30 sec |
 
 ---
@@ -543,7 +543,7 @@ jobs:
 
       - name: Run onboarding test
         run: |
-          mix mob.onboarding_test \
+          mix dala.onboarding_test \
             --env ${{ matrix.env }} \
             --elixir ${{ matrix.elixir }} \
             --otp ${{ matrix.otp }} \
@@ -557,7 +557,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: onboarding-failure-run-${{ matrix.run }}
-          path: /tmp/mob_onboarding_${{ matrix.run }}/logs/
+          path: /tmp/dala_onboarding_${{ matrix.run }}/logs/
           retention-days: 7
 ```
 
@@ -570,21 +570,21 @@ Each step writes structured output to `$WORK_DIR/logs/<step>.log`. On failure, t
 ```
 === Onboarding Test FAILED — Run B (mise / Elixir 1.19 / OTP 28) ===
 
-Failed at: Stage 3 — mix mob.install
+Failed at: Stage 3 — mix dala.install
 Duration:  47s
 Exit code: 1
 
 Last 20 lines of output:
   ...
-  ERROR: No erts-* directory found in /tmp/mob_onboarding_B/mob_cache/otp-ios-sim-73ba6e0f
+  ERROR: No erts-* directory found in /tmp/dala_onboarding_B/dala_cache/otp-ios-sim-73ba6e0f
          Have you built OTP for iOS simulator?
 
-Workspace preserved at: /tmp/mob_onboarding_B/
+Workspace preserved at: /tmp/dala_onboarding_B/
   logs/          ← per-step stdout/stderr
   my_app/        ← generated project state
-  mob_cache/     ← OTP download state (check for empty dirs)
+  dala_cache/     ← OTP download state (check for empty dirs)
 
-Likely cause: OTP download silently failed. Check logs/03_mob_install.log.
+Likely cause: OTP download silently failed. Check logs/03_dala_install.log.
 ```
 
 ---
@@ -594,7 +594,7 @@ Likely cause: OTP download silently failed. Check logs/03_mob_install.log.
 In priority order:
 
 1. **`DeviceManager`** — iOS simulator and Android emulator create/boot/teardown. Blocking everything else.
-2. **Stage 0–4** (generation through `mob.doctor`) — highest ROI, catches the Nix failures and the most common setup errors. Can run headlessly with no device.
+2. **Stage 0–4** (generation through `dala.doctor`) — highest ROI, catches the Nix failures and the most common setup errors. Can run headlessly with no device.
 3. **Nix flake** — pin the exact nixpkgs commit that corresponds to the currently failing `Nova` environment.
 4. **Stages 5–7** (deploy, launch, basic interaction) — requires devices; build after DeviceManager is solid.
 5. **Stage 8** (hot-push) — last, as it depends on everything upstream working.

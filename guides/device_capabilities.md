@@ -1,23 +1,23 @@
 # Device Capabilities
 
-All device APIs in Mob follow a consistent pattern: call the function from a callback (returning the socket unchanged), then handle the result in `handle_info/2`. APIs never block the screen process.
+All device APIs in Dala follow a consistent pattern: call the function from a callback (returning the socket unchanged), then handle the result in `handle_info/2`. APIs never block the screen process.
 
 ## Permissions
 
-Some capabilities require an OS permission before they can be used. Request permissions via `Mob.Permissions.request/2`. The result arrives asynchronously:
+Some capabilities require an OS permission before they can be used. Request permissions via `Dala.Permissions.request/2`. The result arrives asynchronously:
 
 ```elixir
 def mount(_params, _session, socket) do
-  socket = Mob.Permissions.request(socket, :camera)
+  socket = Dala.Permissions.request(socket, :camera)
   {:ok, socket}
 end
 
 def handle_info({:permission, :camera, :granted}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :camera_ready, true)}
+  {:noreply, Dala.Socket.assign(socket, :camera_ready, true)}
 end
 
 def handle_info({:permission, :camera, :denied}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :camera_ready, false)}
+  {:noreply, Dala.Socket.assign(socket, :camera_ready, false)}
 end
 ```
 
@@ -27,11 +27,11 @@ end
 
 ## Haptic feedback
 
-`Mob.Haptic.trigger/2` fires synchronously (no `handle_info` needed) and returns the socket:
+`Dala.Haptic.trigger/2` fires synchronously (no `handle_info` needed) and returns the socket:
 
 ```elixir
 def handle_event("tap", %{"tag" => "purchase"}, socket) do
-  socket = Mob.Haptic.trigger(socket, :success)
+  socket = Dala.Haptic.trigger(socket, :success)
   {:noreply, socket}
 end
 ```
@@ -45,18 +45,18 @@ iOS uses `UIImpactFeedbackGenerator` / `UINotificationFeedbackGenerator`. Androi
 ```elixir
 # Write to clipboard
 def handle_event("tap", %{"tag" => "copy"}, socket) do
-  socket = Mob.Clipboard.write(socket, socket.assigns.code)
+  socket = Dala.Clipboard.write(socket, socket.assigns.code)
   {:noreply, socket}
 end
 
 # Read from clipboard — result arrives in handle_info
 def handle_event("tap", %{"tag" => "paste"}, socket) do
-  socket = Mob.Clipboard.read(socket)
+  socket = Dala.Clipboard.read(socket)
   {:noreply, socket}
 end
 
 def handle_info({:clipboard, :read, text}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :pasted_text, text)}
+  {:noreply, Dala.Socket.assign(socket, :pasted_text, text)}
 end
 ```
 
@@ -66,7 +66,7 @@ Opens the platform's native share sheet (iOS: `UIActivityViewController`, Androi
 
 ```elixir
 def handle_event("tap", %{"tag" => "share"}, socket) do
-  socket = Mob.Share.sheet(socket, text: "Check out this app!", url: "https://example.com")
+  socket = Dala.Share.sheet(socket, text: "Check out this app!", url: "https://example.com")
   {:noreply, socket}
 end
 ```
@@ -79,20 +79,20 @@ Requires `:camera` permission (and `:microphone` for video).
 
 ```elixir
 # Capture a photo
-socket = Mob.Camera.capture_photo(socket)
-socket = Mob.Camera.capture_photo(socket, quality: :medium)
+socket = Dala.Camera.capture_photo(socket)
+socket = Dala.Camera.capture_photo(socket, quality: :medium)
 
 # Record a video
-socket = Mob.Camera.capture_video(socket)
-socket = Mob.Camera.capture_video(socket, max_duration: 30)
+socket = Dala.Camera.capture_video(socket)
+socket = Dala.Camera.capture_video(socket, max_duration: 30)
 
 # Results:
 def handle_info({:camera, :photo, %{path: path, width: w, height: h}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :photo_path, path)}
+  {:noreply, Dala.Socket.assign(socket, :photo_path, path)}
 end
 
 def handle_info({:camera, :video, %{path: path, duration: seconds}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :video_path, path)}
+  {:noreply, Dala.Socket.assign(socket, :video_path, path)}
 end
 
 def handle_info({:camera, :cancelled}, socket) do
@@ -107,12 +107,12 @@ end
 Browse and pick from the photo library. Requires `:photo_library` permission.
 
 ```elixir
-socket = Mob.Photos.pick(socket)
-socket = Mob.Photos.pick(socket, max: 5)  # pick up to 5
+socket = Dala.Photos.pick(socket)
+socket = Dala.Photos.pick(socket, max: 5)  # pick up to 5
 
 def handle_info({:photos, :picked, photos}, socket) do
   # photos is a list of %{path: path, width: w, height: h} maps
-  {:noreply, Mob.Socket.assign(socket, :photos, photos)}
+  {:noreply, Dala.Socket.assign(socket, :photos, photos)}
 end
 
 def handle_info({:photos, :cancelled}, socket) do
@@ -125,13 +125,13 @@ end
 Open the system file picker:
 
 ```elixir
-socket = Mob.Files.pick(socket)
-socket = Mob.Files.pick(socket, types: ["public.pdf", "public.text"])  # iOS UTI strings
-socket = Mob.Files.pick(socket, types: ["application/pdf", "text/plain"])  # Android MIME types
+socket = Dala.Files.pick(socket)
+socket = Dala.Files.pick(socket, types: ["public.pdf", "public.text"])  # iOS UTI strings
+socket = Dala.Files.pick(socket, types: ["application/pdf", "text/plain"])  # Android MIME types
 
 def handle_info({:files, :picked, files}, socket) do
   # files is a list of %{path: path, name: name, size: bytes} maps
-  {:noreply, Mob.Socket.assign(socket, :files, files)}
+  {:noreply, Dala.Socket.assign(socket, :files, files)}
 end
 ```
 
@@ -144,12 +144,12 @@ Display a live camera feed inline (no OS permission dialog for preview):
 
 ```elixir
 def mount(_params, _session, socket) do
-  socket = Mob.Camera.start_preview(socket, facing: :back)
+  socket = Dala.Camera.start_preview(socket, facing: :back)
   {:ok, socket}
 end
 
 def render(assigns) do
-  ~MOB"""
+  ~dala"""
   <Column>
     <CameraPreview facing={:back} weight={1} />
     <Button text="Flip" on_tap={{self(), :flip}} />
@@ -158,7 +158,7 @@ def render(assigns) do
 end
 
 def terminate(_reason, socket) do
-  Mob.Camera.stop_preview(socket)
+  Dala.Camera.stop_preview(socket)
   :ok
 end
 ```
@@ -170,16 +170,16 @@ The `:camera_preview` component requires an active preview session — call `sta
 Requires `:microphone` permission.
 
 ```elixir
-socket = Mob.Audio.start_recording(socket)
-socket = Mob.Audio.start_recording(socket, format: :aac, quality: :medium)
-socket = Mob.Audio.stop_recording(socket)
+socket = Dala.Audio.start_recording(socket)
+socket = Dala.Audio.start_recording(socket, format: :aac, quality: :medium)
+socket = Dala.Audio.stop_recording(socket)
 
 def handle_info({:audio, :recorded, %{path: path, duration: seconds}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :recording, path)}
+  {:noreply, Dala.Socket.assign(socket, :recording, path)}
 end
 
 def handle_info({:audio, :error, reason}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :error, reason)}
+  {:noreply, Dala.Socket.assign(socket, :error, reason)}
 end
 ```
 
@@ -190,17 +190,17 @@ Recording formats: `:aac` (default), `:wav`. Quality: `:low`, `:medium` (default
 No permission needed. Plays local files or remote URLs.
 
 ```elixir
-socket = Mob.Audio.play(socket, "/path/to/clip.m4a")
-socket = Mob.Audio.play(socket, path, loop: true, volume: 0.8)
-socket = Mob.Audio.stop_playback(socket)
-socket = Mob.Audio.set_volume(socket, 0.5)  # adjust without stopping
+socket = Dala.Audio.play(socket, "/path/to/clip.m4a")
+socket = Dala.Audio.play(socket, path, loop: true, volume: 0.8)
+socket = Dala.Audio.stop_playback(socket)
+socket = Dala.Audio.set_volume(socket, 0.5)  # adjust without stopping
 
 def handle_info({:audio, :playback_finished, %{path: path}}, socket) do
   {:noreply, socket}
 end
 
 def handle_info({:audio, :playback_error, %{reason: reason}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :error, reason)}
+  {:noreply, Dala.Socket.assign(socket, :error, reason)}
 end
 ```
 
@@ -212,19 +212,19 @@ Requires `:location` permission.
 
 ```elixir
 # Single fix
-socket = Mob.Location.get_once(socket)
+socket = Dala.Location.get_once(socket)
 
 # Continuous updates
-socket = Mob.Location.start(socket)
-socket = Mob.Location.start(socket, accuracy: :high)  # :high | :balanced | :low
-socket = Mob.Location.stop(socket)
+socket = Dala.Location.start(socket)
+socket = Dala.Location.start(socket, accuracy: :high)  # :high | :balanced | :low
+socket = Dala.Location.stop(socket)
 
 def handle_info({:location, %{lat: lat, lon: lon, accuracy: acc, altitude: alt}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :location, %{lat: lat, lon: lon})}
+  {:noreply, Dala.Socket.assign(socket, :location, %{lat: lat, lon: lon})}
 end
 
 def handle_info({:location, :error, reason}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :location_error, reason)}
+  {:noreply, Dala.Socket.assign(socket, :location_error, reason)}
 end
 ```
 
@@ -233,22 +233,22 @@ iOS uses `CLLocationManager`. Android uses `FusedLocationProviderClient`.
 ## Motion (accelerometer / gyroscope)
 
 ```elixir
-socket = Mob.Motion.start(socket)
-socket = Mob.Motion.start(socket, interval_ms: 100)
-socket = Mob.Motion.stop(socket)
+socket = Dala.Motion.start(socket)
+socket = Dala.Motion.start(socket, interval_ms: 100)
+socket = Dala.Motion.stop(socket)
 
 def handle_info({:motion, %{ax: ax, ay: ay, az: az, gx: gx, gy: gy, gz: gz}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :motion, %{ax: ax, ay: ay, az: az})}
+  {:noreply, Dala.Socket.assign(socket, :motion, %{ax: ax, ay: ay, az: az})}
 end
 ```
 
 ## Biometric authentication
 
 ```elixir
-socket = Mob.Biometric.authenticate(socket, reason: "Confirm your identity")
+socket = Dala.Biometric.authenticate(socket, reason: "Confirm your identity")
 
 def handle_info({:biometric, :success}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :authenticated, true)}
+  {:noreply, Dala.Socket.assign(socket, :authenticated, true)}
 end
 
 def handle_info({:biometric, :failure, reason}, socket) do
@@ -261,11 +261,11 @@ iOS uses Face ID / Touch ID. Android uses `BiometricPrompt`.
 ## QR / barcode scanner
 
 ```elixir
-socket = Mob.Scanner.scan(socket)
+socket = Dala.Scanner.scan(socket)
 
 def handle_info({:scan, :result, %{type: type, value: value}}, socket) do
   # type: :qr | :ean | :upc | etc.
-  {:noreply, Mob.Socket.assign(socket, :scanned, value)}
+  {:noreply, Dala.Socket.assign(socket, :scanned, value)}
 end
 
 def handle_info({:scan, :cancelled}, socket) do
@@ -275,7 +275,7 @@ end
 
 ## Notifications
 
-See also [Mob.Notify](Mob.Notify.html) for the full API.
+See also [Dala.Notify](Dala.Notify.html) for the full API.
 
 Requires `:notifications` permission.
 
@@ -283,7 +283,7 @@ Requires `:notifications` permission.
 
 ```elixir
 # Schedule
-Mob.Notify.schedule(socket,
+Dala.Notify.schedule(socket,
   id:    "reminder_1",
   title: "Time to check in",
   body:  "Open the app to see today's updates",
@@ -292,7 +292,7 @@ Mob.Notify.schedule(socket,
 )
 
 # Cancel
-Mob.Notify.cancel(socket, "reminder_1")
+Dala.Notify.cancel(socket, "reminder_1")
 
 # Receive in handle_info (all app states: foreground, background, relaunched):
 def handle_info({:notification, %{id: id, data: data, source: :local}}, socket) do
@@ -302,7 +302,7 @@ end
 
 ### Push notifications
 
-Register for push tokens and forward them to your server. A server-side push library (`mob_push`) is in development.
+Register for push tokens and forward them to your server. A server-side push library (`dala_push`) is in development.
 
 #### Server credentials
 
@@ -332,7 +332,7 @@ the Android client.
 
 ```elixir
 # After :notifications permission is granted:
-Mob.Notify.register_push(socket)
+Dala.Notify.register_push(socket)
 
 # Receive the device token:
 def handle_info({:push_token, :ios,     token}, socket) do
@@ -357,26 +357,26 @@ App-local file storage using named locations instead of raw paths. No permission
 
 ```elixir
 # Resolve a location to its absolute path
-path = Mob.Storage.dir(:documents)   # persists, user-visible on iOS
-path = Mob.Storage.dir(:cache)       # persists until OS needs space
-path = Mob.Storage.dir(:temp)        # ephemeral, may be purged any time
-path = Mob.Storage.dir(:app_support) # persists, hidden from user, backed up on iOS
+path = Dala.Storage.dir(:documents)   # persists, user-visible on iOS
+path = Dala.Storage.dir(:cache)       # persists until OS needs space
+path = Dala.Storage.dir(:temp)        # ephemeral, may be purged any time
+path = Dala.Storage.dir(:app_support) # persists, hidden from user, backed up on iOS
 
 # File operations
-{:ok, files} = Mob.Storage.list(:documents)       # returns full paths
-{:ok, meta}  = Mob.Storage.stat("/path/to/file")  # %{name, path, size, modified_at}
-{:ok, path}  = Mob.Storage.write("/path/file.txt", "contents")
-{:ok, data}  = Mob.Storage.read("/path/file.txt")
-{:ok, dest}  = Mob.Storage.copy("/path/src.txt", :documents)  # keeps basename
-{:ok, dest}  = Mob.Storage.move("/path/src.txt", "/path/dest.txt")
-:ok          = Mob.Storage.delete("/path/file.txt")
+{:ok, files} = Dala.Storage.list(:documents)       # returns full paths
+{:ok, meta}  = Dala.Storage.stat("/path/to/file")  # %{name, path, size, modified_at}
+{:ok, path}  = Dala.Storage.write("/path/file.txt", "contents")
+{:ok, data}  = Dala.Storage.read("/path/file.txt")
+{:ok, dest}  = Dala.Storage.copy("/path/src.txt", :documents)  # keeps basename
+{:ok, dest}  = Dala.Storage.move("/path/src.txt", "/path/dest.txt")
+:ok          = Dala.Storage.delete("/path/file.txt")
 
-ext = Mob.Storage.extension("/tmp/clip.mp4")  # => ".mp4"
+ext = Dala.Storage.extension("/tmp/clip.mp4")  # => ".mp4"
 ```
 
 All operations that can fail return `{:ok, value} | {:error, posix}`. `dir/1` raises on an unknown location atom.
 
-For saving to the native media library (Camera Roll, Downloads), see `Mob.Storage.Apple` and `Mob.Storage.Android`.
+For saving to the native media library (Camera Roll, Downloads), see `Dala.Storage.Apple` and `Dala.Storage.Android`.
 
 ## WebView
 
@@ -384,13 +384,13 @@ Embed a native web view and communicate with it over a JS bridge. No permission 
 
 ```elixir
 def render(assigns) do
-  ~MOB"""
+  ~dala"""
   <WebView url="https://example.com" allow={["https://example.com"]} show_url={true} weight={1} />
   """
 end
 
 # Send a message to Elixir from JS:
-#   window.mob.send({ event: "clicked", id: 42 })
+#   window.dala.send({ event: "clicked", id: 42 })
 def handle_info({:webview, :message, %{"event" => "clicked", "id" => id}}, socket) do
   {:noreply, socket}
 end
@@ -401,16 +401,16 @@ def handle_info({:webview, :blocked, url}, socket) do
 end
 ```
 
-Push a message from Elixir into the page (calls `window.mob.onMessage` handlers):
+Push a message from Elixir into the page (calls `window.dala.onMessage` handlers):
 
 ```elixir
-socket = Mob.WebView.post_message(socket, %{type: "update", value: 42})
+socket = Dala.WebView.post_message(socket, %{type: "update", value: 42})
 ```
 
 Evaluate arbitrary JavaScript and receive the result:
 
 ```elixir
-socket = Mob.WebView.eval_js(socket, "document.title")
+socket = Dala.WebView.eval_js(socket, "document.title")
 # Result arrives as:
 def handle_info({:webview, :eval_result, result}, socket) do
   {:noreply, socket}
@@ -423,7 +423,7 @@ Props: `:url` (required), `:allow` (list of URL prefixes — blocks others), `:s
 
 ## Alerts and toasts
 
-`Mob.Alert` shows native dialogs and status messages. No permission needed.
+`Dala.Alert` shows native dialogs and status messages. No permission needed.
 
 ### Alert dialog
 
@@ -431,7 +431,7 @@ Centered modal for confirmations and errors (iOS: `UIAlertController(.alert)`, A
 
 ```elixir
 def handle_info({:tap, :delete}, socket) do
-  Mob.Alert.alert(socket,
+  Dala.Alert.alert(socket,
     title:   "Delete item?",
     message: "This cannot be undone.",
     buttons: [
@@ -458,7 +458,7 @@ Dismissing without tapping a button (e.g. Android back gesture) sends `{:alert, 
 Bottom-anchored list for choosing between actions (iOS: `UIAlertController(.actionSheet)`, Android: list dialog).
 
 ```elixir
-Mob.Alert.action_sheet(socket,
+Dala.Alert.action_sheet(socket,
   title:   "Share photo",
   buttons: [
     [label: "Save to Photos", action: :save],
@@ -477,8 +477,8 @@ def handle_info({:alert, :dismiss}, socket), do: {:noreply, socket}
 Ephemeral status message with no callback.
 
 ```elixir
-Mob.Alert.toast(socket, "Saved!")
-Mob.Alert.toast(socket, "File uploaded", duration: :long)
+Dala.Alert.toast(socket, "Saved!")
+Dala.Alert.toast(socket, "File uploaded", duration: :long)
 ```
 
 Duration: `:short` (default, ~2 s) or `:long` (~4 s). iOS renders a floating label overlay; Android uses `Toast`.

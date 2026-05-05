@@ -1,8 +1,8 @@
-# Mob — Architecture
+# Dala — Architecture
 
 ## Deploy model
 
-### Initial deploy (`mix mob.deploy --native`)
+### Initial deploy (`mix dala.deploy --native`)
 
 Requires USB. Does a full push:
 - Compiles native code (APK for Android, iOS app bundle)
@@ -13,13 +13,13 @@ Requires USB. Does a full push:
 USB is only required for this step. Once the base app is installed and the
 BEAM is running, all subsequent updates go through Erlang distribution.
 
-### Subsequent deploys (`mix mob.deploy`)
+### Subsequent deploys (`mix dala.deploy`)
 
 No USB required (unless the device isn't already connected via dist). Does a
 lightweight push:
 - Compiles BEAMs
-- Saves them to the mob_dev server
-- mob_dev distributes the updated modules to connected devices via Erlang
+- Saves them to the dala_dev server
+- dala_dev distributes the updated modules to connected devices via Erlang
   distribution (`:rpc.call` / `nl/1`)
 
 If no device is connected via dist yet, fall back to USB push (same as
@@ -33,28 +33,28 @@ from) the Mac's node and stays connected. All code updates, log streaming,
 and remote inspection go through this channel.
 
 Node naming convention:
-- Android: `mob_demo_android@127.0.0.1` (USB tunnel via `adb forward`)
-- iOS simulator: `mob_demo_ios@127.0.0.1` (simulator shares Mac network stack)
+- Android: `dala_demo_android@127.0.0.1` (USB tunnel via `adb forward`)
+- iOS simulator: `dala_demo_ios@127.0.0.1` (simulator shares Mac network stack)
 - iOS physical / Android wireless: device's LAN IP (future)
 
-Cookie: `:mob_secret` (dev only, not for production use)
+Cookie: `:dala_secret` (dev only, not for production use)
 
 ## Connection lifecycle
 
 ```
 USB (once)
-  └─ mix mob.deploy --native   → installs APK/IPA + BEAMs, starts BEAM
-  └─ mix mob.connect           → sets up port forward, joins Erlang cluster
+  └─ mix dala.deploy --native   → installs APK/IPA + BEAMs, starts BEAM
+  └─ mix dala.connect           → sets up port forward, joins Erlang cluster
 
 WiFi / dist (ongoing)
-  └─ mix mob.deploy            → compile + push BEAMs via dist
-  └─ mix mob.watch             → auto-push on file save via dist
-  └─ mob_dev dashboard         → live logs, deploy buttons, device status
+  └─ mix dala.deploy            → compile + push BEAMs via dist
+  └─ mix dala.watch             → auto-push on file save via dist
+  └─ dala_dev dashboard         → live logs, deploy buttons, device status
 ```
 
-## mob_dev server role
+## dala_dev server role
 
-The mob_dev server (`mix mob.server`) is the Mac-side hub:
+The dala_dev server (`mix dala.server`) is the Mac-side hub:
 - Discovers connected devices (adb + xcrun simctl)
 - Streams logs from all connected devices
 - Holds the latest compiled BEAMs and distributes them to devices via dist

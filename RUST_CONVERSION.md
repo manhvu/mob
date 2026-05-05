@@ -1,24 +1,24 @@
 # Rust Port of C Code - Complete Summary
 
 ## Overview
-This document tracks the conversion of C/ObjC code to Rust in the Mob repository.
+This document tracks the conversion of C/ObjC code to Rust in the Dala repository.
 
 ## Conversion Status
 
 ### ✅ Already in Rust (Complete)
-- **`mob/native/mob_nif/`** - The NIF implementation is already fully ported to Rust using the `rustler` crate
+- **`dala/native/dala_nif/`** - The NIF implementation is already fully ported to Rust using the `rustler` crate
   - Platform-specific modules: `android.rs`, `ios.rs`
   - Common functionality: `common.rs`
   - Cargo.toml configured for both platforms
-  - This replaces both `mob_nif.c` (Android) and `mob_nif.m` (iOS)
+  - This replaces both `dala_nif.c` (Android) and `dala_nif.m` (iOS)
 
 ### ✅ Newly Converted (This Session)
 1. **Driver Tables** (Complete - Ready to use)
-   - `mob/android/jni/rust/driver_tab_android.rs` - Static NIF/driver table for Android
-   - `mob/ios/rust/driver_tab_ios.rs` - Static NIF/driver table for iOS
+   - `dala/android/jni/rust/driver_tab_android.rs` - Static NIF/driver table for Android
+   - `dala/ios/rust/driver_tab_ios.rs` - Static NIF/driver table for iOS
 
 2. **BEAM Launchers** (Complete Logic - `erl_start` linked)
-   - `mob/android/jni/rust/mob_beam.rs` - Full port of `mob_beam.c` with:
+   - `dala/android/jni/rust/dala_beam.rs` - Full port of `dala_beam.c` with:
      - JNI bridge initialization
      - Cold-start race condition fix (window focus polling)
      - BEAM tuning flags (compile-time + runtime)
@@ -27,7 +27,7 @@ This document tracks the conversion of C/ObjC code to Rust in the Mob repository
      - Environment variable setup
      - **`erl_start` binding added and called**
    
-   - `mob/ios/rust/mob_beam_ios.rs` - Full port of `mob_beam.m` with:
+   - `dala/ios/rust/dala_beam_ios.rs` - Full port of `dala_beam.m` with:
      - OTP root resolution (simulator/device)
      - IP detection (link-local, LAN, Tailscale)
      - EPMD thread startup (device builds)
@@ -40,39 +40,39 @@ This document tracks the conversion of C/ObjC code to Rust in the Mob repository
 ### ❌ Still in C/ObjC (Need Manual Handling)
 The following files are **not suitable for Rust conversion** because they're pure platform UI code:
 
-1. **`mob/ios/MobNode.m`** - UI tree node implementation in ObjC
+1. **`dala/ios/DalaNode.m`** - UI tree node implementation in ObjC
    - This is pure iOS UI code using ObjC classes
    - Should remain in ObjC and be called from Swift/Rust via FFI if needed
    - No plans to convert (would require duplicating UIKit bindings)
 
-2. **`mob/ios/MobNode.h`** - Header for above
+2. **`dala/ios/DalaNode.h`** - Header for above
 
-3. **`mob/ios/MobRootView.swift`** - SwiftUI view (already in Swift, not C)
+3. **`dala/ios/DalaRootView.swift`** - SwiftUI view (already in Swift, not C)
 
-4. **`mob/ios/MobViewModel.swift`** - SwiftUI ViewModel (already in Swift)
+4. **`dala/ios/DalaViewModel.swift`** - SwiftUI ViewModel (already in Swift)
 
 ## Build Integration (Completed)
 
 ### Android
-- ✅ `mob/android/jni/Android.mk` - Created for NDK build integration
-- ✅ `mob/android/jni/rust/build_android.sh` - Build script for all Android targets
-- ✅ `mob/android/jni/rust/Cargo.toml` - Rust package configuration with features
+- ✅ `dala/android/jni/Android.mk` - Created for NDK build integration
+- ✅ `dala/android/jni/rust/build_android.sh` - Build script for all Android targets
+- ✅ `dala/android/jni/rust/Cargo.toml` - Rust package configuration with features
 
 ### iOS
-- ✅ `mob/ios/rust/build_ios.sh` - Build script for all iOS targets
-- ✅ `mob/ios/rust/Cargo.toml` - Rust package configuration with features
-- ✅ `mob/ios/xcode_build_rust.sh` - Xcode build phase script
-- ✅ `mob/ios/prepare_rust.sh` - Manual preparation script
-- ✅ `mob/ios/Frameworks/` - Directory for compiled libraries (created by scripts)
+- ✅ `dala/ios/rust/build_ios.sh` - Build script for all iOS targets
+- ✅ `dala/ios/rust/Cargo.toml` - Rust package configuration with features
+- ✅ `dala/ios/xcode_build_rust.sh` - Xcode build phase script
+- ✅ `dala/ios/prepare_rust.sh` - Manual preparation script
+- ✅ `dala/ios/Frameworks/` - Directory for compiled libraries (created by scripts)
 
 ### Documentation
-- ✅ `mob/BUILD_INTEGRATION.md` - Comprehensive build integration guide
-- ✅ `mob/RUST_CONVERSION.md` - This file
+- ✅ `dala/BUILD_INTEGRATION.md` - Comprehensive build integration guide
+- ✅ `dala/RUST_CONVERSION.md` - This file
 
 ## What's Needed to Complete the Migration
 
 ### Critical: Link with ERTS
-Both `mob_beam.rs` and `mob_beam_ios.rs` now have the `erl_start` binding:
+Both `dala_beam.rs` and `dala_beam_ios.rs` now have the `erl_start` binding:
 
 ```rust
 // Already added to both files:
@@ -86,10 +86,10 @@ This requires linking against `libbeam.a` (the BEAM runtime library).
 ### Build Integration Steps
 
 #### Android
-1. Place `Android.mk` in `mob/android/jni/`
+1. Place `Android.mk` in `dala/android/jni/`
 2. Update your project's `Application.mk` to include:
    ```makefile
-   APP_MODULES := driver_tab_android_rust mob_beam_rust
+   APP_MODULES := driver_tab_android_rust dala_beam_rust
    ```
 3. Run `ndk-build` or let your build system handle it
 
@@ -99,23 +99,23 @@ This requires linking against `libbeam.a` (the BEAM runtime library).
    ```bash
    "$SRCROOT/ios/xcode_build_rust.sh"
    ```
-3. Link the libraries from `mob/ios/Frameworks/`
+3. Link the libraries from `dala/ios/Frameworks/`
 4. Set Library Search Paths to `$(SRCROOT)/ios/Frameworks`
 
-See `mob/BUILD_INTEGRATION.md` for detailed instructions.
+See `dala/BUILD_INTEGRATION.md` for detailed instructions.
 
 ## Files Created This Session
 
 ```
-mob/android/jni/
+dala/android/jni/
 ├── Android.mk              (✅ Build integration for NDK)
 └── rust/
     ├── Cargo.toml         (✅ Package config with features)
     ├── build_android.sh   (✅ Build script)
     ├── driver_tab_android.rs (✅ Complete)
-    └── mob_beam.rs        (✅ Complete with erl_start)
+    └── dala_beam.rs        (✅ Complete with erl_start)
 
-mob/ios/
+dala/ios/
 ├── xcode_build_rust.sh    (✅ Xcode build phase script)
 ├── prepare_rust.sh        (✅ Manual preparation script)
 ├── Frameworks/           (✅ Created for libraries)
@@ -123,9 +123,9 @@ mob/ios/
     ├── Cargo.toml         (✅ Package config with features)
     ├── build_ios.sh       (✅ Build script)
     ├── driver_tab_ios.rs  (✅ Complete)
-    └── mob_beam_ios.rs    (✅ Complete with erl_start)
+    └── dala_beam_ios.rs    (✅ Complete with erl_start)
 
-mob/
+dala/
 ├── BUILD_INTEGRATION.md   (✅ Comprehensive guide)
 └── RUST_CONVERSION.md     (✅ This file)
 ```
@@ -139,29 +139,29 @@ The Rust code uses feature flags to match C preprocessor defines:
 - `beam_untuned` - No BEAM tuning
 - `beam_sbwt_only` - Only SBWT tuning
 - `beam_full_nerves` - Full Nerves-style tuning (default)
-- `beam_use_custom_flags` - Use `mob_beam_flags.h`
+- `beam_use_custom_flags` - Use `dala_beam_flags.h`
 
 ### iOS (`Cargo.toml` features):
-- `mob_bundle_otp` - OTP bundled in app (device builds)
-- `mob_release` - App Store release (no distribution)
+- `dala_bundle_otp` - OTP bundled in app (device builds)
+- `dala_release` - App Store release (no distribution)
 - `static_sqlite_nif` - Static sqlite3 NIF linking
 
 ## Build Commands
 
 ```bash
 # Android - Build Rust libraries
-cd mob/android/jni/rust
+cd dala/android/jni/rust
 chmod +x build_android.sh
 ./build_android.sh
 
 # iOS - Build Rust libraries
-cd mob/ios/rust
+cd dala/ios/rust
 chmod +x build_ios.sh
 ./build_ios.sh
 
 # Or use Xcode build phase (automatic)
 # Or use manual preparation script:
-cd mob/ios
+cd dala/ios
 ./prepare_rust.sh
 ```
 
@@ -194,12 +194,12 @@ cd mob/ios
 - [ ] BEAM actually starts and runs Elixir code
 - [ ] All environment variables set correctly
 - [ ] Symlinks created correctly (Android & iOS)
-- [ ] Runtime flag override works (`mob_beam_flags` file)
+- [ ] Runtime flag override works (`dala_beam_flags` file)
 
 ## Notes
 
 - The driver table files (`driver_tab_*.rs`) are **complete and ready to use**
-- The `mob_beam` ports have **complete logic with `erl_start` linked**
+- The `dala_beam` ports have **complete logic with `erl_start` linked**
 - Consider a **gradual migration** - test Rust components alongside C versions first
-- The `mob_nif` Rust implementation is already production-ready at `mob/native/mob_nif/`
+- The `dala_nif` Rust implementation is already production-ready at `dala/native/dala_nif/`
 - Build integration files are created and documented in `BUILD_INTEGRATION.md`

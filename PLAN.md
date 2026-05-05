@@ -1,6 +1,6 @@
-# Mob — Build Plan
+# Dala — Build Plan
 
-> A mobile framework for Elixir that runs the BEAM on-device.
+> A dalaile framework for Elixir that runs the BEAM on-device.
 > Last updated: 2026-04-24
 
 ---
@@ -8,65 +8,65 @@
 ## What's shipped
 
 ### Core framework
-- ✅ `Mob.Socket`, `Mob.Screen`, `Mob.Component`, `Mob.Registry`, `Mob.Renderer`
+- ✅ `Dala.Socket`, `Dala.Screen`, `Dala.Component`, `Dala.Registry`, `Dala.Renderer`
 - ✅ HelloScreen on Android emulator (Pixel 8) and real Moto phone (non-rooted)
 - ✅ HelloScreen on iOS simulator (iPhone 17) via SwiftUI
 - ✅ CounterScreen — tap → NIF → `enif_send` → `handle_event` → re-render (both platforms)
-- ✅ Erlang distribution on Android (`Mob.Dist`, deferred 3s to avoid hwui mutex race)
-- ✅ Erlang distribution on iOS (simulator shares Mac network stack, reads `MOB_DIST_PORT` env)
+- ✅ Erlang distribution on Android (`Dala.Dist`, deferred 3s to avoid hwui mutex race)
+- ✅ Erlang distribution on iOS (simulator shares Mac network stack, reads `dala_DIST_PORT` env)
 - ✅ Simultaneous Android + iOS connection — both nodes in one IEx cluster
-- ✅ Battery benchmarking — Nerves tuning flags (`+sbwt none +S 1:1` etc.) adopted as production default in `mob_beam.c`
-- ✅ `mob_nif:log/2` NIF + `Mob.NativeLogger` OTP handler → Elixir Logger → platform system log (logcat / NSLog) on both Android and iOS
-- ✅ Navigation stack — `push_screen`, `pop_screen`, `pop_to_root`, `pop_to`, `reset_to` in `Mob.Socket`
+- ✅ Battery benchmarking — Nerves tuning flags (`+sbwt none +S 1:1` etc.) adopted as production default in `dala_beam.c`
+- ✅ `dala_nif:log/2` NIF + `Dala.NativeLogger` OTP handler → Elixir Logger → platform system log (logcat / NSLog) on both Android and iOS
+- ✅ Navigation stack — `push_screen`, `pop_screen`, `pop_to_root`, `pop_to`, `reset_to` in `Dala.Socket`
 - ✅ Animated transitions — `:push`, `:pop`, `:reset`, `:none` passed through renderer to NIF
-- ✅ Back buttons on all demo screens; `handle_info` catch-all guards against FunctionClauseError crash (added to all 6 mob_demo screens)
-- ✅ SELinux fix in deployer — `chcon -hR` (not `-R`) copies MCS category from app's own `files/` dir after push AND before restart, preventing category mismatch. `-h` flag prevents symlink dereferencing — critical because `mob_beam.c` symlinks `BINDIR/erl_child_setup → nativeLibDir/liberl_child_setup.so`, and `-R` would follow those symlinks and corrupt the native lib labels
-- ✅ Android 15 `apk_data_file` fix — streaming `adb install` on Android 15 labels ERTS helper `.so` files (`liberl_child_setup.so` etc.) as `app_data_file` (blocks `execute_no_trans`). `mix mob.deploy --native` now runs `fix_erts_helper_labels/2` after each APK install: uses `pm dump` to find native lib dir, then `chcon u:object_r:apk_data_file:s0` on the 3 helpers (rooted/emulator only — silently skipped on production builds)
+- ✅ Back buttons on all demo screens; `handle_info` catch-all guards against FunctionClauseError crash (added to all 6 dala_demo screens)
+- ✅ SELinux fix in deployer — `chcon -hR` (not `-R`) copies MCS category from app's own `files/` dir after push AND before restart, preventing category mismatch. `-h` flag prevents symlink dereferencing — critical because `dala_beam.c` symlinks `BINDIR/erl_child_setup → nativeLibDir/liberl_child_setup.so`, and `-R` would follow those symlinks and corrupt the native lib labels
+- ✅ Android 15 `apk_data_file` fix — streaming `adb install` on Android 15 labels ERTS helper `.so` files (`liberl_child_setup.so` etc.) as `app_data_file` (blocks `execute_no_trans`). `mix dala.deploy --native` now runs `fix_erts_helper_labels/2` after each APK install: uses `pm dump` to find native lib dir, then `chcon u:object_r:apk_data_file:s0` on the 3 helpers (rooted/emulator only — silently skipped on production builds)
 - ✅ `scroll` explicit wrapper — `axis: :vertical/:horizontal`, `show_indicator: false` (iOS); `HelloScreen`/`CounterScreen` wrap root column in scroll
-- ✅ `Mob.Style` struct — `%Mob.Style{props: map}` wraps reusable prop maps; merged by renderer at serialisation time
-- ✅ Style token system — atom tokens (`:primary`, `:xl`, `:gray_600`, etc.) resolved in `Mob.Renderer` before JSON serialisation; no runtime cost on the native side
+- ✅ `Dala.Style` struct — `%Dala.Style{props: map}` wraps reusable prop maps; merged by renderer at serialisation time
+- ✅ Style token system — atom tokens (`:primary`, `:xl`, `:gray_600`, etc.) resolved in `Dala.Renderer` before JSON serialisation; no runtime cost on the native side
 - ✅ Platform blocks — `:ios` / `:android` nested prop keys resolved by renderer; wrong platform's block silently dropped
 - ✅ Wave A components: `box` (ZStack), `divider`, `spacer` (fixed), `progress` (linear, determinate + indeterminate) — both platforms
-- ✅ `ComponentsScreen` in mob_demo — exercises all Wave A components and style tokens
+- ✅ `ComponentsScreen` in dala_demo — exercises all Wave A components and style tokens
 - ✅ Wave B components: `text_field` (keyboard types, focus/blur/submit events), `toggle`, `slider` — both platforms
-- ✅ `InputScreen` in mob_demo — exercises text_field / toggle / slider with live event feedback
+- ✅ `InputScreen` in dala_demo — exercises text_field / toggle / slider with live event feedback
 - ✅ `image` — `AsyncImage` (iOS built-in) + Coil (Android); `src`, `content_mode`, `width`, `height`, `corner_radius`, `placeholder_color` props
 - ✅ `lazy_list` — `LazyVStack` (iOS) + `LazyColumn` (Android); `on_end_reached` event for infinite scroll
-- ✅ `Mob.List` — high-level list component wrapping `lazy_list`; `on_select`, `on_end_reached` events; default and custom renderers; event routing via `{:list, id, :select, index}` tuples intercepted in `Mob.Screen` and re-dispatched as `{:select, id, index}`
-- ✅ `ListScreen` in mob_demo — 30 items initial, appends 20 on each end_reached; both default and custom renderers exercised
-- ✅ `Mob.Test` — RPC-based app automation for programmatic testing: `screen/1`, `assigns/1`, `tap/2`, `find/2`, `inspect/1`; drives running apps without touching native UI; used for QA tour and regression testing
+- ✅ `Dala.List` — high-level list component wrapping `lazy_list`; `on_select`, `on_end_reached` events; default and custom renderers; event routing via `{:list, id, :select, index}` tuples intercepted in `Dala.Screen` and re-dispatched as `{:select, id, index}`
+- ✅ `ListScreen` in dala_demo — 30 items initial, appends 20 on each end_reached; both default and custom renderers exercised
+- ✅ `Dala.Test` — RPC-based app automation for programmatic testing: `screen/1`, `assigns/1`, `tap/2`, `find/2`, `inspect/1`; drives running apps without touching native UI; used for QA tour and regression testing
 
 ### QA fixes (2026-04-16)
 - ✅ `renderer.ex` — `on_tap` with tuple tag (e.g. `{:list, id, :select, index}`) no longer crashes `Atom.to_string/1`; split into two clauses: atom tag includes `accessibility_id`, non-atom tag omits it
-- ✅ `tab_screen.ex` (mob_demo) — `text_size: "2xl"` (string) changed to `text_size: :"2xl"` (atom); renderer's token resolution requires atoms
-- ✅ `MobRootView.swift` — Tab content frame fixed: added `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)` to `MobNodeView` in `MobTabView` so content is top-aligned, not bottom-aligned
-- ✅ `MobRootView.swift` — Tab background fill fixed: `MobTabView` applies `child.backgroundColor` to the outer frame wrapper so the tab area background fills to the bottom, not just behind content
-- ✅ `device_screen.ex` (mob_demo) — Motion throttle fixed: `rem(data.timestamp, 5) == 0` is always true for 100ms-interval timestamps (all divisible by 5); corrected to `rem(div(data.timestamp, 100), 5) == 0`
+- ✅ `tab_screen.ex` (dala_demo) — `text_size: "2xl"` (string) changed to `text_size: :"2xl"` (atom); renderer's token resolution requires atoms
+- ✅ `DalaRootView.swift` — Tab content frame fixed: added `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)` to `DalaNodeView` in `DalaTabView` so content is top-aligned, not bottom-aligned
+- ✅ `DalaRootView.swift` — Tab background fill fixed: `DalaTabView` applies `child.backgroundColor` to the outer frame wrapper so the tab area background fills to the bottom, not just behind content
+- ✅ `device_screen.ex` (dala_demo) — Motion throttle fixed: `rem(data.timestamp, 5) == 0` is always true for 100ms-interval timestamps (all divisible by 5); corrected to `rem(div(data.timestamp, 100), 5) == 0`
 
 ### Toolchain (all published on Hex)
-- ✅ `mix mob.new APP_NAME` — generates full Android + iOS project from templates
-- ✅ `mix mob.install` — first-run: downloads pre-built OTP, generates icons, writes mob.exs
-- ✅ `mix mob.deploy [--native]` — compile + push BEAMs via Erlang dist (no restart) when nodes are connected; falls back to adb/cp + restart when not; `--native` also builds APK/app bundle
-- ✅ `mix mob.push` — compile + hot-push changed modules via Erlang dist (no restart)
-- ✅ `mix mob.watch` — auto-push on file save via dist
-- ✅ `mix mob.watch_stop` — stops a running mob.watch process
-- ✅ `mix mob.routes` — validates all `push_screen`/`reset_to`/`pop_to` call targets against `Mob.Nav.Registry`; warns on unregistered destinations
-- ✅ `mix mob.connect` — tunnel + restart + wait for nodes + IEx
-- ✅ `mix mob.battery_bench` — A/B test BEAM scheduler configs with mAh measurements
-- ✅ `mix mob.icon` — regenerate icons (random robot or from source image)
+- ✅ `mix dala.new APP_NAME` — generates full Android + iOS project from templates
+- ✅ `mix dala.install` — first-run: downloads pre-built OTP, generates icons, writes dala.exs
+- ✅ `mix dala.deploy [--native]` — compile + push BEAMs via Erlang dist (no restart) when nodes are connected; falls back to adb/cp + restart when not; `--native` also builds APK/app bundle
+- ✅ `mix dala.push` — compile + hot-push changed modules via Erlang dist (no restart)
+- ✅ `mix dala.watch` — auto-push on file save via dist
+- ✅ `mix dala.watch_stop` — stops a running dala.watch process
+- ✅ `mix dala.routes` — validates all `push_screen`/`reset_to`/`pop_to` call targets against `Dala.Nav.Registry`; warns on unregistered destinations
+- ✅ `mix dala.connect` — tunnel + restart + wait for nodes + IEx
+- ✅ `mix dala.battery_bench` — A/B test BEAM scheduler configs with mAh measurements
+- ✅ `mix dala.icon` — regenerate icons (random robot or from source image)
 - ✅ Pre-built OTP tarballs on GitHub (android + ios-sim), downloaded automatically
 
-### mob_dev server (v0.2.2)
+### dala_dev server (v0.2.2)
 - ✅ Device discovery (adb + xcrun simctl), live device cards
 - ✅ Per-device deploy buttons (Update / First Deploy)
 - ✅ Live log streaming (logcat + iOS simulator log stream)
 - ✅ Log filter (App / All / per-device) + free-text filter (comma-separated terms)
 - ✅ Deploy output terminal inline per device card
-- ✅ Elixir Logger → dashboard (mob_nif:log/2 pipeline)
+- ✅ Elixir Logger → dashboard (dala_nif:log/2 pipeline)
 - ✅ QR code in header — encodes LAN URL for opening dashboard on phone
-- ✅ `mix mob.server` — starts server, binds to 0.0.0.0:4040, prints QR in terminal
-- ✅ "Push on save" toggle in dashboard — `MobDev.Server.WatchWorker` GenServer; toggle in UI starts/stops file watching + dist push; shows last push time and module count
-- ✅ `HotPush` NIF tolerance — `on_load_failure` from `:code.load_binary` is silently ignored for NIF modules (`:mob_nif`, `Vix.Nif` etc.) that are already loaded and can't be re-initialized; prevents false deploy failures
+- ✅ `mix dala.server` — starts server, binds to 0.0.0.0:4040, prints QR in terminal
+- ✅ "Push on save" toggle in dashboard — `dalaDev.Server.WatchWorker` GenServer; toggle in UI starts/stops file watching + dist push; shows last push time and module count
+- ✅ `HotPush` NIF tolerance — `on_load_failure` from `:code.load_binary` is silently ignored for NIF modules (`:dala_nif`, `Vix.Nif` etc.) that are already loaded and can't be re-initialized; prevents false deploy failures
 
 ---
 
@@ -74,9 +74,9 @@
 
 See `ARCHITECTURE.md` for the full write-up. Short version:
 
-- **`mix mob.deploy --native`** — USB required. Full push: builds APK/IPA, installs via adb/xcrun, copies BEAMs.
-- **`mix mob.deploy`** — USB optional. Fast push: compiles BEAMs, saves to mob_dev server, distributes to connected nodes via Erlang dist. Falls back to adb push if no dist connection.
-- **`mix mob.push` / `mix mob.watch`** — dist only. Hot-loads changed modules in place, no restart.
+- **`mix dala.deploy --native`** — USB required. Full push: builds APK/IPA, installs via adb/xcrun, copies BEAMs.
+- **`mix dala.deploy`** — USB optional. Fast push: compiles BEAMs, saves to dala_dev server, distributes to connected nodes via Erlang dist. Falls back to adb push if no dist connection.
+- **`mix dala.push` / `mix dala.watch`** — dist only. Hot-loads changed modules in place, no restart.
 
 USB is only required for first deploy. After that, Erlang distribution is the transport for all code updates across both Android and iOS.
 
@@ -84,20 +84,20 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 
 ## Next up
 
-### 1. ~~Styling system — `Mob.Style`~~ ✅ Done
+### 1. ~~Styling system — `Dala.Style`~~ ✅ Done
 
 **Shipped (2026-04-15):**
 
-- `%Mob.Style{props: map}` struct — thin wrapper so the future `~MOB` sigil can pattern-match on it; zero cost before serialisation
-- Token resolution in `Mob.Renderer`: atom values for color props (`:primary`, `:gray_600`, etc.) resolve to ARGB integers; atom values for `:text_size` resolve to sp floats. Token tables are module attributes — compile-time constants
+- `%Dala.Style{props: map}` struct — thin wrapper so the future `~dala` sigil can pattern-match on it; zero cost before serialisation
+- Token resolution in `Dala.Renderer`: atom values for color props (`:primary`, `:gray_600`, etc.) resolve to ARGB integers; atom values for `:text_size` resolve to sp floats. Token tables are module attributes — compile-time constants
 - Platform blocks — `:ios` / `:android` keys in props are resolved by renderer before serialisation; the other platform's block is dropped silently
-- `%Mob.Style{}` under the `:style` prop key is merged into the node's own props; inline props override style values
+- `%Dala.Style{}` under the `:style` prop key is merged into the node's own props; inline props override style values
 - Demo screens converted to tokens; `ComponentsScreen` added
 
 **Still to do (style-adjacent):**
-- [ ] `~MOB` sigil: `style={...}` attribute support (Phase 2 — sigil upgrade)
+- [ ] `~dala` sigil: `style={...}` attribute support (Phase 2 — sigil upgrade)
 - [ ] `depth/1`, `font_style/1` semantic abstractions — NIF changes needed on both platforms
-- [ ] User-defined token extensions via `MyApp.Styles` + mob.exs config
+- [ ] User-defined token extensions via `MyApp.Styles` + dala.exs config
 - [ ] `font_weight`, `rounded`, `opacity`, `border` props on both platforms
 
 ---
@@ -109,7 +109,7 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 - `{:change, tag, value}` — 3-tuple sent by NIFs for value-bearing inputs. Tap stays as `{:tap, tag}` (backward-compatible).
 - Value types: binary string (text_field), boolean atom (toggle), float (slider)
 - `on_change: {pid, tag}` prop registered via the existing tap handle registry; the C side determines whether to send `:tap` or `:change` based on which sender function is called
-- Added to both platforms: `mob_send_change_str/bool/float` in Android `mob_nif.c`; static equivalents in iOS `mob_nif.m`
+- Added to both platforms: `dala_send_change_str/bool/float` in Android `dala_nif.c`; static equivalents in iOS `dala_nif.m`
 - Wave B components implemented: `text_field`, `toggle`, `slider` — both platforms
 - `InputScreen` demo exercises all three with live state feedback
 
@@ -119,13 +119,13 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 
 **Shipped (2026-04-15):**
 
-- Android `BackHandler` in `MainActivity` intercepts the system back gesture and calls `MobBridge.nativeHandleBack()` → `mob_handle_back()` C function
-- iOS `UIScreenEdgePanGestureRecognizer` on `MobHostingController` (left edge) calls `mob_handle_back()` directly
-- `mob_handle_back()` uses `enif_whereis_pid` to find `:mob_screen` and sends `{:mob, :back}` to the BEAM
-- `Mob.Screen` intercepts `{:mob, :back}` before user's `handle_info` — automatic on all screens, no user code needed
+- Android `BackHandler` in `MainActivity` intercepts the system back gesture and calls `dalaBridge.nativeHandleBack()` → `dala_handle_back()` C function
+- iOS `UIScreenEdgePanGestureRecognizer` on `DalaHostingController` (left edge) calls `dala_handle_back()` directly
+- `dala_handle_back()` uses `enif_whereis_pid` to find `:dala_screen` and sends `{:dala, :back}` to the BEAM
+- `Dala.Screen` intercepts `{:dala, :back}` before user's `handle_info` — automatic on all screens, no user code needed
 - Nav stack non-empty → pops with `:pop` transition; stack empty → calls `exit_app/0` NIF
 - `exit_app` on Android: `activity.moveTaskToBack(true)` (backgrounds, does not kill); on iOS: no-op (OS handles home gesture)
-- `Mob.Screen` registers itself as `:mob_screen` on init (render mode only)
+- `Dala.Screen` registers itself as `:dala_screen` on init (render mode only)
 
 **Design decisions recorded:**
 - "Home screen" = whatever is at the bottom of the stack after `reset_to`. No separate concept needed.
@@ -137,11 +137,11 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 
 **Shipped (2026-04-15):**
 
-- `mob_nif:safe_area/0` → `{top, right, bottom, left}` floats (logical points / dp)
+- `dala_nif:safe_area/0` → `{top, right, bottom, left}` floats (logical points / dp)
   - iOS: reads `UIWindow.safeAreaInsets` on the main thread via `dispatch_sync`
-  - Android: reads `decorView.rootWindowInsets` via `CountDownLatch` in `MobBridge`
-- `Mob.Screen.init` injects `assigns.safe_area = %{top: t, right: r, bottom: b, left: l}` before `mount/3` is called — always available, zero opt-in
-- `MobRootView` uses `.ignoresSafeArea(.container, edges: [.bottom, .horizontal])` — top safe area respected automatically; bottom/sides fill edge-to-edge
+  - Android: reads `decorView.rootWindowInsets` via `CountDownLatch` in `dalaBridge`
+- `Dala.Screen.init` injects `assigns.safe_area = %{top: t, right: r, bottom: b, left: l}` before `mount/3` is called — always available, zero opt-in
+- `DalaRootView` uses `.ignoresSafeArea(.container, edges: [.bottom, .horizontal])` — top safe area respected automatically; bottom/sides fill edge-to-edge
 - Framework does not insert any automatic padding — values are information only, developer decides what to do with them
 - Documented in README under `## Display`
 
@@ -154,7 +154,7 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 **Shipped (2026-04-15):**
 - `padding_top`, `padding_right`, `padding_bottom`, `padding_left` props on all layout nodes
 - Any missing edge falls back to the uniform `padding` value; all absent → no padding
-- iOS: `paddingEdgeInsets` computed property on `MobNode` returns `EdgeInsets`; all `.padding(node.padding)` calls in `MobRootView.swift` replaced with `.padding(node.paddingEdgeInsets)`
+- iOS: `paddingEdgeInsets` computed property on `DalaNode` returns `EdgeInsets`; all `.padding(node.padding)` calls in `DalaRootView.swift` replaced with `.padding(node.paddingEdgeInsets)`
 - Android: `nodeModifier` updated to detect edge props; uses `Modifier.padding(top=, end=, bottom=, start=)` when any edge is present, uniform `.padding()` otherwise
 - Usage: `padding_top: trunc(assigns.safe_area.top) + 16, padding: 16` — top clears the status bar; sides and bottom get uniform 16dp padding
 
@@ -168,26 +168,26 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 - `letter_spacing` in sp/pt
 - `font: "FontName"` — custom family; falls back to system font if not installed
 - No renderer changes needed — OTP's `:json.encode` serialises atom values as strings
-- iOS: `resolvedFont` + `textAlignEnum` + `computedLineSpacing` computed properties on MobNode Swift extension; applied to label case in `MobRootView`
-- Android: `fontWeightProp`, `textAlignProp`, `fontFamilyProp` helpers in `MobBridge.kt`; applied to `MobText` composable
-- Font bundling (`priv/fonts/` + `mix mob.deploy --native`) is a separate step
+- iOS: `resolvedFont` + `textAlignEnum` + `computedLineSpacing` computed properties on DalaNode Swift extension; applied to label case in `DalaRootView`
+- Android: `fontWeightProp`, `textAlignProp`, `fontFamilyProp` helpers in `dalaBridge.kt`; applied to `DalaText` composable
+- Font bundling (`priv/fonts/` + `mix dala.deploy --native`) is a separate step
 
 ### 7. ~~Tab bar / drawer navigation~~ ✅ Done (tab bar; drawer Phase 2)
 
 **Shipped (2026-04-15):**
 - `type: :tab_bar` node with `tabs: [%{id:, label:, icon:}]`, `active:`, `on_tab_select:`
 - Tab selection sends `{:change, tag, tab_id_string}` to screen's `handle_info` (reuses existing change mechanism)
-- `on_tab_select: {self(), tag}` registered in `Mob.Renderer.prepare_props/3`
-- iOS: `MobTabView` SwiftUI struct using `TabView` with SF Symbol icons; `MobNodeTypeTabBar` added to enum
-- Android: `MobTabBar` composable using `Scaffold` + `NavigationBar`; `tabDefsProp` parses `JSONArray` from props
-- `MobDemo.TabScreen` demo with 3 tabs, also exercises typography props
+- `on_tab_select: {self(), tag}` registered in `Dala.Renderer.prepare_props/3`
+- iOS: `DalaTabView` SwiftUI struct using `TabView` with SF Symbol icons; `DalaNodeTypeTabBar` added to enum
+- Android: `DalaTabBar` composable using `Scaffold` + `NavigationBar`; `tabDefsProp` parses `JSONArray` from props
+- `dalaDemo.TabScreen` demo with 3 tabs, also exercises typography props
 
 ### 8. ~~Nav animations — iOS~~ ✅ Done
 
 **Shipped (2026-04-15):**
-- Added `@State private var currentTransition: String = "none"` to `MobRootView`
+- Added `@State private var currentTransition: String = "none"` to `DalaRootView`
 - Set `currentTransition = t` BEFORE the `withAnimation` block so the modifier sees the right value when the new view is inserted
-- Added `.id(model.rootVersion)` to `MobNodeView` — forces SwiftUI to treat each root update as a distinct view insertion/removal, enabling asymmetric push/pop slide transitions rather than a whole-screen fade
+- Added `.id(model.rootVersion)` to `DalaNodeView` — forces SwiftUI to treat each root update as a distinct view insertion/removal, enabling asymmetric push/pop slide transitions rather than a whole-screen fade
 
 ### ~~(9, 10, 11 assigned elsewhere)~~
 
@@ -202,26 +202,26 @@ USB is only required for first deploy. After that, Erlang distribution is the tr
 No permission required.
 
 ```elixir
-Mob.Haptic.trigger(socket, :light)    # brief tap
-Mob.Haptic.trigger(socket, :medium)   # standard tap
-Mob.Haptic.trigger(socket, :heavy)    # strong tap
-Mob.Haptic.trigger(socket, :success)  # success pattern
-Mob.Haptic.trigger(socket, :error)    # error pattern
-Mob.Haptic.trigger(socket, :warning)  # warning pattern
+Dala.Haptic.trigger(socket, :light)    # brief tap
+Dala.Haptic.trigger(socket, :medium)   # standard tap
+Dala.Haptic.trigger(socket, :heavy)    # strong tap
+Dala.Haptic.trigger(socket, :success)  # success pattern
+Dala.Haptic.trigger(socket, :error)    # error pattern
+Dala.Haptic.trigger(socket, :warning)  # warning pattern
 ```
 
 Returns socket unchanged so it can be used inline. Fire-and-forget (dispatch_async / runOnUiThread).
 - iOS: `UIImpactFeedbackGenerator` / `UINotificationFeedbackGenerator`
 - Android: `View.performHapticFeedback` with `HapticFeedbackConstants`
-- NIF: `mob_nif:haptic/1` on both platforms
+- NIF: `dala_nif:haptic/1` on both platforms
 
 ### Clipboard ✅ Done (2026-04-15)
 
 No permission required.
 
 ```elixir
-Mob.Clipboard.put(socket, "some text")
-case Mob.Clipboard.get(socket) do
+Dala.Clipboard.put(socket, "some text")
+case Dala.Clipboard.get(socket) do
   {:clipboard, :ok, text} -> ...
   {:clipboard, :empty}    -> ...
 end
@@ -230,19 +230,19 @@ end
 `get/1` is synchronous (dispatch_sync / CountDownLatch), same pattern as `safe_area/0`.
 - iOS: `UIPasteboard.generalPasteboard`
 - Android: `ClipboardManager` / `ClipData`
-- NIFs: `mob_nif:clipboard_put/1`, `mob_nif:clipboard_get/0`
+- NIFs: `dala_nif:clipboard_put/1`, `dala_nif:clipboard_get/0`
 
 ### Share sheet ✅ Done (2026-04-15)
 
 No permission required. Fire-and-forget.
 
 ```elixir
-Mob.Share.text(socket, "Check out Mob!")
+Dala.Share.text(socket, "Check out Dala!")
 ```
 
 - iOS: `UIActivityViewController` with popover support for iPad
 - Android: `Intent.ACTION_SEND` via `Intent.createChooser`
-- NIF: `mob_nif:share_text/1`
+- NIF: `dala_nif:share_text/1`
 
 ---
 
@@ -257,66 +257,66 @@ Text props that are missing on both platforms:
 - `line_height` (multiplier, e.g. `1.4`)
 - `letter_spacing` (sp/pt)
 
-**Custom fonts:** bundled in the app as asset files (`.ttf` / `.otf`). Developer drops fonts into `priv/fonts/` in their Mix project; `mix mob.deploy --native` copies them into the right platform directories and patches `Info.plist` for iOS. iOS uses the PostScript name directly; Android requires lowercase+underscore filenames (`Inter-Regular.ttf` → `inter_regular`), so `Mob.Renderer` normalises the name before JSON serialisation.
+**Custom fonts:** bundled in the app as asset files (`.ttf` / `.otf`). Developer drops fonts into `priv/fonts/` in their Mix project; `mix dala.deploy --native` copies them into the right platform directories and patches `Info.plist` for iOS. iOS uses the PostScript name directly; Android requires lowercase+underscore filenames (`Inter-Regular.ttf` → `inter_regular`), so `Dala.Renderer` normalises the name before JSON serialisation.
 
 Downloadable / web fonts (Google Fonts API etc.) are a nice-to-have for later — network-dependent and significantly more complex.
 
-Token additions in `Mob.Renderer` for `font_weight`. NIF side: `font` / `text_weight` / `text_align` JSON fields → `UIFont(name:size:)` (iOS) / `FontFamily` + `FontWeight` (Android).
+Token additions in `Dala.Renderer` for `font_weight`. NIF side: `font` / `text_weight` / `text_align` JSON fields → `UIFont(name:size:)` (iOS) / `FontFamily` + `FontWeight` (Android).
 
 ### 7. Tab bar / drawer navigation
 
 Most real apps have a persistent tab bar (bottom nav) or a side drawer. Currently nav is a push/pop stack only.
 
 **Tab bar:**
-- Defined in `Mob.App.navigation/1` alongside the stack declaration (same place as today's `stack`)
+- Defined in `Dala.App.navigation/1` alongside the stack declaration (same place as today's `stack`)
 - `tab_bar/1` macro takes a list of `{label, icon_atom, screen_module}` entries
-- Active tab is part of `Mob.Screen` state; `Mob.Socket.switch_tab/2` sends to a sibling tab's screen
+- Active tab is part of `Dala.Screen` state; `Dala.Socket.switch_tab/2` sends to a sibling tab's screen
 - Each tab has its own independent nav stack
 - iOS: `UITabBarController` wrapper; Android: `NavigationBar` composable at the bottom
 
 **Drawer:**
-- `drawer/1` macro in `Mob.App.navigation/1`
-- Opened by `Mob.Socket.open_drawer/1`, closed by `close_drawer/1`
+- `drawer/1` macro in `Dala.App.navigation/1`
+- Opened by `Dala.Socket.open_drawer/1`, closed by `close_drawer/1`
 - Rendered as a slide-in panel from the left; content is a regular screen tree
 
 **Back-gesture interaction:** back gesture at stack root should go to previous tab if tabs are active, not background the app.
 
 ### 8. Nav animations — iOS
 
-iOS `MobRootView` already has `navTransition/1` and `navAnimation/1` helpers and a `.transition()` modifier, but they're applied to the entire root view swap, not to individual screen transitions. The result is a whole-screen fade rather than a proper push slide.
+iOS `DalaRootView` already has `navTransition/1` and `navAnimation/1` helpers and a `.transition()` modifier, but they're applied to the entire root view swap, not to individual screen transitions. The result is a whole-screen fade rather than a proper push slide.
 
 **Goal:** Match Android's `AnimatedContent` behaviour — slide in from right (push), slide in from left (pop), fade (reset).
 
-iOS approach: keep `MobRootView` as-is but switch `ZStack` + `.transition()` to `withAnimation` around the `currentRoot` state update, paired with `.transition(.asymmetric(...))` on `MobNodeView`. This is already scaffolded in the current code; needs the transition to be applied to the `MobNodeView` level rather than the `ZStack` level.
+iOS approach: keep `DalaRootView` as-is but switch `ZStack` + `.transition()` to `withAnimation` around the `currentRoot` state update, paired with `.transition(.asymmetric(...))` on `DalaNodeView`. This is already scaffolded in the current code; needs the transition to be applied to the `DalaNodeView` level rather than the `ZStack` level.
 
-### ~~9. `mix mob.deploy` → dist~~ ✅ Done
-
-**Shipped (2026-04-16):**
-`mix mob.deploy` now tries Erlang dist first (hot-loads with no restart); falls back to adb push + restart when no dist connection. NIF modules that fail hot-reload (`on_load_failure`) are silently tolerated.
-
-### ~~10. `mix mob.watch` in mob_dev dashboard~~ ✅ Done
+### ~~9. `mix dala.deploy` → dist~~ ✅ Done
 
 **Shipped (2026-04-16):**
-`MobDev.Server.WatchWorker` GenServer wraps the watch loop. Toggle in dashboard UI starts/stops it with last-push-time and module-count status.
+`mix dala.deploy` now tries Erlang dist first (hot-loads with no restart); falls back to adb push + restart when no dist connection. NIF modules that fail hot-reload (`on_load_failure`) are silently tolerated.
 
-### ~~11. `mix mob.routes` validation~~ ✅ Done
+### ~~10. `mix dala.watch` in dala_dev dashboard~~ ✅ Done
 
 **Shipped (2026-04-16):**
-`mix mob.routes` walks all `push_screen`/`reset_to`/`pop_to` call sites, checks targets against `Mob.Nav.Registry`, and warns on unregistered destinations.
+`dalaDev.Server.WatchWorker` GenServer wraps the watch loop. Toggle in dashboard UI starts/stops it with last-push-time and module-count status.
+
+### ~~11. `mix dala.routes` validation~~ ✅ Done
+
+**Shipped (2026-04-16):**
+`mix dala.routes` walks all `push_screen`/`reset_to`/`pop_to` call sites, checks targets against `Dala.Nav.Registry`, and warns on unregistered destinations.
 
 ### 12. KitchenSink screen
 All components exercised in one demo screen: `column`, `row`, `scroll`, `box`, `text`, `button`, `text_field`, `toggle`, `slider`, `divider`, `spacer`, `progress`, `image`, `lazy_list`.
 Update after per-edge padding (item 5) and typography (item 6) land.
 
-### 13. Permission / capability build wizard (mob_dev dashboard)
+### 13. Permission / capability build wizard (dala_dev dashboard)
 
-**Problem:** Native permission declarations must be in place at build time — `AndroidManifest.xml` for Android, `Info.plist` for iOS — but today developers have to edit those files by hand. This is one of the most friction-heavy parts of the first-deploy flow, especially for less experienced mobile developers.
+**Problem:** Native permission declarations must be in place at build time — `AndroidManifest.xml` for Android, `Info.plist` for iOS — but today developers have to edit those files by hand. This is one of the most friction-heavy parts of the first-deploy flow, especially for less experienced dalaile developers.
 
-**Goal:** A wizard in the mob_dev dashboard that lets developers declare which device capabilities their app uses. The wizard writes the correct platform manifest entries and regenerates files before the next `mix mob.deploy --native`.
+**Goal:** A wizard in the dala_dev dashboard that lets developers declare which device capabilities their app uses. The wizard writes the correct platform manifest entries and regenerates files before the next `mix dala.deploy --native`.
 
 **UX sketch:**
 
-The wizard lives in the mob_dev dashboard under a "Build Config" or "Capabilities" tab. It shows a checklist of capabilities:
+The wizard lives in the dala_dev dashboard under a "Build Config" or "Capabilities" tab. It shows a checklist of capabilities:
 
 | Capability | Description | Android permission | iOS key |
 |---|---|---|---|
@@ -335,20 +335,20 @@ Each capability has an optional **usage description** field (iOS requires a huma
 
 **Implementation:**
 
-- Capability selections + usage strings stored in `mob.exs` under a `:capabilities` key
-- `mix mob.deploy --native` reads `mob.exs[:capabilities]` and patches:
+- Capability selections + usage strings stored in `dala.exs` under a `:capabilities` key
+- `mix dala.deploy --native` reads `dala.exs[:capabilities]` and patches:
   - `android/app/src/main/AndroidManifest.xml` — adds `<uses-permission>` entries
   - `ios/Info.plist` — adds `NS*UsageDescription` keys
-- `mix mob.new` generates starter manifests with a comment block where Mob will inject permissions; this makes the files safe to patch idempotently
-- Dashboard wizard writes to `mob.exs` in the project root via a LiveView form; changes take effect on next `--native` build
-- Validation: warn if a `Mob.*` API is called in the BEAM code but the corresponding capability is not declared (cross-reference `Mob.Camera`, `Mob.Location` etc. call sites vs declared capabilities)
+- `mix dala.new` generates starter manifests with a comment block where Dala will inject permissions; this makes the files safe to patch idempotently
+- Dashboard wizard writes to `dala.exs` in the project root via a LiveView form; changes take effect on next `--native` build
+- Validation: warn if a `Dala.*` API is called in the BEAM code but the corresponding capability is not declared (cross-reference `Dala.Camera`, `Dala.Location` etc. call sites vs declared capabilities)
 
-**mob.exs format:**
+**dala.exs format:**
 
 ```elixir
 import Config
 
-config :mob_dev,
+config :dala_dev,
   bundle_id: "com.example.myapp",
   capabilities: [
     camera:       [usage: "Take profile photos"],
@@ -360,13 +360,13 @@ config :mob_dev,
   ]
 ```
 
-**Scope note:** The wizard UI and `mob.exs` schema live in `mob_dev`. The manifest patching logic (`patch_android_manifest/1`, `patch_ios_plist/1`) lives in `mob_dev` alongside `NativeBuild`. The capability→permission mapping table is a compile-time constant in `mob_dev`.
+**Scope note:** The wizard UI and `dala.exs` schema live in `dala_dev`. The manifest patching logic (`patch_android_manifest/1`, `patch_ios_plist/1`) lives in `dala_dev` alongside `NativeBuild`. The capability→permission mapping table is a compile-time constant in `dala_dev`.
 
 ---
 
 ## List component overhaul ✅ Phase 1 shipped (2026-04-15)
 
-`Mob.List` Phase 1 is live. `lazy_list` stays for backward compat; `list` is the new component. Phase 2 items (swipe actions, sections, pull-to-refresh) are still pending.
+`Dala.List` Phase 1 is live. `lazy_list` stays for backward compat; `list` is the new component. Phase 2 items (swipe actions, sections, pull-to-refresh) are still pending.
 
 The current `lazy_list` requires the caller to `Enum.map` their data into pre-rendered node trees and pass them as children. The `list` component gives Elixir developers something that behaves like a list out of the box, with full customisation available when needed.
 
@@ -383,12 +383,12 @@ def handle_info({:end_reached, :items}, socket), do: ...
 def handle_info({:refresh, :items}, socket), do: ...
 ```
 
-**Multiple lists — each wrapped in an explicit `Mob.Component`:**
+**Multiple lists — each wrapped in an explicit `Dala.Component`:**
 ```elixir
 defmodule MyApp.RecentList do
-  use Mob.Component
+  use Dala.Component
 
-  def init(socket), do: Mob.Socket.assign(socket, :items, [])
+  def init(socket), do: Dala.Socket.assign(socket, :items, [])
 
   def render(assigns) do
     %{type: :list, props: %{id: :recent, items: assigns.items}}
@@ -399,7 +399,7 @@ defmodule MyApp.RecentList do
 end
 ```
 
-`Mob.Component` is the event isolation boundary. The developer never has to think about event routing leaking between lists as long as they follow the wrapper rule.
+`Dala.Component` is the event isolation boundary. The developer never has to think about event routing leaking between lists as long as they follow the wrapper rule.
 
 ### Default data list
 
@@ -420,8 +420,8 @@ Registered at mount time, referenced by the list by id:
 def mount(_params, _session, socket) do
   socket =
     socket
-    |> Mob.Socket.assign(:items, [])
-    |> Mob.List.put_renderer(socket, :items, &item_row/1)
+    |> Dala.Socket.assign(:items, [])
+    |> Dala.List.put_renderer(socket, :items, &item_row/1)
   {:ok, socket}
 end
 
@@ -480,15 +480,15 @@ Events arriving as `handle_info`:
 ### Implementation notes
 
 - `lazy_list` stays unchanged (backward compat). `list` is the new component.
-- In `Mob.Renderer`, `type: :list` expands: items → children via renderer, then serialises as `lazy_list` to the NIF. No NIF changes needed for Phase 1.
-- `on_select` implemented by wrapping each row in a tappable container in the renderer, with tag `{:list, id, :select, index}`. `Mob.Screen` intercepts `{:tap, {:list, id, :select, index}}` and re-dispatches as `{:select, id, index}`.
+- In `Dala.Renderer`, `type: :list` expands: items → children via renderer, then serialises as `lazy_list` to the NIF. No NIF changes needed for Phase 1.
+- `on_select` implemented by wrapping each row in a tappable container in the renderer, with tag `{:list, id, :select, index}`. `Dala.Screen` intercepts `{:tap, {:list, id, :select, index}}` and re-dispatches as `{:select, id, index}`.
 - `on_refresh` and `refreshing` require native changes (SwipeRefresh on Android, `.refreshable` on iOS) — Phase 2.
 - iOS: `LazyVStack` for Phase 1; migrate to `List` view for swipe actions + sections in Phase 2.
 - Android: `LazyColumn` for Phase 1; add `SwipeToDismiss` + `stickyHeader` in Phase 2.
 
 ---
 
-## `Mob.Intent` — Android inter-app communication (planned)
+## `Dala.Intent` — Android inter-app communication (planned)
 
 Expose Android intents to Elixir so apps can reach out to other apps on the device (WhatsApp, email, browser, dialer, etc.).
 
@@ -496,25 +496,25 @@ Expose Android intents to Elixir so apps can reach out to other apps on the devi
 
 ```elixir
 # Send a message to a specific app (e.g. WhatsApp)
-Mob.Intent.send(socket, package: "com.whatsapp", text: "Hello from the agent")
+Dala.Intent.send(socket, package: "com.whatsapp", text: "Hello from the agent")
 
-# Share sheet (existing Mob.Share) — chooser, no target package
-Mob.Intent.send(socket, text: "Hello")
+# Share sheet (existing Dala.Share) — chooser, no target package
+Dala.Intent.send(socket, text: "Hello")
 
 # Compose email
-Mob.Intent.email(socket, to: "foo@example.com", subject: "Hi", body: "...")
+Dala.Intent.email(socket, to: "foo@example.com", subject: "Hi", body: "...")
 
 # Open URL in browser
-Mob.Intent.open_url(socket, "https://example.com")
+Dala.Intent.open_url(socket, "https://example.com")
 
 # Open dialer (does not auto-dial)
-Mob.Intent.dial(socket, "+1-555-1234")
+Dala.Intent.dial(socket, "+1-555-1234")
 
 # SMS
-Mob.Intent.sms(socket, to: "+1-555-1234", body: "Hello")
+Dala.Intent.sms(socket, to: "+1-555-1234", body: "Hello")
 
 # List installed apps the device can handle (subject to Android 11+ query restrictions)
-Mob.Intent.installed_apps(socket)
+Dala.Intent.installed_apps(socket)
 # → arrives as {:intent_result, :installed_apps, [{package, label}, ...]}
 ```
 
@@ -522,7 +522,7 @@ All calls are fire-and-forget except `installed_apps` which delivers a result vi
 
 ### Android implementation
 
-- `mob_intent_send/1`, `mob_intent_email/1`, `mob_intent_open_url/1`, `mob_intent_dial/1`, `mob_intent_sms/1`, `mob_intent_installed_apps/0` NIFs in `mob_nif.c` / `MobBridge.kt`
+- `dala_intent_send/1`, `dala_intent_email/1`, `dala_intent_open_url/1`, `dala_intent_dial/1`, `dala_intent_sms/1`, `dala_intent_installed_apps/0` NIFs in `dala_nif.c` / `dalaBridge.kt`
 - `ACTION_SEND` with `setPackage(package)` for targeted sends; `createChooser` when no package specified
 - `ACTION_SENDTO` with `mailto:` / `smsto:` URIs for email and SMS
 - `ACTION_VIEW` for URLs and dialer
@@ -544,19 +544,19 @@ iOS requires declaring URL schemes in `Info.plist` under `LSApplicationQueriesSc
 
 - Android 11+ restricts `PackageManager.getInstalledApplications` — Play Store apps must declare specific `<queries>` or request `QUERY_ALL_PACKAGES` (restricted permission). `installed_apps` will only return apps the manifest declares queries for.
 - Targeted sends (`package:`) silently fall back to the chooser if the target app is not installed.
-- iOS does not have a general intent system; `Mob.Intent` on iOS is a URL scheme bridge.
+- iOS does not have a general intent system; `Dala.Intent` on iOS is a URL scheme bridge.
 
 ---
 
 ## Device capabilities
 
-Hardware APIs arrive as `handle_info` events, same as tap events. Permission requests are explicit — the developer calls `Mob.Permissions.request/2` and receives `{:permission, capability, :granted | :denied}` back.
+Hardware APIs arrive as `handle_info` events, same as tap events. Permission requests are explicit — the developer calls `Dala.Permissions.request/2` and receives `{:permission, capability, :granted | :denied}` back.
 
 ### Permission model
 
 ```elixir
 # Request a permission (shows OS dialog if not yet decided)
-{:noreply, Mob.Permissions.request(socket, :camera)}
+{:noreply, Dala.Permissions.request(socket, :camera)}
 
 # Arrives as:
 def handle_info({:permission, :camera, :granted}, socket), do: ...
@@ -570,15 +570,15 @@ def handle_info({:permission, :camera, :denied},  socket), do: ...
 Feedback for taps, errors, and successes. No permission needed.
 
 ```elixir
-mob_nif:haptic(:light)    # light tap
-mob_nif:haptic(:medium)   # medium tap
-mob_nif:haptic(:heavy)    # heavy tap
-mob_nif:haptic(:success)  # success pattern (iOS: UINotificationFeedbackGenerator)
-mob_nif:haptic(:error)    # error pattern
-mob_nif:haptic(:warning)  # warning pattern
+dala_nif:haptic(:light)    # light tap
+dala_nif:haptic(:medium)   # medium tap
+dala_nif:haptic(:heavy)    # heavy tap
+dala_nif:haptic(:success)  # success pattern (iOS: UINotificationFeedbackGenerator)
+dala_nif:haptic(:error)    # error pattern
+dala_nif:haptic(:warning)  # warning pattern
 ```
 
-Or from Elixir via a `Mob.Haptic` module that calls the NIF. Likely want a high-level `Mob.Socket.haptic/2` so screens can trigger haptics in `handle_info` without reaching for the NIF directly.
+Or from Elixir via a `Dala.Haptic` module that calls the NIF. Likely want a high-level `Dala.Socket.haptic/2` so screens can trigger haptics in `handle_info` without reaching for the NIF directly.
 
 iOS: `UIImpactFeedbackGenerator` / `UINotificationFeedbackGenerator`
 Android: `HapticFeedbackConstants` via `View.performHapticFeedback`
@@ -587,10 +587,10 @@ Android: `HapticFeedbackConstants` via `View.performHapticFeedback`
 
 ```elixir
 # Write
-Mob.Clipboard.put(socket, "some text")  # → {:clipboard, :ok}
+Dala.Clipboard.put(socket, "some text")  # → {:clipboard, :ok}
 
 # Read
-Mob.Clipboard.get(socket)               # → {:clipboard, :ok, "some text"} | {:clipboard, :empty}
+Dala.Clipboard.get(socket)               # → {:clipboard, :ok, "some text"} | {:clipboard, :empty}
 ```
 
 iOS: `UIPasteboard.general`
@@ -601,8 +601,8 @@ Android: `ClipboardManager`
 Opens the OS share dialog with a piece of content. Fire-and-forget from the BEAM's perspective.
 
 ```elixir
-Mob.Share.text(socket, "Check out Mob: https://...")
-Mob.Share.file(socket, "/path/to/file.pdf", mime: "application/pdf")
+Dala.Share.text(socket, "Check out Dala: https://...")
+Dala.Share.file(socket, "/path/to/file.pdf", mime: "application/pdf")
 ```
 
 iOS: `UIActivityViewController`
@@ -615,7 +615,7 @@ Android: `Intent.ACTION_SEND`
 ### Permissions ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Permissions.request(socket, :camera)
+Dala.Permissions.request(socket, :camera)
 def handle_info({:permission, :camera, :granted | :denied}, socket), do: ...
 ```
 
@@ -624,7 +624,7 @@ Capabilities: `:camera`, `:microphone`, `:photo_library`, `:location`, `:notific
 ### Biometric authentication ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Biometric.authenticate(socket, reason: "Confirm payment")
+Dala.Biometric.authenticate(socket, reason: "Confirm payment")
 def handle_info({:biometric, :success | :failure | :not_available}, socket), do: ...
 ```
 
@@ -633,9 +633,9 @@ iOS: `LAContext.evaluatePolicy`. Android: `BiometricPrompt` (requires `androidx.
 ### Location ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Location.get_once(socket)
-Mob.Location.start(socket, accuracy: :high)
-Mob.Location.stop(socket)
+Dala.Location.get_once(socket)
+Dala.Location.start(socket, accuracy: :high)
+Dala.Location.stop(socket)
 def handle_info({:location, %{lat: lat, lon: lon, accuracy: acc, altitude: alt}}, socket), do: ...
 ```
 
@@ -644,8 +644,8 @@ iOS: `CLLocationManager`. Android: `FusedLocationProviderClient` (requires `com.
 ### Camera capture ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Camera.capture_photo(socket)           # → {:camera, :photo, %{path:, width:, height:}}
-Mob.Camera.capture_video(socket)           # → {:camera, :video, %{path:, duration:}}
+Dala.Camera.capture_photo(socket)           # → {:camera, :photo, %{path:, width:, height:}}
+Dala.Camera.capture_video(socket)           # → {:camera, :video, %{path:, duration:}}
                                            # or {:camera, :cancelled}
 ```
 
@@ -654,7 +654,7 @@ iOS: `UIImagePickerController`. Android: `TakePicture`/`CaptureVideo` activity c
 ### Photo library picker ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Photos.pick(socket, max: 3, types: [:image, :video])
+Dala.Photos.pick(socket, max: 3, types: [:image, :video])
 def handle_info({:photos, :picked, items}, socket), do: ...   # items: [%{path:, type:, ...}]
 def handle_info({:photos, :cancelled},     socket), do: ...
 ```
@@ -664,7 +664,7 @@ iOS: `PHPickerViewController`. Android: `PickMultipleVisualMedia`.
 ### File picker ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Files.pick(socket, types: ["application/pdf"])
+Dala.Files.pick(socket, types: ["application/pdf"])
 def handle_info({:files, :picked, items}, socket), do: ...   # items: [%{path:, name:, mime:, size:}]
 def handle_info({:files, :cancelled},     socket), do: ...
 ```
@@ -682,8 +682,8 @@ iOS: `AVPlayerViewController` wrapped in `UIViewControllerRepresentable`. Androi
 ### Microphone / audio recording ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Audio.start_recording(socket, format: :aac, quality: :medium)
-Mob.Audio.stop_recording(socket)
+Dala.Audio.start_recording(socket, format: :aac, quality: :medium)
+Dala.Audio.stop_recording(socket)
 def handle_info({:audio, :recorded, %{path: path, duration: secs}}, socket), do: ...
 ```
 
@@ -692,8 +692,8 @@ iOS: `AVAudioRecorder`. Android: `MediaRecorder`.
 ### Motion sensors ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Motion.start(socket, sensors: [:accelerometer, :gyro], interval_ms: 100)
-Mob.Motion.stop(socket)
+Dala.Motion.start(socket, sensors: [:accelerometer, :gyro], interval_ms: 100)
+Dala.Motion.stop(socket)
 def handle_info({:motion, %{accel: {ax,ay,az}, gyro: {gx,gy,gz}, timestamp: ms}}, socket), do: ...
 ```
 
@@ -702,20 +702,20 @@ iOS: `CMMotionManager`. Android: `SensorManager`.
 ### QR / barcode scanner ✅ Done (2026-04-15)
 
 ```elixir
-Mob.Scanner.scan(socket, formats: [:qr])
+Dala.Scanner.scan(socket, formats: [:qr])
 def handle_info({:scan, :result,    %{type: :qr, value: "..."}}, socket), do: ...
 def handle_info({:scan, :cancelled},                               socket), do: ...
 ```
 
-iOS: `AVCaptureMetadataOutput` + `MobScannerViewController`. Android: `MobScannerActivity` with CameraX + ML Kit (requires `com.google.mlkit:barcode-scanning:17.2.0` + CameraX deps).
+iOS: `AVCaptureMetadataOutput` + `dalaScannerViewController`. Android: `dalaScannerActivity` with CameraX + ML Kit (requires `com.google.mlkit:barcode-scanning:17.2.0` + CameraX deps).
 
 ### Notifications (local + push) ✅ Done (2026-04-15)
 
 All notifications arrive via `handle_info` regardless of app state. When the app is killed and relaunched via a notification tap, the payload is stored at launch time and delivered after the root screen's `mount/3` completes.
 
-**iOS setup:** In your `AppDelegate`/scene delegate, call `mob_set_launch_notification_json(json)` for remote-notification launches, and `mob_send_push_token(hexToken)` from `application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`.
+**iOS setup:** In your `AppDelegate`/scene delegate, call `dala_set_launch_notification_json(json)` for remote-notification launches, and `dala_send_push_token(hexToken)` from `application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`.
 
-**Android setup:** `NotificationReceiver` BroadcastReceiver handles scheduled local notifications. Push requires adding `com.google.firebase:firebase-messaging` to build.gradle and uncommenting the FCM token retrieval in `MobBridge.notify_register_push`.
+**Android setup:** `NotificationReceiver` BroadcastReceiver handles scheduled local notifications. Push requires adding `com.google.firebase:firebase-messaging` to build.gradle and uncommenting the FCM token retrieval in `dalaBridge.notify_register_push`.
 
 ### 12. KitchenSink screen — moved to Phase 2 backlog
 
@@ -726,7 +726,7 @@ All notifications arrive via `handle_info` regardless of app state. When the app
 **Biometric authentication**
 
 ```elixir
-Mob.Biometric.authenticate(socket, reason: "Confirm payment")
+Dala.Biometric.authenticate(socket, reason: "Confirm payment")
 # → {:biometric, :success} | {:biometric, :failure} | {:biometric, :not_available}
 ```
 
@@ -737,14 +737,14 @@ Android: `BiometricPrompt` (fingerprint / face / iris — same API)
 
 ```elixir
 # One-shot
-Mob.Location.get_once(socket)
+Dala.Location.get_once(socket)
 # → {:location, %{lat: 51.5, lon: -0.1, accuracy: 10.0, altitude: 20.0}}
 
 # Continuous updates
-Mob.Location.start(socket, accuracy: :high)
+Dala.Location.start(socket, accuracy: :high)
 # → repeated {:location, %{...}} messages
 
-Mob.Location.stop(socket)
+Dala.Location.stop(socket)
 ```
 
 iOS: `CLLocationManager`; `NSLocationWhenInUseUsageDescription` required in Info.plist
@@ -756,12 +756,12 @@ Accuracy levels: `:high` (GPS, high battery), `:balanced`, `:low` (cell/wifi onl
 
 ```elixir
 # Capture a photo — opens native camera UI, returns path to captured image
-Mob.Camera.capture_photo(socket, quality: :high)
-# → {:camera, :photo, %{path: "/tmp/mob_capture_xxx.jpg", width: 4032, height: 3024}}
+Dala.Camera.capture_photo(socket, quality: :high)
+# → {:camera, :photo, %{path: "/tmp/dala_capture_xxx.jpg", width: 4032, height: 3024}}
 
 # Capture video
-Mob.Camera.capture_video(socket, max_duration: 60)
-# → {:camera, :video, %{path: "/tmp/mob_capture_xxx.mp4", duration: 42.3}}
+Dala.Camera.capture_video(socket, max_duration: 60)
+# → {:camera, :video, %{path: "/tmp/dala_capture_xxx.mp4", duration: 42.3}}
 
 # Cancel arrives as:
 # → {:camera, :cancelled}
@@ -773,7 +773,7 @@ Android: `ActivityResultContracts.TakePicture` / `TakeVideo`
 **Photo library picker**
 
 ```elixir
-Mob.Photos.pick(socket, max: 3, types: [:image, :video])
+Dala.Photos.pick(socket, max: 3, types: [:image, :video])
 # → {:photos, :picked, [%{path: ..., type: :image | :video, ...}]}
 # → {:photos, :cancelled}
 ```
@@ -784,7 +784,7 @@ Android: `ActivityResultContracts.PickMultipleVisualMedia`
 **File picker**
 
 ```elixir
-Mob.Files.pick(socket, types: ["application/pdf", "text/plain"])
+Dala.Files.pick(socket, types: ["application/pdf", "text/plain"])
 # → {:files, :picked, [%{path: ..., name: ..., mime: ..., size: ...}]}
 # → {:files, :cancelled}
 ```
@@ -797,18 +797,18 @@ Android: `ActivityResultContracts.OpenMultipleDocuments`
 **Microphone / audio recording**
 
 ```elixir
-Mob.Audio.start_recording(socket, format: :aac, quality: :medium)
+Dala.Audio.start_recording(socket, format: :aac, quality: :medium)
 # Recording in progress...
-Mob.Audio.stop_recording(socket)
-# → {:audio, :recorded, %{path: "/tmp/mob_audio_xxx.aac", duration: 12.4}}
+Dala.Audio.stop_recording(socket)
+# → {:audio, :recorded, %{path: "/tmp/dala_audio_xxx.aac", duration: 12.4}}
 ```
 
 **Accelerometer / gyroscope**
 
 ```elixir
-Mob.Motion.start(socket, sensors: [:accelerometer, :gyro], interval_ms: 100)
+Dala.Motion.start(socket, sensors: [:accelerometer, :gyro], interval_ms: 100)
 # → repeated {:motion, %{accel: {x, y, z}, gyro: {x, y, z}, timestamp: ...}}
-Mob.Motion.stop(socket)
+Dala.Motion.stop(socket)
 ```
 
 iOS: `CMMotionManager`
@@ -817,7 +817,7 @@ Android: `SensorManager` with `TYPE_ACCELEROMETER` / `TYPE_GYROSCOPE`
 **QR / barcode scanner**
 
 ```elixir
-Mob.Scanner.scan(socket, formats: [:qr, :ean13, :code128])
+Dala.Scanner.scan(socket, formats: [:qr, :ean13, :code128])
 # → {:scan, :result, %{type: :qr, value: "https://..."}}
 # → {:scan, :cancelled}
 ```
@@ -837,7 +837,7 @@ Scheduled by the app itself — no server, no internet. Useful for reminders, ti
 
 ```elixir
 # Schedule a notification
-Mob.Notify.schedule(socket,
+Dala.Notify.schedule(socket,
   id:      "daily_reminder",
   title:   "Time to check in",
   body:    "Open the app to see today's updates",
@@ -847,7 +847,7 @@ Mob.Notify.schedule(socket,
 # → {:notify, :scheduled, "daily_reminder"}
 
 # Cancel a pending notification
-Mob.Notify.cancel(socket, "daily_reminder")
+Dala.Notify.cancel(socket, "daily_reminder")
 
 # Arriving while the app is in the foreground:
 def handle_info({:notification, %{id: id, data: data, source: :local}}, socket), do: ...
@@ -856,13 +856,13 @@ def handle_info({:notification, %{id: id, data: data, source: :local}}, socket),
 iOS: `UNUserNotificationCenter`
 Android: `NotificationManager` + `AlarmManager` for scheduling
 
-### Push notifications (mob_push)
+### Push notifications (dala_push)
 
 Server-originated. Requires FCM (Android) and APNs (iOS) registration.
 
 ```elixir
 # In your App start/0, request permission and subscribe to push
-Mob.Notify.register_push(socket)
+Dala.Notify.register_push(socket)
 # → {:push_token, platform, token_string}  — send this to your server
 
 # Arriving while app is in foreground:
@@ -871,17 +871,17 @@ def handle_info({:notification, %{title: t, body: b, data: d, source: :push}}, s
 
 Background delivery (app not running) is handled by the OS — tapping the notification launches the app and passes `data` into `mount/3` params.
 
-**`mob_push` package** (separate Hex package, not part of core `mob`):
-- Elixir server library: `MobPush.send(token, platform, %{title: ..., body: ..., data: ...})`
+**`dala_push` package** (separate Hex package, not part of core `dala`):
+- Elixir server library: `dalaPush.send(token, platform, %{title: ..., body: ..., data: ...})`
 - Wraps FCM HTTP v1 API (Android) and APNs HTTP/2 (iOS)
 - Token storage + fanout not included — bring your own persistence
 
 ### Notification permission
 
-Both local and push require `POST_NOTIFICATIONS` (Android 13+) / `UNAuthorizationOptions` (iOS). Same `Mob.Permissions` model:
+Both local and push require `POST_NOTIFICATIONS` (Android 13+) / `UNAuthorizationOptions` (iOS). Same `Dala.Permissions` model:
 
 ```elixir
-Mob.Permissions.request(socket, :notifications)
+Dala.Permissions.request(socket, :notifications)
 # → {:permission, :notifications, :granted | :denied}
 ```
 
@@ -889,12 +889,12 @@ Mob.Permissions.request(socket, :notifications)
 
 ## Phase 2
 
-### `~MOB` sigil upgrade
+### `~dala` sigil upgrade
 Upgrade from single-element to full nested tree. Heredoc form becomes the primary way to write screens:
 
 ```elixir
 def render(assigns) do
-  ~MOB"""
+  ~dala"""
   <Column style={@screen_bg}>
     <Text style={@heading} text="Title" />
     <Text p={4} color={:gray_900} text={assigns.greeting} />
@@ -907,30 +907,30 @@ end
 Single-element form stays valid for inline use. Both compile to the same node map tree.
 
 ### Generators (Igniter)
-`mix mob.gen.screen`, `mix mob.gen.component`, `mix mob.gen.release` — using Igniter for idiomatic AST-aware code generation. Same infrastructure as `mix phx.gen.live`. AI agents use generators as the blessed path rather than writing from scratch.
+`mix dala.gen.screen`, `mix dala.gen.component`, `mix dala.gen.release` — using Igniter for idiomatic AST-aware code generation. Same infrastructure as `mix phx.gen.live`. AI agents use generators as the blessed path rather than writing from scratch.
 
 ### Physical iOS device
-Needs `iproxy` (from libimobiledevice) for USB dist port tunneling:
+Needs `iproxy` (from libidalailedevice) for USB dist port tunneling:
 - `iproxy 9101 9101` forwards Mac port 9101 → device port 9101 over USB
-- `mob_beam.m` already reads `MOB_DIST_PORT` from env; no BEAM changes needed
-- `mix mob.connect` needs to detect a plugged-in iOS device and start iproxy
+- `dala_beam.m` already reads `dala_DIST_PORT` from env; no BEAM changes needed
+- `mix dala.connect` needs to detect a plugged-in iOS device and start iproxy
 - App must be signed with a development provisioning profile (free Apple account works for testing)
 - `--disable-jit` flag required in BEAM args (iOS enforces W^X; JIT is blocked on device, not simulator)
-- `mob_new` template needs an Xcode project or build script that accepts a signing identity
-- `mix mob.gen_xcodeproj` — generate a minimal `ios/MobApp.xcodeproj/project.pbxproj` from an EEx template using known inputs (mob_dir, OTP root, source files, bundle_id, development_team). `xcodebuild -allowProvisioningUpdates` then handles certificate/profile selection. Requires `development_team` in `mob.exs`. Would also unblock `mix mob.battery_bench_ios --native` on physical devices.
+- `dala_new` template needs an Xcode project or build script that accepts a signing identity
+- `mix dala.gen_xcodeproj` — generate a minimal `ios/dalaApp.xcodeproj/project.pbxproj` from an EEx template using known inputs (dala_dir, OTP root, source files, bundle_id, development_team). `xcodebuild -allowProvisioningUpdates` then handles certificate/profile selection. Requires `development_team` in `dala.exs`. Would also unblock `mix dala.battery_bench_ios --native` on physical devices.
 
 ### Offline / local storage
-SQLite via NIF. `Mob.Repo` with Elixir schema + migrations on app start. WAL mode default.
+SQLite via NIF. `Dala.Repo` with Elixir schema + migrations on app start. WAL mode default.
 - Wraps `esqlite` or custom NIF (bundled SQLite `.c` file, statically linked)
-- `Mob.Repo.query/2`, `Mob.Repo.transaction/2`
+- `Dala.Repo.query/2`, `Dala.Repo.transaction/2`
 - Migration files in `priv/migrations/` — run on every app start, idempotent
 
 ### App Store / Play Store build pipeline
-`mix mob.release --platform android|ios` — Gradle/Xcode build, signing, `.aab` / `.ipa` output. Fastlane for upload.
+`mix dala.release --platform android|ios` — Gradle/Xcode build, signing, `.aab` / `.ipa` output. Fastlane for upload.
 
-### Mob.Cluster
+### Dala.Cluster
 
-Connect Mob apps to each other — or to any Elixir/OTP node — at runtime without a server in the middle.
+Connect Dala apps to each other — or to any Elixir/OTP node — at runtime without a server in the middle.
 
 Two phones that share a cookie become a cluster. Every OTP primitive works across the connection: `:rpc.call`, `send` to a remote pid, distributed GenServer, global process registry. This is not a messaging protocol built on WebSockets — it is Erlang distribution, which has been doing this since 1986.
 
@@ -941,11 +941,11 @@ Two phones that share a cookie become a cluster. Every OTP primitive works acros
 
 **Cookie rotation:** `Node.set_cookie/2` works at runtime with no restart, so session cookies can be rotated between cluster sessions without stopping the BEAM.
 
-**Scope:** `Mob.Cluster` is a thin API over `Node.set_cookie/2`, `Node.connect/1`, `Node.disconnect/1`, and `Mob.Dist.stop/0`. The heavy lifting is already in OTP.
+**Scope:** `Dala.Cluster` is a thin API over `Node.set_cookie/2`, `Node.connect/1`, `Node.disconnect/1`, and `Dala.Dist.stop/0`. The heavy lifting is already in OTP.
 
 ```elixir
 # Two phones, one line each:
-Mob.Cluster.join(:"other_app@192.168.1.42", cookie: :session_abc)
+Dala.Cluster.join(:"other_app@192.168.1.42", cookie: :session_abc)
 
 # Then standard OTP across devices:
 :rpc.call(:"other_app@192.168.1.42", MyApp.GameServer, :move, [:left])
@@ -963,14 +963,14 @@ App (on device)                     Update server (Elixir)
     ├── GET /updates/check           ← signed manifest or 304
     │       {version, cookie, modules: [...]}
     │
-    ├── Mob.Dist.ensure_started/1    ← start EPMD + dist on-demand
+    ├── Dala.Dist.ensure_started/1    ← start EPMD + dist on-demand
     │       (epmd_port: from manifest)
     │
     ├── Node.connect(server_node)    ← outbound connection; no open inbound port
     │
     ├── :rpc.call → :code.load_binary for each module
     │
-    └── Mob.Dist.stop/0              ← shut down EPMD + dist when done
+    └── Dala.Dist.stop/0              ← shut down EPMD + dist when done
 ```
 
 **Properties:**
@@ -980,10 +980,10 @@ App (on device)                     Update server (Elixir)
 - Graceful fallback: if distribution fails, App Store update is still the backstop
 - No App Store review for Elixir/BEAM changes (binary compatibility permitting)
 
-**Scope:** requires `Mob.Dist.stop/0` (not yet implemented), manifest signing, and a server-side update distribution service. `mix mob.release` should produce a manifest alongside the build artifacts.
+**Scope:** requires `Dala.Dist.stop/0` (not yet implemented), manifest signing, and a server-side update distribution service. `mix dala.release` should produce a manifest alongside the build artifacts.
 
 ### User-defined style tokens
-`MyApp.Styles` module + `mob.exs` config key. Developer defines their own color palette, type scale, spacing scale as token maps. `Mob.Renderer` merges app tokens on top of the default set at compile time.
+`MyApp.Styles` module + `dala.exs` config key. Developer defines their own color palette, type scale, spacing scale as token maps. `Dala.Renderer` merges app tokens on top of the default set at compile time.
 
 ---
 
@@ -996,10 +996,10 @@ AI-assisted development workflows equally.
 
 ### What exists today
 
-`Mob.Test` provides RPC-based control over running apps via Erlang distribution:
+`Dala.Test` provides RPC-based control over running apps via Erlang distribution:
 `screen/1`, `assigns/1`, `tap/2`, `find/2`, `navigate/2`, `select/3`,
 `send_message/2`, `inspect/1`. This is already significantly more capable than
-any standard mobile testing tool — exact state, no polling, no image parsing.
+any standard dalaile testing tool — exact state, no polling, no image parsing.
 
 ### Layer 1 — BEAM state (done)
 
@@ -1008,7 +1008,7 @@ required. The primary layer for assertions.
 
 ### Layer 2 — Synthetic event injection (done)
 
-`Mob.Test.tap/2` fires events through the same path as a real touch, via the NIF
+`Dala.Test.tap/2` fires events through the same path as a real touch, via the NIF
 bridge. Navigation functions are synchronous. Device API results (camera, location,
 biometric, notifications) injectable via `send_message/2`.
 
@@ -1017,7 +1017,7 @@ biometric, notifications) injectable via `send_message/2`.
 Read every touch event that reaches the app before it is processed — finger down,
 move, up, multi-touch — and expose them to the connected node. Symmetrically,
 inject synthetic `UITouch` (iOS) / `MotionEvent` (Android) at the platform level,
-indistinguishable from a real finger. This operates below the Mob component layer
+indistinguishable from a real finger. This operates below the Dala component layer
 and works even for native subviews or embedded third-party UI components.
 
 Use cases:
@@ -1030,12 +1030,12 @@ Use cases:
 Expose the platform accessibility tree (iOS `UIAccessibility`, Android
 `AccessibilityNodeInfo`) to the connected node. Gives element positions, labels,
 roles, and enabled/disabled state without screenshots. Complements the component
-tree for native subviews and third-party UI that Mob's renderer doesn't own.
+tree for native subviews and third-party UI that Dala's renderer doesn't own.
 
 ```elixir
-Mob.Test.accessibility_tree(node)     # full tree
-Mob.Test.find_accessible(node, "Submit")  # element by accessibility label
-Mob.Test.bounds(node, :submit_button) # frame in screen coordinates
+Dala.Test.accessibility_tree(node)     # full tree
+Dala.Test.find_accessible(node, "Submit")  # element by accessibility label
+Dala.Test.bounds(node, :submit_button) # frame in screen coordinates
 ```
 
 ### Layer 5 — Visual (MCP, external)
@@ -1066,63 +1066,63 @@ Removes the biggest barrier to test adoption: the cost of writing them.
 
 ### Shared abstraction with Pegleg
 
-Layers 3 and 4 (touch intercept/inject and accessibility tree) are not Mob-specific —
+Layers 3 and 4 (touch intercept/inject and accessibility tree) are not Dala-specific —
 they operate at the NIF/platform level and apply to any iOS or Android app. When
 Pegleg is built, these layers should be extracted into a shared library that both
-Mob and Pegleg depend on, rather than duplicating the implementation. The Mob-specific
-parts (component tree, assigns, `Mob.Test` API) stay in Mob; the platform mechanics
+Dala and Pegleg depend on, rather than duplicating the implementation. The Dala-specific
+parts (component tree, assigns, `Dala.Test` API) stay in Dala; the platform mechanics
 live in the shared layer.
 
 ---
 
 ## Nice to have
 
-### Mob.Bluetooth + Mob.NFC
+### Dala.Bluetooth + Dala.NFC
 
-Device APIs following the same async `handle_info` pattern as `Mob.Camera` and
-`Mob.Location`. NIF implementation only — no special BEAM changes required.
+Device APIs following the same async `handle_info` pattern as `Dala.Camera` and
+`Dala.Location`. NIF implementation only — no special BEAM changes required.
 
-**`Mob.Bluetooth`** — BLE peripheral interaction (heart rate monitors, IoT
+**`Dala.Bluetooth`** — BLE peripheral interaction (heart rate monitors, IoT
 sensors, custom peripherals). iOS CoreBluetooth / Android BluetoothLE.
 
 ```elixir
-Mob.Bluetooth.scan(socket)
+Dala.Bluetooth.scan(socket)
 # → {:bluetooth, :discovered, %{id: "AA:BB:...", name: "My Sensor", rssi: -62}}
 
-Mob.Bluetooth.connect(socket, "AA:BB:...")
-Mob.Bluetooth.read(socket, service_uuid, characteristic_uuid)
+Dala.Bluetooth.connect(socket, "AA:BB:...")
+Dala.Bluetooth.read(socket, service_uuid, characteristic_uuid)
 # → {:bluetooth, :read, %{uuid: "...", value: <<0x42>>}}
 ```
 
 BLE peripheral mode (phone advertises itself) is also worth supporting — it is
-a natural `Mob.Cluster` rendezvous mechanism: two phones exchange node name +
+a natural `Dala.Cluster` rendezvous mechanism: two phones exchange node name +
 session cookie over BLE, then form an Erlang distribution cluster over TCP
 without needing a server or shared WiFi network.
 
-**`Mob.NFC`** — read/write NFC tags, peer-to-peer exchange. iOS requires a
+**`Dala.NFC`** — read/write NFC tags, peer-to-peer exchange. iOS requires a
 background NFC entitlement for unsolicited reads; tag writing is more open.
 
 ```elixir
-Mob.NFC.read(socket)
+Dala.NFC.read(socket)
 # → {:nfc, :tag, %{type: :ndef, records: [%{type: "text/plain", data: "hello"}]}}
 
-Mob.NFC.write(socket, records)
+Dala.NFC.write(socket, records)
 # → {:nfc, :written}
 ```
 
-NFC tap-to-connect is the most ergonomic `Mob.Cluster` bootstrap: tap two
+NFC tap-to-connect is the most ergonomic `Dala.Cluster` bootstrap: tap two
 phones together to exchange credentials, cluster forms automatically. Worth
-implementing `Mob.Cluster` first so the NFC and BLE rendezvous flows have
+implementing `Dala.Cluster` first so the NFC and BLE rendezvous flows have
 something to connect to.
 
-### Auth (`mix mob.gen.auth`)
+### Auth (`mix dala.gen.auth`)
 
 Inspired by `mix phx.gen.auth` — a generator that scaffolds a complete auth layer for the app based on what the developer wants. Uses Igniter for AST-aware code generation so it integrates cleanly with the existing project rather than overwriting files.
 
 **Generator interaction:**
 
 ```
-$ mix mob.gen.auth
+$ mix dala.gen.auth
 
 Which auth strategies do you want? (select all that apply)
   [x] Email + password
@@ -1131,21 +1131,21 @@ Which auth strategies do you want? (select all that apply)
   [ ] Phone / SMS OTP
   [ ] SSO (SAML / OIDC)
 
-Generate session persistence? (SQLite via Mob.Repo) [Y/n]: y
+Generate session persistence? (SQLite via Dala.Repo) [Y/n]: y
 
 This will create:
-  lib/my_app/auth.ex              — Mob.Auth behaviour + strategy dispatch
+  lib/my_app/auth.ex              — Dala.Auth behaviour + strategy dispatch
   lib/my_app/screens/login.ex    — LoginScreen with selected providers
   lib/my_app/screens/register.ex — RegisterScreen (email+password only)
   priv/migrations/001_users.sql  — users table (if session persistence selected)
-  config/mob.exs                 — injects auth config
+  config/dala.exs                 — injects auth config
 ```
 
 **What it generates:**
 
 - `LoginScreen` — pre-built screen with buttons for each selected provider, styled to platform conventions (Sign in with Apple button follows Apple HIG; Google button follows Material guidelines)
-- `MyApp.Auth` module — thin wrapper around `Mob.Auth` that routes to the right strategy and handles token exchange with the developer's backend (stubbed out, ready to fill in)
-- Session persistence schema if opted in — `users` table + `sessions` table via `Mob.Repo`
+- `MyApp.Auth` module — thin wrapper around `Dala.Auth` that routes to the right strategy and handles token exchange with the developer's backend (stubbed out, ready to fill in)
+- Session persistence schema if opted in — `users` table + `sessions` table via `Dala.Repo`
 - Nav wiring — injects `reset_to(LoginScreen)` guard pattern into the root screen and a `logout/1` helper
 
 **Supported strategies:**
@@ -1154,47 +1154,47 @@ This will create:
 - **Sign in with Apple** — iOS: `ASAuthorizationAppleIDProvider`; Android: redirects to web OAuth (Apple doesn't provide a native Android SDK)
 - **Google Sign-In** — Android: `play-services-auth`; iOS: `GoogleSignIn-iOS` SDK
 - **Phone / SMS OTP** — Android: SMS Retriever API (auto-reads OTP, no permission); iOS: `ASAuthorizationPhoneNumberProvider`
-- **SSO (SAML / OIDC)** — opens an in-app browser (`SFSafariViewController` / `CustomTabsIntent`) to the IdP; receives callback via deep link. Works with Okta, Auth0, Azure AD, Google Workspace, etc. Deep link scheme configured in `mob.exs`.
+- **SSO (SAML / OIDC)** — opens an in-app browser (`SFSafariViewController` / `CustomTabsIntent`) to the IdP; receives callback via deep link. Works with Okta, Auth0, Azure AD, Google Workspace, etc. Deep link scheme configured in `dala.exs`.
 
 **Uniform Elixir API** (generated code calls these; underlying NIFs do the platform work):
 
 ```elixir
-Mob.Auth.sign_in_with_apple(socket)
-Mob.Auth.sign_in_with_google(socket)
-Mob.Auth.sign_in_with_sso(socket, url: "https://login.corp.example.com/oauth/authorize?...")
-Mob.Auth.sign_in_with_phone(socket, "+16045551234")
+Dala.Auth.sign_in_with_apple(socket)
+Dala.Auth.sign_in_with_google(socket)
+Dala.Auth.sign_in_with_sso(socket, url: "https://login.corp.example.com/oauth/authorize?...")
+Dala.Auth.sign_in_with_phone(socket, "+16045551234")
 
 def handle_info({:auth, provider, %{token: jwt, ...}}, socket), do: ...
 def handle_info({:auth, :cancelled}, socket), do: ...
 def handle_info({:auth, :error, reason}, socket), do: ...
 ```
 
-The generator is opinionated about the happy path but everything it produces is plain Elixir — developers can delete the generated screens and write their own, keeping just the `Mob.Auth` NIF calls.
+The generator is opinionated about the happy path but everything it produces is plain Elixir — developers can delete the generated screens and write their own, keeping just the `Dala.Auth` NIF calls.
 
 ### In-app purchases
 - iOS: StoreKit 2 (`Product.purchase()`). Async purchase flow; `handle_info` delivers result.
 - Android: Google Play Billing Library (`BillingClient`).
-- Unified Elixir API: `Mob.IAP.products/2`, `Mob.IAP.purchase/2`, `Mob.IAP.restore/1`.
+- Unified Elixir API: `Dala.IAP.products/2`, `Dala.IAP.purchase/2`, `Dala.IAP.restore/1`.
 - Consumables, non-consumables, and subscriptions all handled via same call; type is in the product definition.
 - Receipt validation (server-side) is out of scope — developer calls their own backend with the token.
 
 ```elixir
-Mob.IAP.products(socket, ["premium_monthly", "lifetime_unlock"])
+Dala.IAP.products(socket, ["premium_monthly", "lifetime_unlock"])
 def handle_info({:iap, :products, products}, socket), do: ...
 
-Mob.IAP.purchase(socket, "premium_monthly")
+Dala.IAP.purchase(socket, "premium_monthly")
 def handle_info({:iap, :purchased, %{product_id: id, token: t}}, socket), do: ...
 def handle_info({:iap, :cancelled}, socket), do: ...
 def handle_info({:iap, :error, reason}, socket), do: ...
 ```
 
 ### Ad integration
-- iOS: Google Mobile Ads SDK (`GADMobileAds`). Banner (`GADBannerView`) and interstitial (`GADInterstitialAd`).
-- Android: Google Mobile Ads SDK (`com.google.android.gms:play-services-ads`). Same ad unit types.
+- iOS: Google dalaile Ads SDK (`GADdalaileAds`). Banner (`GADBannerView`) and interstitial (`GADInterstitialAd`).
+- Android: Google dalaile Ads SDK (`com.google.android.gms:play-services-ads`). Same ad unit types.
 - `type: :ad_banner` component — renders a native banner ad view inline. Props: `ad_unit_id:`, `size: :banner | :large_banner | :medium_rectangle`.
-- Interstitials triggered imperatively: `Mob.Ads.show_interstitial(socket, ad_unit_id: "...")`.
+- Interstitials triggered imperatively: `Dala.Ads.show_interstitial(socket, ad_unit_id: "...")`.
 - Events: `{:ad, :loaded}`, `{:ad, :failed, reason}`, `{:ad, :closed}`, `{:ad, :impression}`.
-- Initialisation: `Mob.Ads.init(socket, app_id: "ca-app-pub-xxx")` called once at mount.
+- Initialisation: `Dala.Ads.init(socket, app_id: "ca-app-pub-xxx")` called once at mount.
 
 ### Crash reporting
 
@@ -1202,11 +1202,11 @@ Two distinct layers, each handling a different class of failure:
 
 **BEAM-level crashes (pure Elixir)**
 
-Most "crashes" in a Mob app are BEAM process exits with a structured reason and stacktrace — OTP gives you this for free. These can be captured without any native SDK:
+Most "crashes" in a Dala app are BEAM process exits with a structured reason and stacktrace — OTP gives you this for free. These can be captured without any native SDK:
 
-- `Mob.Screen.terminate/2` is called on every screen process exit — hook in here to capture the reason + stacktrace
-- OTP `Logger` already receives supervision tree crash reports as `:error` level messages — `Mob.NativeLogger` captures these natively, a crash reporter can also forward them
-- A `Mob.CrashReporter` module (separate opt-in package) would collect these, batch them, and POST to a reporting backend over HTTP using `req` or `finch`
+- `Dala.Screen.terminate/2` is called on every screen process exit — hook in here to capture the reason + stacktrace
+- OTP `Logger` already receives supervision tree crash reports as `:error` level messages — `Dala.NativeLogger` captures these natively, a crash reporter can also forward them
+- A `Dala.CrashReporter` module (separate opt-in package) would collect these, batch them, and POST to a reporting backend over HTTP using `req` or `finch`
 
 **Native crashes (NIF segfault, OOM kill, OS signal)**
 
@@ -1218,10 +1218,10 @@ These kill the process before the BEAM can do anything. Requires platform-native
 **Backend options (for BEAM-level reporting)**
 
 - **Firebase Crashlytics** — free, dominant, good symbolication. Requires native SDKs on both platforms even for Elixir errors (SDK handles the upload transport). Adds native dependency weight.
-- **Sentry** — has mobile SDKs but can also accept events via plain HTTP API. A self-hosted Sentry instance is achievable with Elixir and keeps all crash data on your own infrastructure. `mob_crash` (planned Hex package) would wrap the Sentry event ingest API — no native SDK needed for BEAM-level errors.
-- **Custom backend** — `Mob.CrashReporter` posts structured JSON to any endpoint. Simplest for teams already running their own observability stack.
+- **Sentry** — has dalaile SDKs but can also accept events via plain HTTP API. A self-hosted Sentry instance is achievable with Elixir and keeps all crash data on your own infrastructure. `dala_crash` (planned Hex package) would wrap the Sentry event ingest API — no native SDK needed for BEAM-level errors.
+- **Custom backend** — `Dala.CrashReporter` posts structured JSON to any endpoint. Simplest for teams already running their own observability stack.
 
-**Batteries-included goal**: `mob_crash` Hex package that works out of the box with zero config for self-hosted Sentry, and an escape hatch to configure any HTTP endpoint. Developer opts in by adding `mob_crash` to deps and calling `Mob.CrashReporter.start_link(dsn: "https://...")` in their application supervisor. No native SDK required for BEAM-level crash capture; native crash handling documented as a separate optional step.
+**Batteries-included goal**: `dala_crash` Hex package that works out of the box with zero config for self-hosted Sentry, and an escape hatch to configure any HTTP endpoint. Developer opts in by adding `dala_crash` to deps and calling `Dala.CrashReporter.start_link(dsn: "https://...")` in their application supervisor. No native SDK required for BEAM-level crash capture; native crash handling documented as a separate optional step.
 
 ---
 
@@ -1278,7 +1278,7 @@ Currently interactive nodes use `on_tap`/`on_change` tuple tags for routing. A f
 
 Both platforms use the same column/row layout model (Compose `Column`/`Row`, SwiftUI `VStack`/`HStack`) — the same mental model as Tailwind's flexbox. No "table" component; both platforms abandoned that in favour of styled list cells.
 
-| Mob tag | Compose | SwiftUI | Status |
+| Dala tag | Compose | SwiftUI | Status |
 |---|---|---|---|
 | `column` | `Column` | `VStack` | ✅ done |
 | `row` | `Row` | `HStack` | ✅ done |
@@ -1304,13 +1304,13 @@ Both platforms use the same column/row layout model (Compose `Column`/`Row`, Swi
 ## Key technical constraints
 
 1. **`enif_get_long` for color params** — ARGB 0xFFFFFFFF overflows `enif_get_int`. Always use `enif_get_long`.
-2. **Cache JNI class refs in `JNI_OnLoad`** — `FindClass` fails on non-main threads. `mob_ui_cache_class(env)` caches all refs upfront.
+2. **Cache JNI class refs in `JNI_OnLoad`** — `FindClass` fails on non-main threads. `dala_ui_cache_class(env)` caches all refs upfront.
 3. **CountDownLatch needs try/finally** — if the Runnable throws, latch never fires → deadlock.
 4. **`enif_keep_resource` for tap listeners** — Java holds raw ptr; GC must not free the resource.
-5. **Android dist deferred 3s** — starting distribution at BEAM launch races with hwui thread pool → SIGABRT. `Mob.Dist.ensure_started/1` defers `Node.start/2` by 3 seconds.
+5. **Android dist deferred 3s** — starting distribution at BEAM launch races with hwui thread pool → SIGABRT. `Dala.Dist.ensure_started/1` defers `Node.start/2` by 3 seconds.
 6. **ERTS helpers as `.so` files in jniLibs** — SELinux blocks `execve` from `app_data_file`; packaging as `lib*.so` gets `apk_data_file` label which allows exec.
 7. **`+C` flags invalid in `erl_start` argv** — when calling `erl_start` directly (bypassing `erlexec`), all emulator flags use `-` prefix. `+C multi_time_warp` → `-C multi_time_warp`. OTP 28+ default is already `multi_time_warp`, safe to omit.
-8. **iOS OTP path** — `mob_beam.m` reads from `/tmp/otp-ios-sim`; deployer prefers that path when it exists. Cache dir (`~/.mob/cache/otp-ios-sim-XXXX/`) is fallback only.
+8. **iOS OTP path** — `dala_beam.m` reads from `/tmp/otp-ios-sim`; deployer prefers that path when it exists. Cache dir (`~/.dala/cache/otp-ios-sim-XXXX/`) is fallback only.
 9. **`--disable-jit` for real iOS devices** — iOS enforces W^X; JIT writes+executes memory which is blocked. Simulator builds can keep JIT. Android unaffected.
 10. **Android BEAM stderr → `/dev/null`** — silent `exit(1)` from ERTS arg parse errors is the symptom. Check flags carefully; use logcat wrapper to surface boot errors.
 
@@ -1331,29 +1331,29 @@ Three features requested by users: WebView, Camera preview, Audio playback. Came
 
 ### Audio playback ✅ Done (2026-04-24)
 
-Recording already exists (`Mob.Audio.start_recording/2`, `stop_recording/1`, result `{:audio, :recorded, %{path, duration}}`). Need playback.
+Recording already exists (`Dala.Audio.start_recording/2`, `stop_recording/1`, result `{:audio, :recorded, %{path, duration}}`). Need playback.
 
-**Elixir additions to `lib/mob/audio.ex`:**
+**Elixir additions to `lib/dala/audio.ex`:**
 ```elixir
-Mob.Audio.play(socket, path, opts \\ [])   # opts: loop: false, volume: 1.0
-Mob.Audio.stop_playback(socket)
-Mob.Audio.set_volume(socket, 0.0..1.0)     # live volume control
+Dala.Audio.play(socket, path, opts \\ [])   # opts: loop: false, volume: 1.0
+Dala.Audio.stop_playback(socket)
+Dala.Audio.set_volume(socket, 0.0..1.0)     # live volume control
 # Results via handle_info:
 # {:audio, :playback_finished, %{path: path}}
 # {:audio, :playback_error, %{reason: reason}}
 ```
 
-**NIF stubs to add in `src/mob_nif.erl`:**
+**NIF stubs to add in `src/dala_nif.erl`:**
 - `audio_play/2` (path, opts_json)
 - `audio_stop_playback/0`
 - `audio_set_volume/1`
 
-**iOS (`ios/mob_nif.m`):**
+**iOS (`ios/dala_nif.m`):**
 - `AVAudioPlayer` for local files, `AVPlayer` for URLs/streaming
 - Store player + PID in globals; `audioPlayerDidFinishPlaying:` delegate sends `{:audio, :playback_finished, map}` via `enif_send`
 - `AVAudioSession` category: `.playback` when playing, `.record` when recording, `.playAndRecord` when both
 
-**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+**Android (`android/jni/dala_nif.c` + `dalaBridge.kt`):**
 - `MediaPlayer` for local files (ExoPlayer for streaming — already referenced in Video stub)
 - `setOnCompletionListener` callback sends result via JNI → `enif_send`
 
@@ -1361,78 +1361,78 @@ Mob.Audio.set_volume(socket, 0.0..1.0)     # live volume control
 
 ### Camera preview ✅ Done (2026-04-24)
 
-Capture already exists (`Mob.Camera.capture_photo/2`, `capture_video/2`). Need a live camera feed as a UI component.
+Capture already exists (`Dala.Camera.capture_photo/2`, `capture_video/2`). Need a live camera feed as a UI component.
 
-**Elixir API (`lib/mob/camera.ex` additions):**
+**Elixir API (`lib/dala/camera.ex` additions):**
 ```elixir
-Mob.Camera.start_preview(socket, opts \\ [])  # opts: facing: :back | :front
-Mob.Camera.stop_preview(socket)
+Dala.Camera.start_preview(socket, opts \\ [])  # opts: facing: :back | :front
+Dala.Camera.stop_preview(socket)
 # UI component:
-Mob.UI.camera_preview(facing: :back)
+Dala.UI.camera_preview(facing: :back)
 ```
 
 **Component registration:**
 - Add `CameraPreview` to `priv/tags/ios.txt` and `priv/tags/android.txt`
-- Add `MobNodeTypeCameraPreview` to `ios/MobNode.h`
+- Add `DalaNodeTypeCameraPreview` to `ios/DalaNode.h`
 
 **NIF stubs:** `camera_start_preview/1`, `camera_stop_preview/0`
 
-**iOS (`ios/mob_nif.m` + `ios/MobRootView.swift`):**
+**iOS (`ios/dala_nif.m` + `ios/DalaRootView.swift`):**
 - `AVCaptureSession` + `AVCaptureVideoPreviewLayer` wrapped in `UIViewRepresentable`
-- Session managed in `mob_nif.m`; SwiftUI renders via `MobNodeTypeCameraPreview` case in `MobRootView`
+- Session managed in `dala_nif.m`; SwiftUI renders via `DalaNodeTypeCameraPreview` case in `DalaRootView`
 - `start_preview` NIF configures + starts session; component renders the preview layer
 - Permissions: requires `NSCameraUsageDescription` in `Info.plist` (already in generated template)
 
-**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+**Android (`android/jni/dala_nif.c` + `dalaBridge.kt`):**
 - CameraX `PreviewView` embedded via Compose `AndroidView`
-- `ProcessCameraProvider` binds preview use case in `MobBridge`
+- `ProcessCameraProvider` binds preview use case in `dalaBridge`
 - NIF calls JNI bridge to start/stop
 
 ---
 
-### Mob.Storage ✅ Done (2026-04-24)
+### Dala.Storage ✅ Done (2026-04-24)
 
 Platform-agnostic file management. `dir/1` is the only NIF (path resolution); all other
 operations delegate to `File.*` which works fine on the device's native FS.
 
-**`lib/mob/storage.ex`** — cross-platform:
+**`lib/dala/storage.ex`** — cross-platform:
 ```elixir
-Mob.Storage.dir(:temp | :documents | :cache | :app_support)  # → absolute path string
-Mob.Storage.list(path_or_atom)   # → {:ok, [full_paths]} | {:error, :enoent}
-Mob.Storage.stat(path)           # → {:ok, %{name:, path:, size:, modified_at:}} | error
-Mob.Storage.read(path)           # → {:ok, binary} | {:error, reason}
-Mob.Storage.write(path, data)    # → {:ok, path} | {:error, reason}
-Mob.Storage.delete(path)         # → :ok | {:error, reason}
-Mob.Storage.copy(src, dest)      # dest may be atom location or full path → {:ok, dest}
-Mob.Storage.move(src, dest)      # dest may be atom location or full path → {:ok, dest}
-Mob.Storage.extension(path)      # → ".mp4" | "" — explicit, zero I/O cost
+Dala.Storage.dir(:temp | :documents | :cache | :app_support)  # → absolute path string
+Dala.Storage.list(path_or_atom)   # → {:ok, [full_paths]} | {:error, :enoent}
+Dala.Storage.stat(path)           # → {:ok, %{name:, path:, size:, modified_at:}} | error
+Dala.Storage.read(path)           # → {:ok, binary} | {:error, reason}
+Dala.Storage.write(path, data)    # → {:ok, path} | {:error, reason}
+Dala.Storage.delete(path)         # → :ok | {:error, reason}
+Dala.Storage.copy(src, dest)      # dest may be atom location or full path → {:ok, dest}
+Dala.Storage.move(src, dest)      # dest may be atom location or full path → {:ok, dest}
+Dala.Storage.extension(path)      # → ".mp4" | "" — explicit, zero I/O cost
 ```
 
 No `type` field in `stat` — platforms don't record content type as a file attribute for sandbox files. Use `extension/1` explicitly instead.
 
-**`lib/mob/storage/apple.ex`** — iOS/iPadOS-specific:
+**`lib/dala/storage/apple.ex`** — iOS/iPadOS-specific:
 ```elixir
-Mob.Storage.Apple.dir(:temp | :documents | :cache | :app_support | :icloud)
+Dala.Storage.Apple.dir(:temp | :documents | :cache | :app_support | :icloud)
 # Returns nil for :icloud when iCloud Drive is not configured
 
-Mob.Storage.Apple.save_to_photo_library(socket, path)
+Dala.Storage.Apple.save_to_photo_library(socket, path)
 # Uses PHPhotoLibrary + PHAccessLevelAddOnly (no full library read permission needed)
 # Result via handle_info: {:storage, :saved_to_library, path} | {:storage, :error, :save_to_library, reason}
 ```
 
-**`lib/mob/storage/android.ex`** — Android-specific:
+**`lib/dala/storage/android.ex`** — Android-specific:
 ```elixir
-Mob.Storage.Android.external_files_dir(:documents | :pictures | :music | :movies | :downloads | :dcim)
+Dala.Storage.Android.external_files_dir(:documents | :pictures | :music | :movies | :downloads | :dcim)
 # Maps to Environment.DIRECTORY_* constants via getExternalFilesDir — no permission needed
 
-Mob.Storage.Android.save_to_media_store(socket, path, :auto | :image | :video | :audio)
+Dala.Storage.Android.save_to_media_store(socket, path, :auto | :image | :video | :audio)
 # Uses ContentValues + IS_PENDING pattern (API 29+, no permission needed for own files)
 # Result via handle_info: {:storage, :saved_to_library, path} | {:storage, :error, :save_to_library, reason}
 ```
 
-**`mix mob.enable` integration:** `file_sharing` feature adds `UIFileSharingEnabled` (iOS) and `FileProvider` (Android) to manifests. `photo_library` adds `NSPhotoLibraryAddUsageDescription` (iOS) / no permission needed (Android 29+).
+**`mix dala.enable` integration:** `file_sharing` feature adds `UIFileSharingEnabled` (iOS) and `FileProvider` (Android) to manifests. `photo_library` adds `NSPhotoLibraryAddUsageDescription` (iOS) / no permission needed (Android 29+).
 
-**Tests:** `test/mob/storage_test.exs` — 21 tests covering all public functions except `dir/1` (NIF-dependent). Uses real temp directories with `on_exit` cleanup. No mocks.
+**Tests:** `test/dala/storage_test.exs` — 21 tests covering all public functions except `dir/1` (NIF-dependent). Uses real temp directories with `on_exit` cleanup. No mocks.
 
 ---
 
@@ -1442,10 +1442,10 @@ Fully new: UI component + bidirectional JS bridge. Two distinct use cases:
 1. **Standalone WebView** — point at any external URL (company intranet, third-party service)
 2. **LiveView mode** — point at a local Phoenix endpoint for server-rendered UI with near-zero latency
 
-**Elixir API (`lib/mob/webview.ex` — new file):**
+**Elixir API (`lib/dala/webview.ex` — new file):**
 ```elixir
 # UI component
-Mob.UI.webview(
+Dala.UI.webview(
   url:      "https://...",
   allow:    ["https://example.com", "https://api.example.com"],  # URL whitelist
   show_url: false,    # show native URL label above webview (default: false)
@@ -1453,10 +1453,10 @@ Mob.UI.webview(
 )
 
 # JS bridge — eval and message passing
-Mob.WebView.eval_js(socket, "document.title")
-Mob.WebView.post_message(socket, %{event: "data", payload: payload})
+Dala.WebView.eval_js(socket, "document.title")
+Dala.WebView.post_message(socket, %{event: "data", payload: payload})
 # Results via handle_info:
-# {:webview, :message, %{"event" => "...", ...}}   ← JS called window.mob.send(data)
+# {:webview, :message, %{"event" => "...", ...}}   ← JS called window.dala.send(data)
 # {:webview, :eval_result, result}                  ← eval callback
 # {:webview, :blocked, url}                         ← blocked URL navigation attempt
 ```
@@ -1469,9 +1469,9 @@ Mob.WebView.post_message(socket, %{event: "data", payload: payload})
 
 **History-aware back navigation:**
 - Two new NIFs: `webview_can_go_back/0` → boolean, `webview_go_back/0`
-- `Mob.Screen` default back handler checks `webview_can_go_back()` first; navigates WebView history before popping Mob nav stack
+- `Dala.Screen` default back handler checks `webview_can_go_back()` first; navigates WebView history before popping Dala nav stack
 - Native back gesture (iOS edge swipe, Android back button) respects WebView internal history automatically
-- No special handling needed for dead views — works with normal `Mob.Screen` back behavior
+- No special handling needed for dead views — works with normal `Dala.Screen` back behavior
 
 **URL bar visibility:**
 - No native browser chrome by default — URL bar hidden, nav buttons hidden
@@ -1480,14 +1480,14 @@ Mob.WebView.post_message(socket, %{event: "data", payload: payload})
 - Users cannot accidentally navigate away unless explicitly enabled
 
 **JS bridge — platform-identical via LiveView WebSocket:**
-- Do NOT use `window.webkit.messageHandlers` (iOS-only) or `window.MobBridge` (Android-only)
+- Do NOT use `window.webkit.messageHandlers` (iOS-only) or `window.dalaBridge` (Android-only)
 - Instead: inject a tiny shim that uses `this.pushEvent` / `this.handleEvent` (LiveView hooks) over the existing WebSocket connection
 - Bridge is 100% platform-identical — no conditional code in user's JS
 - Works for both standalone WebView (shim injected into page) and LiveView mode (hooks native)
 
 ```javascript
 // Injected shim (same on both platforms):
-window.mob = {
+window.dala = {
   send: (data) => liveViewHook.pushEvent("webview_message", data),
   onMessage: (handler) => liveViewHook.handleEvent("webview_push", handler)
 };
@@ -1495,13 +1495,13 @@ window.mob = {
 
 **NIF stubs:** `webview_eval_js/1`, `webview_post_message/1`, `webview_can_go_back/0`, `webview_go_back/0`
 
-**iOS (`ios/mob_nif.m` + `ios/MobRootView.swift`):**
+**iOS (`ios/dala_nif.m` + `ios/DalaRootView.swift`):**
 - `WKWebView` in `UIViewRepresentable`
 - `WKNavigationDelegate` enforces `allow:` whitelist, fires blocked event
 - `evaluateJavaScript:completionHandler:` for `eval_js`
 - Store `WKWebView` ref + PID in globals; `webViewCanGoBack/webViewGoBack` read from global ref
 
-**Android (`android/jni/mob_nif.c` + `MobBridge.kt`):**
+**Android (`android/jni/dala_nif.c` + `dalaBridge.kt`):**
 - `android.webkit.WebView` + `WebViewClient` via Compose `AndroidView`
 - `WebViewClient.shouldOverrideUrlLoading` enforces whitelist, fires blocked event
 - `evaluateJavascript(code, callback)` for `eval_js`
@@ -1518,30 +1518,30 @@ window.mob = {
 **The idea:** BEAM is already on the device → start a local Phoenix endpoint → WebView points
 at `http://localhost:PORT` → full LiveView with near-zero latency (loopback, no network).
 
-Web developers can ship a mobile app by writing zero native UI code. Phoenix generators
+Web developers can ship a dalaile app by writing zero native UI code. Phoenix generators
 work unchanged. The JS bridge via LiveView WebSocket means the same hooks work on both
 platforms identically.
 
 **Enabling LiveView mode:**
 ```bash
-# New project (generates Phoenix project with Mob sidecar)
-mix mob.new myapp --mode liveview
+# New project (generates Phoenix project with Dala sidecar)
+mix dala.new myapp --mode liveview
 
 # Add to existing Phoenix project
-mix mob.enable liveview
+mix dala.enable liveview
 ```
 
-**What `mix mob.enable liveview` does:**
-- Adds `mob` to `mix.exs` deps
-- Generates `lib/myapp/mob.ex` — `Mob.LiveView` supervision module that starts Phoenix endpoint + Mob runtime
-- Adds `MobScreen` to `application.ex` children
+**What `mix dala.enable liveview` does:**
+- Adds `dala` to `mix.exs` deps
+- Generates `lib/myapp/dala.ex` — `Dala.LiveView` supervision module that starts Phoenix endpoint + Dala runtime
+- Adds `dalaScreen` to `application.ex` children
 - Injects JS bridge shim into `assets/js/app.js` (LiveView hook registration)
-- Writes `mob.exs` with `mode: :liveview` and `port: 4001`
+- Writes `dala.exs` with `mode: :liveview` and `port: 4001`
 
 **Architecture:**
 ```
 Device BEAM → Phoenix.Endpoint (localhost:4001) → LiveView WebSocket
-                                                 → WebView (Mob UI component)
+                                                 → WebView (Dala UI component)
 ```
 
 The WebView renders the Phoenix app. LiveView updates propagate over WebSocket with sub-5ms latency (loopback). No Cloudflare, no network.
@@ -1549,36 +1549,36 @@ The WebView renders the Phoenix app. LiveView updates propagate over WebSocket w
 **Weight analysis:**
 - Phoenix framework: ~3MB of .beam files (hot-pushed, not bundled in APK)
 - Cowboy HTTP server: ~1MB
-- Total overhead vs bare Mob: ~4-5MB of .beam files
+- Total overhead vs bare Dala: ~4-5MB of .beam files
 - APK/IPA size: same (BEAMs are pushed at runtime, not bundled)
 - Worth it for teams already writing Phoenix — zero new concepts
 
 **Phoenix generators in LiveView mode:**
 - Standard `mix phx.gen.live` generators work unchanged — they generate regular LiveViews
-- Mob adds two new generators for Mob-specific integration:
-  - `mix mob.gen.live_screen` — generates a LiveView that's aware of the Mob WebView lifecycle (safe area, back gesture, etc.)
-  - `mix mob.gen.sync` — generates a GenServer + migration for PostgreSQL→SQLite sync (see below)
+- Dala adds two new generators for Dala-specific integration:
+  - `mix dala.gen.live_screen` — generates a LiveView that's aware of the Dala WebView lifecycle (safe area, back gesture, etc.)
+  - `mix dala.gen.sync` — generates a GenServer + migration for PostgreSQL→SQLite sync (see below)
 - No reason to change what Phoenix generators do — user's server and app share the same LiveView code
 
-**Dead views:** Work fine. A LiveView rendered in a Mob WebView behaves like any LiveView. The only special case is WebView internal history vs Mob nav stack — solved by `webview_can_go_back` NIF (see WebView section).
+**Dead views:** Work fine. A LiveView rendered in a Dala WebView behaves like any LiveView. The only special case is WebView internal history vs Dala nav stack — solved by `webview_can_go_back` NIF (see WebView section).
 
 **PostgreSQL→SQLite sync story:**
 - Server stays on PostgreSQL (all users)
 - Device SQLite starts empty on first launch
 - On login: sync the logged-in user's data slice from PostgreSQL → SQLite
-- `mix mob.gen.sync` generates the sync GenServer + Ecto schemas for both databases
+- `mix dala.gen.sync` generates the sync GenServer + Ecto schemas for both databases
 - This is NOT a migration — it's a one-user data copy at session start
 - Offline reads use SQLite; writes go to the server + update SQLite optimistically
 - Only makes sense for apps with well-bounded per-user data (warehouse inventory per user, not social feeds)
 
 ---
 
-### `mix mob.enable` — multi-feature task ✅ Done
+### `mix dala.enable` — multi-feature task ✅ Done
 
-Currently `mix mob.enable` takes a single feature. Should accept multiple:
+Currently `mix dala.enable` takes a single feature. Should accept multiple:
 
 ```bash
-mix mob.enable camera photo_library file_sharing liveview
+mix dala.enable camera photo_library file_sharing liveview
 ```
 
 **What it does per feature:**
@@ -1596,14 +1596,14 @@ mix mob.enable camera photo_library file_sharing liveview
 **Implementation:**
 - iOS: structured XML editing of `Info.plist` using regex or `xmerl` — idempotent, won't duplicate existing entries; prompts developer for usage description strings if not already set
 - Android: line-by-line insert of `<uses-permission>` before `</manifest>` close — idempotent check for existing entries first
-- All selections stored in `mob.exs` under `:capabilities` key (same as capability wizard design)
+- All selections stored in `dala.exs` under `:capabilities` key (same as capability wizard design)
 - Task validates that requested features are known; warns on unknown atoms
 
 ---
 
 ## Feature parity — Flutter / React Native gaps
 
-Features that Flutter and React Native ship out of the box that Mob is missing. Grouped by area; ordered roughly by how badly a missing item blocks a real app.
+Features that Flutter and React Native ship out of the box that Dala is missing. Grouped by area; ordered roughly by how badly a missing item blocks a real app.
 
 ---
 
@@ -1612,7 +1612,7 @@ Features that Flutter and React Native ship out of the box that Mob is missing. 
 **`alert` ⬜**
 Native system alert dialog with title, message, and buttons. `UIAlertController` (iOS) / `AlertDialog` (Android). Every app needs this — confirmation dialogs, error messages, destructive-action prompts.
 ```elixir
-Mob.Alert.show(socket, title: "Delete?", message: "This cannot be undone",
+Dala.Alert.show(socket, title: "Delete?", message: "This cannot be undone",
   buttons: [ok: "Delete", cancel: "Cancel"])
 def handle_info({:alert, :ok},     socket), do: ...
 def handle_info({:alert, :cancel}, socket), do: ...
@@ -1621,15 +1621,15 @@ def handle_info({:alert, :cancel}, socket), do: ...
 **`bottom_sheet` ⬜**
 Modal sheet that slides up from the bottom. iOS: `UISheetPresentationController` (half/full detents). Android: `ModalBottomSheet`. Used for contextual actions, pickers, secondary flows.
 ```elixir
-Mob.Sheet.show(socket, detents: [:medium, :large]) do
-  # rendered as a Mob screen tree
+Dala.Sheet.show(socket, detents: [:medium, :large]) do
+  # rendered as a Dala screen tree
 end
 ```
 
 **`action_sheet` ⬜**
-List of labelled actions presented as a sheet (iOS) or bottom dialog (Android). For "Share / Edit / Delete" menus. Shares the `Mob.Sheet` or `Mob.Alert` namespace.
+List of labelled actions presented as a sheet (iOS) or bottom dialog (Android). For "Share / Edit / Delete" menus. Shares the `Dala.Sheet` or `Dala.Alert` namespace.
 ```elixir
-Mob.ActionSheet.show(socket, title: "Options",
+Dala.ActionSheet.show(socket, title: "Options",
   actions: [share: "Share", edit: "Edit", delete: [label: "Delete", destructive: true]])
 def handle_info({:action_sheet, :delete}, socket), do: ...
 ```
@@ -1637,8 +1637,8 @@ def handle_info({:action_sheet, :delete}, socket), do: ...
 **`toast` / snackbar ⬜**
 Brief ephemeral message overlaid on content, auto-dismissed after N seconds. Android: `Snackbar`. iOS: no native equivalent — custom implementation needed.
 ```elixir
-Mob.Toast.show(socket, "Saved!", duration: :short)               # fire and forget
-Mob.Toast.show(socket, "Undo?", action: [label: "Undo", tag: :undo])
+Dala.Toast.show(socket, "Saved!", duration: :short)               # fire and forget
+Dala.Toast.show(socket, "Undo?", action: [label: "Undo", tag: :undo])
 def handle_info({:toast, :undo}, socket), do: ...
 ```
 
@@ -1713,7 +1713,7 @@ def handle_info({:app, :inactive},   socket), do: ...   # iOS only (incoming cal
 **Deep linking / URL scheme handling ⬜**
 App receives a URL (custom scheme `myapp://` or universal link `https://myapp.com/...`) and routes to the correct screen. Essential for OAuth redirects, push notification taps, share links, QR-code-to-app flows.
 ```elixir
-# In mob.exs: url_scheme: "myapp"
+# In dala.exs: url_scheme: "myapp"
 def handle_info({:deep_link, "myapp://items/42"}, socket), do: ...
 ```
 iOS: `UIApplicationDelegate.application(_:open:options:)` + Associated Domains for universal links.
@@ -1733,7 +1733,7 @@ BEAM receives `{:keyboard, :will_show, %{height: h}}` / `{:keyboard, :will_hide}
 **Network connectivity ⬜**
 Online/offline status and connection type (WiFi / cellular / none). Needed for offline-first apps, showing "no connection" banners, gating network calls.
 ```elixir
-Mob.Network.start(socket)   # subscribe to changes
+Dala.Network.start(socket)   # subscribe to changes
 def handle_info({:network, :online,  :wifi},     socket), do: ...
 def handle_info({:network, :online,  :cellular}, socket), do: ...
 def handle_info({:network, :offline},             socket), do: ...
@@ -1743,7 +1743,7 @@ iOS: `NWPathMonitor`. Android: `ConnectivityManager` + `NetworkCallback`.
 **Device info ⬜**
 Synchronous read of static device properties. Needed constantly for analytics, layout decisions (tablet vs phone), locale-aware formatting.
 ```elixir
-Mob.Device.info()
+Dala.Device.info()
 # %{model: "iPhone 16 Pro", os: :ios, os_version: "18.4", locale: "en-CA",
 #   timezone: "America/Vancouver", screen: %{width: 393, height: 852, scale: 3.0},
 #   form_factor: :phone | :tablet}
@@ -1754,7 +1754,7 @@ Mob.Device.info()
 ### Layout
 
 **Flex / expand (fill available space) ⬜**
-A child that stretches to fill remaining space in a `column` or `row`. The single most common layout primitive after basic stacking. Currently Mob only has fixed-size `spacer`.
+A child that stretches to fill remaining space in a `column` or `row`. The single most common layout primitive after basic stacking. Currently Dala only has fixed-size `spacer`.
 ```elixir
 %{type: :row, children: [
   %{type: :text, props: %{text: "Label"}},
@@ -1865,7 +1865,7 @@ Bold a word within a sentence, inline links, mixed colors/sizes in one block. iO
 ```
 
 **Selectable text ⬜**
-Allow users to select and copy text. Mobile default is non-selectable. iOS: `.textSelection(.enabled)`. Android: `SelectionContainer`. Needed for any content the user might want to copy (addresses, codes, logs).
+Allow users to select and copy text. dalaile default is non-selectable. iOS: `.textSelection(.enabled)`. Android: `SelectionContainer`. Needed for any content the user might want to copy (addresses, codes, logs).
 
 ---
 
@@ -1874,30 +1874,30 @@ Allow users to select and copy text. Mobile default is non-selectable. iOS: `.te
 **Dark mode ⬜**
 Dynamic color based on system appearance (`UIUserInterfaceStyle` / `isSystemInDarkTheme()`). Apps that ignore dark mode look unfinished to iOS/Android users. Two approaches:
 - Semantic color tokens (`:primary`, `:background`) resolve to different ARGB values in light vs dark — preferred, no code change at the screen level
-- `Mob.Theme.mode/0` → `:light | :dark` for manual branching
+- `Dala.Theme.mode/0` → `:light | :dark` for manual branching
 
 **Accessibility labels ⬜**
-`accessibility_label:`, `accessibility_hint:`, `accessibility_role:` props on all interactive nodes. Required for VoiceOver (iOS) and TalkBack (Android). Also needed for `Mob.Test.find/2` to work reliably on elements without visible text.
+`accessibility_label:`, `accessibility_hint:`, `accessibility_role:` props on all interactive nodes. Required for VoiceOver (iOS) and TalkBack (Android). Also needed for `Dala.Test.find/2` to work reliably on elements without visible text.
 
 **Dynamic type ⬜**
 iOS scales all text with the user's preferred font size setting (`UIFontMetrics`). Android does the same (`sp` units already scale, but line heights and container sizes need to adapt). Ignoring this is an accessibility gap — text becomes unreadably small or layout breaks for users who have increased their system font size.
 
 **RTL layout ⬜**
-Right-to-left language support (Arabic, Hebrew, Farsi, Urdu). Start/end instead of left/right for padding, alignment, and icon placement. iOS and Android both handle most RTL automatically when the locale is RTL — Mob needs to pass semantic direction through rather than hardcoding pixel directions.
+Right-to-left language support (Arabic, Hebrew, Farsi, Urdu). Start/end instead of left/right for padding, alignment, and icon placement. iOS and Android both handle most RTL automatically when the locale is RTL — Dala needs to pass semantic direction through rather than hardcoding pixel directions.
 
 ---
 
-- `mob` v0.4.0 — github.com/genericjam/mob, MIT
-- `mob_dev` v0.2.x — github.com/genericjam/mob_dev, MIT
-- `mob_new` v0.1.x — archive, `mix archive.install hex mob_new`
+- `dala` v0.4.0 — github.com/genericjam/dala, MIT
+- `dala_dev` v0.2.x — github.com/genericjam/dala_dev, MIT
+- `dala_new` v0.1.x — archive, `mix archive.install hex dala_new`
 
 ---
 
-## Native event surface — `Mob.Device` + UI events
+## Native event surface — `Dala.Device` + UI events
 
 **Goal:** every meaningful OS / UI event surfaces to Elixir as a tagged tuple
-following the `Mob.Device` model: NIF observes natively, emits
-`{:mob_device, atom}` (cross-platform) and/or `{:mob_device_<plat>, atom, payload}`
+following the `Dala.Device` model: NIF observes natively, emits
+`{:dala_device, atom}` (cross-platform) and/or `{:dala_device_<plat>, atom, payload}`
 (platform-specific) to a registered dispatcher pid which fans out to subscribers
 by category.
 
@@ -1905,7 +1905,7 @@ by category.
 
 iOS + Android. Six categories: `:app`, `:display`, `:audio`, `:power`,
 `:thermal`, `:memory`. ~30 events total. Low-frequency, no throttling needed.
-Foundation for `Mob.Device.subscribe/1` and `Mob.Device.IOS` / `Mob.Device.Android`.
+Foundation for `Dala.Device.subscribe/1` and `Dala.Device.IOS` / `Dala.Device.Android`.
 
 ### Batch 2 — Audit existing widget events ✅ (Elixir side)
 
@@ -1915,13 +1915,13 @@ Foundation for `Mob.Device.subscribe/1` and `Mob.Device.IOS` / `Mob.Device.Andro
   type rules, atom-exhaustion warning, migration path)
 - `guides/event_audit.md` — current state of native emitters, mapping to new
   envelope, pending native work
-- `Mob.Event.Address` — typed address struct with validation, formatters,
+- `Dala.Event.Address` — typed address struct with validation, formatters,
   pattern-matching helpers (47 tests + 10 doctests)
-- `Mob.Event.Target` — target resolution covering `:parent`, `:screen`,
+- `Dala.Event.Target` — target resolution covering `:parent`, `:screen`,
   `{:component, id}`, atom, pid, `{:via, mod, key}` (17 tests + 3 doctests)
-- `Mob.Event` — emit/dispatch API, envelope predicate, address matcher,
+- `Dala.Event` — emit/dispatch API, envelope predicate, address matcher,
   test helper (20 tests + 4 doctests)
-- `Mob.Event.Bridge` — converts legacy `{:tap, tag}`, `{:change, tag, value}`,
+- `Dala.Event.Bridge` — converts legacy `{:tap, tag}`, `{:change, tag, value}`,
   `{:tap, {:list, id, :select, idx}}` into canonical envelope (19 tests + 4 doctests)
 
 ### Batch 3 — Low-frequency widget events ✅ (Elixir + iOS) / ⏳ (Android JNI)
@@ -1930,8 +1930,8 @@ Foundation for `Mob.Device.subscribe/1` and `Mob.Device.IOS` / `Mob.Device.Andro
 - Existing: `on_change`, `on_focus`, `on_blur`, `on_submit`, `on_end_reached`,
   `on_tab_select` already wired
 - New: `on_select` for pickers/menus/segmented controls — renderer + iOS NIF +
-  iOS `MobNode` property + iOS prop deserialiser; Android C sender exported
-  via `mob_beam.h`
+  iOS `DalaNode` property + iOS prop deserialiser; Android C sender exported
+  via `dala_beam.h`
 - Bridge handles `{:change, tag, value}` shape conversion to canonical
 
 **Pending:** Android JNI stubs in `beam_jni.c`; Compose `Modifier` for
@@ -1942,25 +1942,25 @@ Foundation for `Mob.Device.subscribe/1` and `Mob.Device.IOS` / `Mob.Device.Andro
 **Shipped:**
 - Renderer: `on_long_press`, `on_double_tap`, `on_swipe`, `on_swipe_left`,
   `on_swipe_right`, `on_swipe_up`, `on_swipe_down` props
-- iOS: NIF senders (`mob_send_long_press`, `mob_send_double_tap`,
-  `mob_send_swipe_*`, `mob_send_swipe_with_direction`); `MobNode` properties;
-  prop deserialiser; SwiftUI `View.mobGestures(_:)` modifier with
+- iOS: NIF senders (`dala_send_long_press`, `dala_send_double_tap`,
+  `dala_send_swipe_*`, `dala_send_swipe_with_direction`); `DalaNode` properties;
+  prop deserialiser; SwiftUI `View.dalaGestures(_:)` modifier with
   `.onLongPressGesture`, `.onTapGesture(count: 2)`, conditional `DragGesture`
   (only attached when at least one swipe handler is set, to avoid
   ScrollView interference)
-- Android: C sender functions and `mob_beam.h` exports
+- Android: C sender functions and `dala_beam.h` exports
 
 **Pending:**
 - Android JNI stubs in `beam_jni.c` calling the C senders
-- Kotlin `MobBridge` JNI declarations
+- Kotlin `dalaBridge` JNI declarations
 - Compose `Modifier.pointerInput { detectTapGestures, detectDragGestures }`
   setup in the generated app
 - Physical-device verification of iOS swipe-vs-scroll conflict resolution
 
 **Not yet started:**
-- Stateful `Mob.List` migration to the new event model — keeping current
+- Stateful `Dala.List` migration to the new event model — keeping current
   shape working via the bridge for now; full migration when the
-  stateful-component infrastructure (`Mob.Event.Component`) lands.
+  stateful-component infrastructure (`Dala.Event.Component`) lands.
 
 ### Batch 5 — High-frequency events ✅ (Elixir + iOS) / ⏳ (Android JNI)
 
@@ -1985,7 +1985,7 @@ Native side maintains per-handle state: `last_emit_ts`, `last_emit_x/y`,
 
 Envelope:
 ```elixir
-{:mob_event, addr, :scroll, %{
+{:dala_event, addr, :scroll, %{
   x: 0, y: 1240, dx: 0, dy: 12,
   velocity_x: 0.0, velocity_y: 720.0,
   phase: :began | :dragging | :decelerating | :ended,
@@ -2037,7 +2037,7 @@ Zero BEAM involvement during the scroll.
 }}
 ```
 
-This is the React Native `useNativeDriver` lesson applied to Mob: keep the
+This is the React Native `useNativeDriver` lesson applied to Dala: keep the
 60 Hz pipeline native; let BEAM see only the *result* (e.g. "user reached
 sticky state"). New Tier-3 props are added on demand, not designed
 speculatively.
@@ -2048,33 +2048,33 @@ is the most aggressive (constant cursor movement on iPad trackpad / Android
 tablet) and may need stricter defaults.
 
 **Shipped:**
-- `Mob.Event.Throttle` — config parser/validator (parse / default_for /
+- `Dala.Event.Throttle` — config parser/validator (parse / default_for /
   default? helpers). Per-event-kind defaults: scroll 33 ms / 1 px, drag
   16 ms / 1 px, pinch 16 ms / 0.01, rotate 16 ms / 1°, pointer_move
   33 ms / 4 px. (33 tests + 6 doctests)
-- `Mob.Event.Bridge` extended for HF event shapes
+- `Dala.Event.Bridge` extended for HF event shapes
   (`:scroll`/`:drag`/`:pinch`/`:rotate`/`:pointer_move` with payload maps,
   plus 5 Tier-2 single-fires).
 - Renderer prop pass-through for all Tier 1, Tier 2, Tier 3 props with
   config encoding for native consumption.
-- iOS: native throttle state per TapHandle; `mob_send_scroll`,
-  `mob_send_drag`, `mob_send_pinch`, `mob_send_rotate`,
-  `mob_send_pointer_move`, plus 5 Tier-2 senders. Throttle/delta gating
+- iOS: native throttle state per TapHandle; `dala_send_scroll`,
+  `dala_send_drag`, `dala_send_pinch`, `dala_send_rotate`,
+  `dala_send_pointer_move`, plus 5 Tier-2 senders. Throttle/delta gating
   before any `enif_send`. Phase-boundary events (`began`/`ended`) bypass
-  throttling. SwiftUI `MobScrollObserver` modifier (iOS 17+) wires
+  throttling. SwiftUI `DalaScrollObserver` modifier (iOS 17+) wires
   `onScrollGeometryChange` to the node closures; debounced timer derives
   `scroll_ended`/`scroll_settled`. Tier-3 native config props are
-  pass-through dictionaries on `MobNode` for the SwiftUI layer to read.
-- Android: same C senders (`mob_send_scroll` / `_drag` / `_pinch` /
+  pass-through dictionaries on `DalaNode` for the SwiftUI layer to read.
+- Android: same C senders (`dala_send_scroll` / `_drag` / `_pinch` /
   `_rotate` / `_pointer_move` / Tier-2 single-fires). `clock_gettime`
-  monotonic time. Header exports in `mob_beam.h`.
+  monotonic time. Header exports in `dala_beam.h`.
 - Tests: 27 throttle + 36 bridge + 16 integration + 14 renderer scroll/HF
   cases; total suite 563 / 0 failures.
 
 **Pending:**
 - Android JNI stubs in `beam_jni.c` calling the C senders.
 - Compose `Modifier.scrollable` / `LazyListState`-`snapshotFlow` wiring in
-  the generated app's MobBridge to actually fire `mob_send_scroll`.
+  the generated app's dalaBridge to actually fire `dala_send_scroll`.
 - Tier 3 native primitives — only the prop-pass-through is wired today;
   the SwiftUI side that *applies* parallax/fade/sticky transforms is the
   next addition (small per-primitive — added on demand).
@@ -2101,9 +2101,9 @@ sync) get garbled non-final text without observation. Not "wait for asks."
 - `on_compose: {pid, tag}` prop on text fields. Phase atom is
   `:began | :updating | :committed | :cancelled`. Payload is
   `%{text: binary, phase: atom}`.
-- `Mob.Event.Bridge` recognises `{:compose, tag, %{phase: ...}}` and
+- `Dala.Event.Bridge` recognises `{:compose, tag, %{phase: ...}}` and
   validates the phase atom.
-- iOS NIF: `mob_send_compose(handle, text, phase)`; `MobNode.onCompose`
+- iOS NIF: `dala_send_compose(handle, text, phase)`; `DalaNode.onCompose`
   closure property; prop deserialiser wires it; SwiftUI side fires nothing
   yet (see "Pending" below).
 - Android NIF: same C-side sender; header export.
@@ -2114,12 +2114,12 @@ sync) get garbled non-final text without observation. Not "wait for asks."
 **Pending:**
 - iOS SwiftUI: real composition observation requires a `UIViewRepresentable`
   wrapping `UITextField` with a delegate that watches `markedTextRange` /
-  `setMarkedText:`. Tracked separately — the existing `MobTextField` is
+  `setMarkedText:`. Tracked separately — the existing `DalaTextField` is
   SwiftUI-based and doesn't expose marked-text state.
 - Android: Compose `TextFieldValue.composition` range observation in the
-  generated app's `MobBridge`, calling `mob_send_compose` via JNI.
+  generated app's `dalaBridge`, calling `dala_send_compose` via JNI.
 - Until both ship, the Elixir contract works (events deliver if the native
-  side calls `mob_send_compose`) but no native source emits them yet.
+  side calls `dala_send_compose`) but no native source emits them yet.
 
 ### Batch 7 — Niche surfaces (deferred — implement on demand) ⬜
 
@@ -2165,13 +2165,13 @@ column(id: :archive,
   the source's parent, target events go to the target's parent, the
   framework correlates by session_id.
 - **Payload schema.** Drag carries arbitrary data — text, image, custom
-  Mob types. Decide: typed payloads via a tagged map (`%{type: :text, value: "x"}`),
+  Dala types. Decide: typed payloads via a tagged map (`%{type: :text, value: "x"}`),
   or free-form? Probably typed — apps need to validate `accepts:` lists.
 - **Cancellation guarantees.** Phone call interruption mid-drag, app
   backgrounded mid-drag, source widget unmounted mid-drag. Native side must
   fire `:cancel` for every started session. No silent drops.
 - **Visual feedback.** Drag preview, drop-zone highlights — these are
-  rendering concerns, not event concerns. Probably a `Mob.Drag` runtime
+  rendering concerns, not event concerns. Probably a `Dala.Drag` runtime
   module that handles the preview; events only carry semantic state.
 - **Native APIs to use.**
   - iOS: `UIDragInteraction` / `UIDropInteraction` (UIKit) or `.draggable` /
@@ -2217,7 +2217,7 @@ canvas(on_touch: {self(), :draw})
 **Speculative API:** identical to multi-touch but with extra payload fields
 (`pressure`, `tilt_x`, `tilt_y`, `azimuth_radians`, `tool: :pencil | :finger`).
 Apps want pressure curves applied (linear / quadratic / exponential) — provide
-a `Mob.Stylus.curve/2` helper rather than configuring the curve at the
+a `Dala.Stylus.curve/2` helper rather than configuring the curve at the
 native layer.
 
 **Estimated scope:** ~400 LOC on top of multi-touch.
@@ -2225,7 +2225,7 @@ native layer.
 #### Hover (iPad trackpad / pointer devices)
 
 **Use cases:** showing tooltips, highlighting hover targets, custom cursor
-images. Affects ~zero current Mob apps; relevant when iPad/macOS/web port
+images. Affects ~zero current Dala apps; relevant when iPad/macOS/web port
 becomes a real target.
 
 **Speculative API:**

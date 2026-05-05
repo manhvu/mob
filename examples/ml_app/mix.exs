@@ -20,7 +20,7 @@ defmodule MLApp.MixProject do
 
   defp deps do
     [
-      {:mob, path: "../../"},
+      {:dala, path: "../../"},
       # ML dependencies - automatically included!
       {:nx, github: "elixir-nx/nx", sparse: "nx"},
       {:emlx, github: "elixir-nx/emlx", branch: "main"},

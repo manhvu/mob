@@ -1,0 +1,318 @@
+defmodule Dala.DeviceTest do
+  use ExUnit.Case, async: false
+
+  # Tests cover the GenServer fan-out logic without requiring the NIF.
+  # The NIF stubs raise when not loaded; we verify the public-API exports
+  # in a separate describe block and exercise the dispatcher by sending
+  # synthetic OS messages.
+
+  alias Dala.Device
+
+  setup do
+    # Start fresh dispatcher (and platform fan-outs it forwards to) per test.
+    start_supervised!({Dala.Device.IOS, []})
+    start_supervised!({Dala.Device.Android, []})
+
+    {:ok, pid} =
+      case GenServer.start_link(Device, [], name: :"device_#{System.unique_integer([:positive])}") do
+        {:ok, p} -> {:ok, p}
+        other -> other
+      end
+
+    on_exit(fn ->
+      if Process.alive?(pid), do: GenServer.stop(pid)
+    end)
+
+    {:ok, dispatcher: pid}
+  end
+
+  describe "module exports" do
+    # function_exported?/3 checks elsewhere were removed — the
+    # "raises when NIF not loaded" tests below actually invoke each function,
+    # which proves both existence and behaviour. A bare `function_exported?`
+    # test gives a false sense of coverage and trips Credo's "this test
+    # doesn't call any application code" warning.
+
+    test "categories/0 returns the 7 known categories" do
+      cats = Device.categories()
+      assert :app in cats
+      assert :display in cats
+      assert :audio in cats
+      assert :appearance in cats
+      assert :power in cats
+      assert :thermal in cats
+      assert :memory in cats
+    end
+  end
+
+  describe "category_for/1" do
+    test "maps app events" do
+      assert Device.category_for(:will_resign_active) == :app
+      assert Device.category_for(:did_become_active) == :app
+      assert Device.category_for(:did_enter_background) == :app
+      assert Device.category_for(:will_enter_foreground) == :app
+      assert Device.category_for(:will_terminate) == :app
+    end
+
+    test "maps display events" do
+      assert Device.category_for(:screen_off) == :display
+      assert Device.category_for(:screen_on) == :display
+    end
+
+    test "maps audio events" do
+      assert Device.category_for(:audio_interrupted) == :audio
+      assert Device.category_for(:audio_resumed) == :audio
+      assert Device.category_for(:audio_route_changed) == :audio
+    end
+
+    test "maps power, thermal, memory events" do
+      assert Device.category_for(:battery_state_changed) == :power
+      assert Device.category_for(:battery_level_changed) == :power
+      assert Device.category_for(:low_power_mode_changed) == :power
+      assert Device.category_for(:thermal_state_changed) == :thermal
+      assert Device.category_for(:memory_warning) == :memory
+    end
+
+    test "maps :color_scheme_changed to :appearance" do
+      assert Device.category_for(:color_scheme_changed) == :appearance
+    end
+
+    test "unknown events fall through to :unknown" do
+      assert Device.category_for(:no_such_event) == :unknown
+    end
+  end
+
+  describe "subscription fan-out" do
+    test "subscriber receives events for its categories", %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:app]})
+      send(d, {:dala_device, :did_enter_background})
+      assert_receive {:dala_device, :did_enter_background}, 100
+    end
+
+    test "subscriber does not receive events outside its categories", %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:thermal]})
+      send(d, {:dala_device, :did_enter_background})
+      refute_receive {:dala_device, :did_enter_background}, 50
+    end
+
+    test "subscriber to :all (via list of all categories) gets everything", %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), Device.categories()})
+
+      send(d, {:dala_device, :did_enter_background})
+      assert_receive {:dala_device, :did_enter_background}, 100
+
+      send(d, {:dala_device, :memory_warning})
+      assert_receive {:dala_device, :memory_warning}, 100
+
+      send(d, {:dala_device, :thermal_state_changed, :serious})
+      assert_receive {:dala_device, :thermal_state_changed, :serious}, 100
+    end
+
+    test "events with payload are delivered with payload", %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:power]})
+      send(d, {:dala_device, :battery_level_changed, 73})
+      assert_receive {:dala_device, :battery_level_changed, 73}, 100
+    end
+
+    test ":appearance subscriber receives :color_scheme_changed with the scheme atom",
+         %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:appearance]})
+
+      send(d, {:dala_device, :color_scheme_changed, :dark})
+      assert_receive {:dala_device, :color_scheme_changed, :dark}, 100
+
+      send(d, {:dala_device, :color_scheme_changed, :light})
+      assert_receive {:dala_device, :color_scheme_changed, :light}, 100
+    end
+
+    test ":appearance is filtered out for subscribers in unrelated categories",
+         %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:thermal]})
+      send(d, {:dala_device, :color_scheme_changed, :dark})
+      refute_receive {:dala_device, :color_scheme_changed, :dark}, 50
+    end
+
+    test "multiple subscribers all receive matching events", %{dispatcher: d} do
+      task1 =
+        Task.async(fn ->
+          :ok = GenServer.call(d, {:subscribe, self(), [:app]})
+          assert_receive {:dala_device, :did_become_active}, 200
+          :got_it
+        end)
+
+      task2 =
+        Task.async(fn ->
+          :ok = GenServer.call(d, {:subscribe, self(), [:app]})
+          assert_receive {:dala_device, :did_become_active}, 200
+          :got_it
+        end)
+
+      # Give both tasks time to subscribe.
+      Process.sleep(20)
+      send(d, {:dala_device, :did_become_active})
+
+      assert Task.await(task1) == :got_it
+      assert Task.await(task2) == :got_it
+    end
+
+    test "unsubscribe removes the subscriber", %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:app]})
+      :ok = GenServer.call(d, {:unsubscribe, self()})
+      send(d, {:dala_device, :did_enter_background})
+      refute_receive {:dala_device, :did_enter_background}, 50
+    end
+
+    test "subscriber pid going down is auto-removed", %{dispatcher: d} do
+      task =
+        Task.async(fn ->
+          :ok = GenServer.call(d, {:subscribe, self(), [:app]})
+          :done
+        end)
+
+      assert Task.await(task) == :done
+      # Wait for the :DOWN to be processed.
+      Process.sleep(50)
+
+      subs = GenServer.call(d, :__test_subscribers__)
+      refute Map.has_key?(subs, task.pid)
+    end
+
+    test "double-subscribe replaces categories rather than duplicating", %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), [:app]})
+      :ok = GenServer.call(d, {:subscribe, self(), [:thermal]})
+
+      send(d, {:dala_device, :did_enter_background})
+      refute_receive {:dala_device, :did_enter_background}, 50
+
+      send(d, {:dala_device, :thermal_state_changed, :serious})
+      assert_receive {:dala_device, :thermal_state_changed, :serious}, 100
+    end
+  end
+
+  describe "platform forwarding" do
+    test "iOS-tagged messages forward to Dala.Device.IOS", %{dispatcher: d} do
+      Dala.Device.IOS.subscribe()
+
+      send(d, {:dala_device_ios, :protected_data_will_become_unavailable})
+      assert_receive {:dala_device_ios, :protected_data_will_become_unavailable}, 100
+    end
+
+    test "Android-tagged messages forward to Dala.Device.Android", %{dispatcher: d} do
+      Dala.Device.Android.subscribe()
+
+      send(d, {:dala_device_android, :doze_mode_changed, true})
+      assert_receive {:dala_device_android, :doze_mode_changed, true}, 100
+    end
+
+    test "common-tagged subscribers do NOT receive platform-tagged messages",
+         %{dispatcher: d} do
+      :ok = GenServer.call(d, {:subscribe, self(), Device.categories()})
+
+      send(d, {:dala_device_ios, :will_resign_active})
+      refute_receive {:dala_device_ios, :will_resign_active}, 50
+      refute_receive {:dala_device, :will_resign_active}, 50
+    end
+  end
+
+  describe "Dala.Device.IOS subscription" do
+    test "subscribe/0 and unsubscribe/0 work" do
+      assert :ok = Dala.Device.IOS.subscribe()
+      assert :ok = Dala.Device.IOS.unsubscribe()
+    end
+
+    test "subscriber pid down is removed" do
+      task =
+        Task.async(fn ->
+          :ok = Dala.Device.IOS.subscribe()
+          :done
+        end)
+
+      assert Task.await(task) == :done
+      Process.sleep(50)
+
+      subs = GenServer.call(Dala.Device.IOS, :__test_subscribers__)
+      refute Map.has_key?(subs, task.pid)
+    end
+  end
+
+  describe "Dala.Device.Android subscription" do
+    test "subscribe/0 and unsubscribe/0 work" do
+      assert :ok = Dala.Device.Android.subscribe()
+      assert :ok = Dala.Device.Android.unsubscribe()
+    end
+  end
+
+  describe "queries (NIF-backed, raise outside device)" do
+    # These all delegate to :dala_nif.* which is not loaded in the test env.
+    # Verifying the right exception is raised guards against accidental
+    # pure-Elixir fallbacks.
+
+    # credo's VacuousTest heuristic doesn't see `apply(Device, @fun, [])` as a
+    # call into application code, but it is — through indirection.
+    for fun <- [:battery_level, :battery_state, :thermal_state, :os_version, :model] do
+      @fun fun
+      # credo:disable-for-next-line Jump.CredoChecks.VacuousTest
+      test "#{fun}/0 raises when NIF not loaded" do
+        raised =
+          try do
+            apply(Device, @fun, [])
+            false
+          rescue
+            ErlangError -> true
+            UndefinedFunctionError -> true
+          end
+
+        assert raised, "expected Dala.Device.#{@fun}/0 to raise without the NIF"
+      end
+    end
+  end
+
+  describe "open_url/1" do
+    # NIF-backed; the NIF stub raises in the test env. We exercise enough of
+    # the wrapper to lock in input validation and the delegation contract.
+
+    test "raises when NIF not loaded" do
+      # credo:disable-for-next-line Jump.CredoChecks.VacuousTest
+      raised =
+        try do
+          Device.open_url("https://example.com/")
+          false
+        rescue
+          ErlangError -> true
+          UndefinedFunctionError -> true
+        end
+
+      assert raised, "expected Dala.Device.open_url/1 to raise without the NIF"
+    end
+
+    test "FunctionClauseError on non-binary input" do
+      assert_raise FunctionClauseError, fn -> Device.open_url(:not_a_binary) end
+      assert_raise FunctionClauseError, fn -> Device.open_url(nil) end
+      assert_raise FunctionClauseError, fn -> Device.open_url(123) end
+    end
+
+    test "spec accepts mailto, https, http, tel schemes" do
+      # We can't actually launch on the test host (no NIF), but we can
+      # confirm the wrapper accepts the URL forms our AndroidManifest
+      # `<queries>` declares (mirrors dala_new template + air_cart_max).
+      for url <- [
+            "mailto:steve@example.com?subject=hi",
+            "https://example.com/",
+            "http://example.com/",
+            "tel:+15551234567"
+          ] do
+        raised =
+          try do
+            # credo:disable-for-next-line Jump.CredoChecks.VacuousTest
+            Device.open_url(url)
+            false
+          rescue
+            ErlangError -> true
+            UndefinedFunctionError -> true
+          end
+
+        assert raised, "expected open_url(#{inspect(url)}) to raise without the NIF"
+      end
+    end
+  end
+end

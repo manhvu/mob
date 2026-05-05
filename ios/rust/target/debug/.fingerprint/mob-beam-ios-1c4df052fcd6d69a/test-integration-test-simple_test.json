@@ -1,1 +1,20 @@
-{"rustc":18415816196306954164,"features":"[\"default\"]","declared_features":"[\"default\", \"static_sqlite_nif\"]","target":8625254402885387268,"profile":15057526963834790232,"path":13277499706983441278,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/mob-beam-ios-1c4df052fcd6d69a/dep-test-integration-test-simple_test","checksum":false}}],"rustflags":[],"config":2069994364910194474,"compile_kind":0}
+{
+  "rustc": 18415816196306954164,
+  "features": "[\"default\"]",
+  "declared_features": "[\"default\", \"static_sqlite_nif\"]",
+  "target": 8625254402885387268,
+  "profile": 15057526963834790232,
+  "path": 13277499706983441278,
+  "deps": [],
+  "local": [
+    {
+      "CheckDepInfo": {
+        "dep_info": "debug/.fingerprint/dala-beam-ios-1c4df052fcd6d69a/dep-test-integration-test-simple_test",
+        "checksum": false
+      }
+    }
+  ],
+  "rustflags": [],
+  "config": 2069994364910194474,
+  "compile_kind": 0
+}

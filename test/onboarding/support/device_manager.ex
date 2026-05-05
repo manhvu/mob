@@ -1,4 +1,4 @@
-defmodule Mob.Onboarding.DeviceManager do
+defmodule Dala.Onboarding.DeviceManager do
   @moduledoc """
   Programmatic lifecycle management for iOS simulators and Android emulators.
 
@@ -64,7 +64,7 @@ defmodule Mob.Onboarding.DeviceManager do
   def create_ios(run_id, slot) do
     runtime = @ios_runtimes[slot]
     device_type = @ios_device_types[slot]
-    name = "mob-onboarding-#{run_id}-#{slot}"
+    name = "dala-onboarding-#{run_id}-#{slot}"
 
     with :ok <- ensure_ios_runtime(runtime),
          {:ok, sim_id} <- simctl_create(name, device_type, runtime),
@@ -105,7 +105,7 @@ defmodule Mob.Onboarding.DeviceManager do
           {:ok, android_device()} | {:error, String.t()}
   def create_android(run_id, run_index, slot) do
     %{api: api, tag: tag, abi: abi} = @android_images[slot]
-    avd_name = "mob_onboarding_#{run_id}_#{slot}"
+    avd_name = "dala_onboarding_#{run_id}_#{slot}"
     port = @base_emulator_port + run_index * 2
     adb_serial = "emulator-#{port}"
     image_pkg = "system-images;android-#{api};#{tag};#{abi}"

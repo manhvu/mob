@@ -11,7 +11,7 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR" ]; then
     SCRIPT_DIR="${SRCROOT}/ios"
 fi
 
-echo "=== Mob Rust Build Phase ==="
+echo "=== dala Rust Build Phase ==="
 echo "Project dir: $SCRIPT_DIR"
 
 # Check if Rust is installed
@@ -39,9 +39,9 @@ echo "Copying libraries..."
 mkdir -p "$SCRIPT_DIR/Frameworks"
 
 # Copy device library (arm64)
-if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libmob_beam_ios.a" ]; then
-    cp "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libmob_beam_ios.a" \
-       "$SCRIPT_DIR/Frameworks/libmob_beam_ios_device.a"
+if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libdala_beam_ios.a" ]; then
+    cp "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libdala_beam_ios.a" \
+       "$SCRIPT_DIR/Frameworks/libdala_beam_ios_device.a"
     echo "✓ Copied device library"
 else
     echo "✗ Device library not found"
@@ -49,12 +49,12 @@ else
 fi
 
 # Copy simulator libraries and create universal library
-if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios-sim/release/libmob_beam_ios.a" ] && \
-   [ -f "$SCRIPT_DIR/rust/target/x86_64-apple-ios/release/libmob_beam_ios.a" ]; then
+if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios-sim/release/libdala_beam_ios.a" ] && \
+   [ -f "$SCRIPT_DIR/rust/target/x86_64-apple-ios/release/libdala_beam_ios.a" ]; then
     lipo -create \
-        "$SCRIPT_DIR/rust/target/aarch64-apple-ios-sim/release/libmob_beam_ios.a" \
-        "$SCRIPT_DIR/rust/target/x86_64-apple-ios/release/libmob_beam_ios.a" \
-        -output "$SCRIPT_DIR/Frameworks/libmob_beam_ios_simulator.a"
+        "$SCRIPT_DIR/rust/target/aarch64-apple-ios-sim/release/libdala_beam_ios.a" \
+        "$SCRIPT_DIR/rust/target/x86_64-apple-ios/release/libdala_beam_ios.a" \
+        -output "$SCRIPT_DIR/Frameworks/libdala_beam_ios_simulator.a"
     echo "✓ Created universal simulator library"
 else
     echo "✗ Simulator libraries not found"

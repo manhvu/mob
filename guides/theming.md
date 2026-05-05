@@ -1,6 +1,6 @@
 # Theming
 
-Mob's design token system lets you control color, spacing, and typography across the entire app from one place. Tokens are resolved at render time — change the theme and every component updates automatically on the next render.
+Dala's design token system lets you control color, spacing, and typography across the entire app from one place. Tokens are resolved at render time — change the theme and every component updates automatically on the next render.
 
 ## Token types
 
@@ -80,45 +80,45 @@ Pass token atoms as prop values for color, spacing, radius, and text size props.
 
 ## Named themes
 
-Mob ships three built-in themes:
+Dala ships three built-in themes:
 
-- **`Mob.Theme.Obsidian`** — dark, neutral with blue accents (default dark theme)
-- **`Mob.Theme.Citrus`** — warm background with lime-green primary
-- **`Mob.Theme.Birch`** — warm neutral tones, brown accents
+- **`Dala.Theme.Obsidian`** — dark, neutral with blue accents (default dark theme)
+- **`Dala.Theme.Citrus`** — warm background with lime-green primary
+- **`Dala.Theme.Birch`** — warm neutral tones, brown accents
 
 There are two ways to set a theme:
 
-**At startup** — pass it to `use Mob.App`. This sets the theme before any screen mounts:
+**At startup** — pass it to `use Dala.App`. This sets the theme before any screen mounts:
 
 ```elixir
 defmodule MyApp do
-  use Mob.App, theme: Mob.Theme.Obsidian
+  use Dala.App, theme: Dala.Theme.Obsidian
   ...
 end
 ```
 
-**At runtime** — call `Mob.Theme.set/1` from `mount/3` or any event handler. Use this when you want the user to be able to switch themes:
+**At runtime** — call `Dala.Theme.set/1` from `mount/3` or any event handler. Use this when you want the user to be able to switch themes:
 
 ```elixir
 def mount(_params, _session, socket) do
-  Mob.Theme.set(Mob.Theme.Obsidian)
-  {:ok, Mob.Socket.assign(socket, :theme, :obsidian)}
+  Dala.Theme.set(Dala.Theme.Obsidian)
+  {:ok, Dala.Socket.assign(socket, :theme, :obsidian)}
 end
 
 def handle_info({:tap, :theme_citrus}, socket) do
-  Mob.Theme.set(Mob.Theme.Citrus)
-  {:noreply, Mob.Socket.assign(socket, :theme, :citrus)}
+  Dala.Theme.set(Dala.Theme.Citrus)
+  {:noreply, Dala.Socket.assign(socket, :theme, :citrus)}
 end
 ```
 
-`Mob.Theme.set/1` is global — it applies to all screens on the next render. If your app only ever uses one theme, the `use Mob.App` option is sufficient and you don't need to call `Mob.Theme.set/1`.
+`Dala.Theme.set/1` is global — it applies to all screens on the next render. If your app only ever uses one theme, the `use Dala.App` option is sufficient and you don't need to call `Dala.Theme.set/1`.
 
 ## Overriding individual tokens
 
 Pass a `{module, overrides}` tuple to customise a named theme:
 
 ```elixir
-use Mob.App, theme: {Mob.Theme.Obsidian, primary: :rose_500, radius_md: 14}
+use Dala.App, theme: {Dala.Theme.Obsidian, primary: :rose_500, radius_md: 14}
 ```
 
 ## Building a theme from scratch
@@ -126,39 +126,39 @@ use Mob.App, theme: {Mob.Theme.Obsidian, primary: :rose_500, radius_md: 14}
 Pass a keyword list of overrides against the neutral base:
 
 ```elixir
-use Mob.App, theme: [primary: :emerald_500, background: :gray_950, type_scale: 1.1]
+use Dala.App, theme: [primary: :emerald_500, background: :gray_950, type_scale: 1.1]
 ```
 
 Any tokens not listed inherit from the default neutral base.
 
 ## Switching themes at runtime
 
-Call `Mob.Theme.set/1` at any point. The next render will use the new theme:
+Call `Dala.Theme.set/1` at any point. The next render will use the new theme:
 
 ```elixir
 # Switch to a named theme
-Mob.Theme.set(Mob.Theme.Citrus)
+Dala.Theme.set(Dala.Theme.Citrus)
 
 # Override individual tokens on the current theme
-Mob.Theme.set({Mob.Theme.Obsidian, primary: :violet_500})
+Dala.Theme.set({Dala.Theme.Obsidian, primary: :violet_500})
 
 # Override against the neutral base
-Mob.Theme.set(primary: :pink_500, type_scale: 1.2)
+Dala.Theme.set(primary: :pink_500, type_scale: 1.2)
 
 # Use a pre-built struct
-Mob.Theme.set(%Mob.Theme{primary: :teal_500, space_scale: 1.1})
+Dala.Theme.set(%Dala.Theme{primary: :teal_500, space_scale: 1.1})
 ```
 
 This is useful for accessibility features (larger type, high-contrast), user-selected themes, or A/B testing.
 
 ## Publishing a custom theme
 
-A theme is any module that exports `theme/0 :: Mob.Theme.t()`:
+A theme is any module that exports `theme/0 :: Dala.Theme.t()`:
 
 ```elixir
 defmodule AcmeCorp.BrandTheme do
   def theme do
-    %Mob.Theme{
+    %Dala.Theme{
       primary:    :blue_700,
       on_primary: :white,
       surface:    0xFFF5F0E8,   # exact ARGB hex also accepted
@@ -171,7 +171,7 @@ end
 Publish it as a Hex package. Anyone can use it:
 
 ```elixir
-use Mob.App, theme: AcmeCorp.BrandTheme
+use Dala.App, theme: AcmeCorp.BrandTheme
 ```
 
 ## Base palette

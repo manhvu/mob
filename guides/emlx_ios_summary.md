@@ -1,17 +1,17 @@
 # EMLX iOS Integration Summary
 
-This document summarizes the EMLX integration for iOS in the Mob framework.
+This document summarizes the EMLX integration for iOS in the Dala framework.
 
 ## What Was Added
 
-### 1. Core Modules (`lib/mob/ml/`)
+### 1. Core Modules (`lib/dala/ml/`)
 
 | Module | Purpose |
 |--------|---------|
-| `Mob.ML.EMLX` | iOS-specific EMLX configuration and helpers |
-| `Mob.ML.Nx` | Nx integration helpers and backend selection |
-| `Mob.ML.Example` | Practical examples of using EMLX on iOS |
-| `Mob.ML.ConfigHelper` | Configuration snippets for mix.exs |
+| `Dala.ML.EMLX` | iOS-specific EMLX configuration and helpers |
+| `Dala.ML.Nx` | Nx integration helpers and backend selection |
+| `Dala.ML.Example` | Practical examples of using EMLX on iOS |
+| `Dala.ML.ConfigHelper` | Configuration snippets for mix.exs |
 
 ### 2. Documentation
 
@@ -27,25 +27,25 @@ This document summarizes the EMLX integration for iOS in the Mob framework.
 
 ### Platform Detection
 ```elixir
-Mob.ML.EMLX.ios_device?()    # true for real iOS device
-Mob.ML.EMLX.ios_simulator?() # true for simulator
-Mob.ML.EMLX.platform_config() # returns appropriate config
+Dala.ML.EMLX.ios_device?()    # true for real iOS device
+Dala.ML.EMLX.ios_simulator?() # true for simulator
+Dala.ML.EMLX.platform_config() # returns appropriate config
 ```
 
 ### Automatic Backend Selection
 ```elixir
-Mob.ML.Nx.init_for_ios()
+Dala.ML.Nx.init_for_ios()
 # Automatically selects EMLX (if available) or falls back to Nx.BinaryBackend
 ```
 
 ### Verification
 ```elixir
-Mob.ML.EMLX.available?()           # check if EMLX is working
-Mob.ML.EMLX.verify_installation()  # test with a simple tensor operation
-Mob.ML.EMLX.benchmark()           # run a simple performance test
+Dala.ML.EMLX.available?()           # check if EMLX is working
+Dala.ML.EMLX.verify_installation()  # test with a simple tensor operation
+Dala.ML.EMLX.benchmark()           # run a simple performance test
 ```
 
-## Usage in a Mob iOS App
+## Usage in a Dala iOS App
 
 ### Step 1: Add Dependencies
 
@@ -76,10 +76,10 @@ config :nx, :default_backend, {EMLX.Backend, device: :gpu}
 In your app's startup:
 ```elixir
 defmodule MyApp.App do
-  use Mob.App
+  use Dala.App
 
   def start(_type, _args) do
-    Mob.ML.Nx.init_for_ios()
+    Dala.ML.Nx.init_for_ios()
     # ... rest of app
   end
 end
@@ -121,10 +121,10 @@ result = Nx.dot(a, b)  # Runs on GPU via EMLX
 ## Files Modified/Created
 
 ### New Files
-- `lib/mob/ml/emlx.ex` - EMLX integration module
-- `lib/mob/ml/nx.ex` - Nx helpers
-- `lib/mob/ml/example.ex` - Usage examples
-- `lib/mob/ml/config_helper.ex` - Configuration helper
+- `lib/dala/ml/emlx.ex` - EMLX integration module
+- `lib/dala/ml/nx.ex` - Nx helpers
+- `lib/dala/ml/example.ex` - Usage examples
+- `lib/dala/ml/config_helper.ex` - Configuration helper
 - `guides/ios_ml_support.md` - Complete iOS ML guide
 - `guides/emlx_ios_summary.md` - This summary
 
@@ -136,5 +136,5 @@ result = Nx.dot(a, b)  # Runs on GPU via EMLX
 1. **Test in iOS Simulator** - Verify EMLX works in iOS simulator
 2. **Test on iOS Device** - Cross-compile MLX for iOS arm64 and test
 3. **Add Precompiled Binaries** - Consider providing precompiled MLX iOS binaries
-4. **Integration Tests** - Add tests for the Mob.ML modules
-5. **Update mob_new Templates** - Add EMLX configuration to project templates
+4. **Integration Tests** - Add tests for the Dala.ML modules
+5. **Update dala_new Templates** - Add EMLX configuration to project templates

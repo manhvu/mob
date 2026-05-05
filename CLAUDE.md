@@ -1,8 +1,8 @@
-# Mob — Agent Instructions
+# Dala — Agent Instructions
 
 **Read [`AGENTS.md`](AGENTS.md) first** — it's the 5-minute orientation
 covering repo topology, how to drive a running app from your session
-(Mob.Test, MCP fallbacks), and the pre-empt-failure rules that will save
+(Dala.Test, MCP fallbacks), and the pre-empt-failure rules that will save
 you from re-deriving things the team has already learned the hard way.
 This file goes deeper on Claude Code-specific workflow detail.
 
@@ -13,7 +13,7 @@ This file goes deeper on Claude Code-specific workflow detail.
 
 See [`guides/agentic_coding.md`](guides/agentic_coding.md) for the full
 agent round-trip workflow: connecting to the running Erlang node, when
-to use `Mob.Test` vs MCP platform tools, and how to avoid the instinct
+to use `Dala.Test` vs MCP platform tools, and how to avoid the instinct
 to reach for `xcrun simctl` screenshots.
 
 ---
@@ -29,18 +29,18 @@ mix credo --strict  # address new issues; pre-existing ones are tracked separate
 ```
 
 For native-code changes (iOS `.m`, Android `.kt` / `.c`), Elixir tests don't
-exercise the change. Deploy with `mix mob.deploy --native` and verify
-manually with a screenshot or `Mob.Test` interaction before committing.
+exercise the change. Deploy with `mix dala.deploy --native` and verify
+manually with a screenshot or `Dala.Test` interaction before committing.
 
 ---
 
 ## Native App Test Harness — Vision
 
-### What mob is (beyond the UI framework)
+### What dala is (beyond the UI framework)
 
-Mob has two modes of use:
+Dala has two modes of use:
 
-1. **Mob UI apps** — Elixir-driven SwiftUI/Android apps. The BEAM renders the UI.
+1. **Dala UI apps** — Elixir-driven SwiftUI/Android apps. The BEAM renders the UI.
 2. **Native sidecar** — The BEAM runs invisibly inside any native Xcode/Android Studio
    app as a debug-only test and agent harness. The native app has zero Elixir dependency.
    In production builds the BEAM is stripped entirely.
@@ -100,31 +100,31 @@ the BEAM is the authoritative input source and the app is fully contained.
 
 ## inject / eject — native project integration
 
-For native-only developers (no Elixir, just Xcode or Android Studio), mob is added and
+For native-only developers (no Elixir, just Xcode or Android Studio), dala is added and
 removed as a debug sidecar via a single command. The production app is never affected.
 
 ```bash
-mix mob.inject MyApp.xcodeproj   # add sidecar to Xcode project (one time)
-mix mob.eject  MyApp.xcodeproj   # remove it cleanly — git diff shows nothing
+mix dala.inject MyApp.xcodeproj   # add sidecar to Xcode project (one time)
+mix dala.eject  MyApp.xcodeproj   # remove it cleanly — git diff shows nothing
 ```
 
 ### What inject does (iOS)
 
-- Adds `mob_nif.m`, `mob_beam.m` as Debug-only compile sources
+- Adds `dala_nif.m`, `dala_beam.m` as Debug-only compile sources
 - Links `libbeam.a` and supporting static libs as Debug-only
 - Copies ERTS runtime directory as a Debug-only bundle resource
-- Adds `#if DEBUG mob_start_beam() #endif` to AppDelegate/SceneDelegate
+- Adds `#if DEBUG dala_start_beam() #endif` to AppDelegate/SceneDelegate
 
 ### What inject does (Android)
 
 ```gradle
 // build.gradle (app) — added by inject
-debugImplementation 'io.mob:sidecar:VERSION'
+debugImplementation 'io.dala:sidecar:VERSION'
 ```
 
 ```kotlin
 // Application.onCreate() — added by inject
-if (BuildConfig.DEBUG) MobSidecar.start(this)
+if (BuildConfig.DEBUG) dalaSidecar.start(this)
 ```
 
 (The `Application.onCreate` line can be eliminated with a ContentProvider auto-init,
@@ -133,14 +133,14 @@ making Android injection truly zero-touch.)
 ### eject guarantee
 
 `eject` is a clean inverse. `git diff` after eject shows nothing meaningful. This is
-important for the trust model — a developer can verify mob leaves no footprint.
+important for the trust model — a developer can verify dala leaves no footprint.
 
 **Status:** `inject`/`eject` are planned; pre-built `libbeam.a` fat binary (simulator +
 device + Android) is the prerequisite.
 
 ---
 
-## MCP server — `mob_mcp` (planned)
+## MCP server — `dala_mcp` (planned)
 
 ### Design intent
 
@@ -148,7 +148,7 @@ The MCP server is an abstraction layer between the agent and the BEAM. The agent
 never sees Erlang nodes, distribution, or NIF calls directly — it talks to typed
 tools that happen to be backed by the BEAM internally.
 
-**The abstraction is the point.** A developer using mob with an agent should not be
+**The abstraction is the point.** A developer using dala with an agent should not be
 able to accidentally write Elixir, because no tool exists to do so. The agent has
 everything it needs to verify and drive the native app, and nothing that lets it reach
 into the BEAM layer.
@@ -156,16 +156,16 @@ into the BEAM layer.
 ### Package split
 
 ```
-mob_dev   — Mix tasks: deploy, connect, push, doctor, new, inject, eject
-mob_mcp   — MCP server: native-mode tools for agent-driven development
+dala_dev   — Mix tasks: deploy, connect, push, doctor, new, inject, eject
+dala_mcp   — MCP server: native-mode tools for agent-driven development
 ```
 
-`mob_mcp` depends on `mob_dev` for device discovery and tunnel setup.
-`mob_dev` has no knowledge of MCP. Clean dependency direction.
+`dala_mcp` depends on `dala_dev` for device discovery and tunnel setup.
+`dala_dev` has no knowledge of MCP. Clean dependency direction.
 
 ### Single mode
 
-The MCP server has one mode. There is no `MOB_MODE=elixir`. If a developer
+The MCP server has one mode. There is no `dala_MODE=elixir`. If a developer
 wants full BEAM access they open IEx directly — that is a human workflow,
 not an agent workflow. Giving the agent an Elixir-level tool would just be
 a worse IEx with predefined functions.
@@ -174,24 +174,24 @@ a worse IEx with predefined functions.
 
 | Tool | Backed by |
 |------|-----------|
-| `mob_deploy` | `mix mob.deploy --native` |
-| `mob_build` | `xcodebuild` / `gradlew assembleDebug` + `simctl install` |
-| `mob_ui_tree` | `mob_nif:ui_tree/0` via RPC |
-| `mob_tap` | `mob_nif:tap_xy/2` via RPC (finds by label internally) |
-| `mob_type_text` | `mob_nif:type_text/1` via RPC |
-| `mob_swipe` | `mob_nif:swipe_xy/4` via RPC |
-| `mob_screenshot` | `xcrun simctl io` / adb screencap |
-| `mob_logs` | simulator console / adb logcat |
-| `mob_assert_visible` | `ui_tree` + label/value match |
-| `mob_wait_for` | poll `ui_tree` with timeout + backoff |
+| `dala_deploy` | `mix dala.deploy --native` |
+| `dala_build` | `xcodebuild` / `gradlew assembleDebug` + `simctl install` |
+| `dala_ui_tree` | `dala_nif:ui_tree/0` via RPC |
+| `dala_tap` | `dala_nif:tap_xy/2` via RPC (finds by label internally) |
+| `dala_type_text` | `dala_nif:type_text/1` via RPC |
+| `dala_swipe` | `dala_nif:swipe_xy/4` via RPC |
+| `dala_screenshot` | `xcrun simctl io` / adb screencap |
+| `dala_logs` | simulator console / adb logcat |
+| `dala_assert_visible` | `ui_tree` + label/value match |
+| `dala_wait_for` | poll `ui_tree` with timeout + backoff |
 
 ### Agent loop for native-only projects
 
 ```
 1. edit Swift/Kotlin files (appear in Xcode/AS immediately)
-2. mob_build  → xcodebuild + simctl install
-3. mob_ui_tree → confirm screen state
-4. mob_tap / mob_type_text → drive interactions
+2. dala_build  → xcodebuild + simctl install
+3. dala_ui_tree → confirm screen state
+4. dala_tap / dala_type_text → drive interactions
 5. repeat
 ```
 
@@ -200,14 +200,14 @@ any point. They never need to touch the terminal or know Erlang exists.
 
 ### Project integration
 
-`mix mob.new` and `mix mob.inject` both emit `.mcp.json` in the project root:
+`mix dala.new` and `mix dala.inject` both emit `.mcp.json` in the project root:
 
 ```json
 {
   "mcpServers": {
-    "mob": {
+    "dala": {
       "command": "mix",
-      "args": ["mob_mcp.server"]
+      "args": ["dala_mcp.server"]
     }
   }
 }
@@ -231,69 +231,69 @@ xcrun simctl spawn $UDID notifyutil -p com.apple.accessibility.voiceover.status.
 
 Wait ~500ms for propagation. Survives app restarts within the same simulator session.
 
-**TODO:** `mix mob.connect` should run this automatically for iOS simulator targets.
+**TODO:** `mix dala.connect` should run this automatically for iOS simulator targets.
 
 ---
 
 ## Standard debugging workflow
 
-The preferred tool is `mix mob.connect` (from `mob_dev` package):
+The preferred tool is `mix dala.connect` (from `dala_dev` package):
 
 ```bash
-cd ~/code/mob_demo
-mix mob.connect          # discover all devices, tunnel, restart, connect IEx
-mix mob.connect --no-iex # same but print node names instead of starting IEx
-mix mob.devices          # list connected devices and their status
+cd ~/code/dala_demo
+mix dala.connect          # discover all devices, tunnel, restart, connect IEx
+mix dala.connect --no-iex # same but print node names instead of starting IEx
+mix dala.devices          # list connected devices and their status
 ```
 
 Node names are platform-specific:
-- iOS simulator:    `mob_demo_ios@127.0.0.1`
-- Android emulator: `mob_demo_android@127.0.0.1`
+- iOS simulator:    `dala_demo_ios@127.0.0.1`
+- Android emulator: `dala_demo_android@127.0.0.1`
 
 ### EPMD tunneling
 
 iOS simulator shares the Mac's network stack — the iOS BEAM registers directly in
 the Mac's EPMD on port 4369. No forwarding needed.
 
-Android is a separate network namespace. `mob_dev` sets up adb tunnels automatically:
+Android is a separate network namespace. `dala_dev` sets up adb tunnels automatically:
 
 ```
 adb reverse tcp:4369 tcp:4369   # EPMD: device → Mac (Android BEAM registers in Mac EPMD)
 adb forward tcp:9100 tcp:9100   # dist:  Mac → device
 ```
 
-### Port assignment (handled by mob_dev)
+### Port assignment (handled by dala_dev)
 
 Devices are assigned dist ports by index to avoid conflicts:
 - Device 0 (Android): port 9100
 - Device 1 (iOS sim): port 9101
 
-iOS dist port is passed via `SIMCTL_CHILD_MOB_DIST_PORT` env var; `mob_beam.m` reads
-`MOB_DIST_PORT` at startup. Android dist port is passed as an intent extra (`mob_dist_port`);
+iOS dist port is passed via `SIMCTL_CHILD_dala_DIST_PORT` env var; `dala_beam.m` reads
+`dala_DIST_PORT` at startup. Android dist port is passed as an intent extra (`dala_dist_port`);
 **`MainActivity.java` does NOT yet read this — multi-Android support is pending.**
 
-Both iOS and Android end up registered in the same Mac EPMD. `mix mob.connect` sets
+Both iOS and Android end up registered in the same Mac EPMD. `mix dala.connect` sets
 up all tunnels automatically.
 
 ## Day-to-day development loop
 
 ```bash
 # Edit Elixir code, then:
-mix mob.deploy          # compile + push BEAMs + restart apps
-mix mob.connect         # tunnel + wait for nodes + drop into IEx
+mix dala.deploy          # compile + push BEAMs + restart apps
+mix dala.connect         # tunnel + wait for nodes + drop into IEx
 
-# In IEx (after mob.connect):
-mix compile && nl(MobDemo.CounterScreen)   # hot-push one module without restart
+# In IEx (after dala.connect):
+mix compile && nl(dalaDemo.CounterScreen)   # hot-push one module without restart
 Node.list()                                # verify both devices connected
-:rpc.call(:"mob_demo_android@127.0.0.1", MobDemo.CounterScreen, :some_fn, [])
+:rpc.call(:"dala_demo_android@127.0.0.1", dalaDemo.CounterScreen, :some_fn, [])
 ```
 
 ### Reading live screen state
 
 ```elixir
-# Screen pid is logged at app start: "[mob] step 5 => {ok,<0.92.0>}"
-pid = :rpc.call(:"mob_demo_android@127.0.0.1", :erlang, :list_to_pid, [~c"<0.92.0>"])
-socket = :rpc.call(:"mob_demo_android@127.0.0.1", Mob.Screen, :get_socket, [pid])
+# Screen pid is logged at app start: "[dala] step 5 => {ok,<0.92.0>}"
+pid = :rpc.call(:"dala_demo_android@127.0.0.1", :erlang, :list_to_pid, [~c"<0.92.0>"])
+socket = :rpc.call(:"dala_demo_android@127.0.0.1", Dala.Screen, :get_socket, [pid])
 socket.assigns   # live assigns
 ```
 
@@ -301,25 +301,25 @@ socket.assigns   # live assigns
 
 ```bash
 # After editing a screen (from the terminal):
-mix mob.push          # compile + push all changed modules to all connected devices
-mix mob.push --all    # force-push every module
+mix dala.push          # compile + push all changed modules to all connected devices
+mix dala.push --all    # force-push every module
 
-# Or from inside IEx (after mob.connect), one module at a time:
-nl(MobDemo.CounterScreen)
-# Returns: {:ok, [{:"mob_demo@127.0.0.1", :loaded, MobDemo.CounterScreen}]}
+# Or from inside IEx (after dala.connect), one module at a time:
+nl(dalaDemo.CounterScreen)
+# Returns: {:ok, [{:"dala_demo@127.0.0.1", :loaded, dalaDemo.CounterScreen}]}
 ```
 
 ### Android distribution
 
 Android cannot start distribution at BEAM launch (races with hwui thread pool, causes
-SIGABRT via FORTIFY `pthread_mutex_lock on destroyed mutex`). Instead, `Mob.Dist.ensure_started/1`
-defers `Node.start/2` by 3 seconds after app startup. This is handled in the mob library —
-app code just calls `Mob.Dist.ensure_started(node: :"my_app_android@127.0.0.1", cookie: :my_secret)`.
+SIGABRT via FORTIFY `pthread_mutex_lock on destroyed mutex`). Instead, `Dala.Dist.ensure_started/1`
+defers `Node.start/2` by 3 seconds after app startup. This is handled in the dala library —
+app code just calls `Dala.Dist.ensure_started(node: :"my_app_android@127.0.0.1", cookie: :my_secret)`.
 
 ERTS helper binaries (`erl_child_setup`, `inet_gethost`, `epmd`) cannot be exec'd from the
 app data directory (SELinux `app_data_file` blocks `execute_no_trans`). They are packaged in
 the APK as `lib*.so` in `jniLibs/arm64-v8a/` (gets `apk_data_file` label, which allows exec).
-`mob_beam.c` symlinks `BINDIR/<name>` → `<nativeLibraryDir>/lib<name>.so` before `erl_start`.
+`dala_beam.c` symlinks `BINDIR/<name>` → `<nativeLibraryDir>/lib<name>.so` before `erl_start`.
 
 ## Agent round-trip workflow
 
@@ -329,27 +329,27 @@ layers in order — BEAM state first, then visual verification only when needed.
 ### 1. Edit and deploy
 
 ```bash
-mix mob.push            # compile + push changed BEAMs to all connected nodes
+mix dala.push            # compile + push changed BEAMs to all connected nodes
 # or for a native rebuild (e.g. after NIF or Swift/Kotlin change):
-mix mob.deploy --native
+mix dala.deploy --native
 ```
 
-### 2. Inspect BEAM state via IEx or Mob.Test
+### 2. Inspect BEAM state via IEx or Dala.Test
 
-Connect (or use an already-open IEx session from `mix mob.connect`):
+Connect (or use an already-open IEx session from `mix dala.connect`):
 
 ```bash
-mix mob.connect --no-iex   # sets up tunnels, prints node names, exits
+mix dala.connect --no-iex   # sets up tunnels, prints node names, exits
 ```
 
 Then from a separate IEx session or script:
 
 ```elixir
-node = :"mob_demo_ios@127.0.0.1"
-Mob.Test.screen(node)    # which screen is showing?
-Mob.Test.assigns(node)   # live assigns — count, selected items, etc.
-Mob.Test.tap(node, :some_button)   # drive a tap programmatically
-Mob.Test.find(node, "Submit")      # locate a widget by visible text
+node = :"dala_demo_ios@127.0.0.1"
+Dala.Test.screen(node)    # which screen is showing?
+Dala.Test.assigns(node)   # live assigns — count, selected items, etc.
+Dala.Test.tap(node, :some_button)   # drive a tap programmatically
+Dala.Test.find(node, "Submit")      # locate a widget by visible text
 ```
 
 This is the fastest path. BEAM state is exact and doesn't require image decoding.
@@ -385,57 +385,57 @@ servers. These are available as tools in the agent environment.
 
 ```
 1. Edit Elixir code
-2. mix mob.push
-3. Mob.Test.screen(node)   ← confirm navigation / state
+2. mix dala.push
+3. Dala.Test.screen(node)   ← confirm navigation / state
 4. mcp__ios-simulator__screenshot  ← visual sanity check
-5. Mob.Test.tap(node, :button)     ← drive interaction
-6. Mob.Test.assigns(node)  ← confirm state updated correctly
+5. Dala.Test.tap(node, :button)     ← drive interaction
+6. Dala.Test.assigns(node)  ← confirm state updated correctly
 7. repeat
 ```
 
-Use `Mob.Test` for assertions (exact, fast, no image parsing). Use MCP screenshot/UI
+Use `Dala.Test` for assertions (exact, fast, no image parsing). Use MCP screenshot/UI
 tools for layout checks, animation spot-checks, or when a bug is only visible
 in the rendered output.
 
-## Device automation with Mob.Test
+## Device automation with Dala.Test
 
-After connecting via `mix mob.connect`, use `Mob.Test` to inspect and drive the
+After connecting via `mix dala.connect`, use `Dala.Test` to inspect and drive the
 running app without touching the native UI. Prefer this over screenshot-based
 inspection — it gives exact state, not a visual approximation.
 
 ```elixir
-node = :"mob_demo_ios@127.0.0.1"   # or mob_demo_android@127.0.0.1
+node = :"dala_demo_ios@127.0.0.1"   # or dala_demo_android@127.0.0.1
 
 # What screen is showing and what state is it in?
-Mob.Test.screen(node)    #=> MobDemo.NavScreen
-Mob.Test.assigns(node)   #=> %{depth: 0, safe_area: %{top: 62.0, ...}}
+Dala.Test.screen(node)    #=> dalaDemo.NavScreen
+Dala.Test.assigns(node)   #=> %{depth: 0, safe_area: %{top: 62.0, ...}}
 
 # Find a node by visible text
-Mob.Test.find(node, "Device APIs")
+Dala.Test.find(node, "Device APIs")
 #=> [{[0, 0, 9], %{"type" => "button", ...}}]
 
 # Trigger a tap by the tag atom used in on_tap: {self(), tag}
-Mob.Test.tap(node, :open_device)
+Dala.Test.tap(node, :open_device)
 
 # Full snapshot for debugging
-Mob.Test.inspect(node)
-# %{screen: MobDemo.NavScreen, assigns: ..., nav_history: [...], tree: ...}
+Dala.Test.inspect(node)
+# %{screen: dalaDemo.NavScreen, assigns: ..., nav_history: [...], tree: ...}
 ```
 
 Tag atoms come from `on_tap: {self(), :tag_atom}` in the render tree. Check the
-screen's `render/1` to find them. After a tap, call `Mob.Test.screen/1` again to
+screen's `render/1` to find them. After a tap, call `Dala.Test.screen/1` again to
 confirm the navigation happened.
 
 ## Running tests
 
 ```bash
-mix test          # from ~/code/mob
+mix test          # from ~/code/dala
 ```
 
 ### Onboarding integration tests
 
 The `test/onboarding/` suite verifies the full first-run flow end-to-end: archive
-install, project generation, `mix mob.install`, `mix mob.doctor`, and failure modes.
+install, project generation, `mix dala.install`, `mix dala.doctor`, and failure modes.
 These tests are **excluded from `mix test` by default** (they take minutes and require
 Hex/network access). Run them explicitly:
 
@@ -465,17 +465,17 @@ MIX_ENV=test mix test test/onboarding/failure_modes_test.exs --only pre_device -
 
 | Tag | File | Covers |
 |-----|------|--------|
-| `:generator` | `generator_test.exs` | Archive install, `mix mob.new`, `mix mob.install`, `mix mob.doctor` |
+| `:generator` | `generator_test.exs` | Archive install, `mix dala.new`, `mix dala.install`, `mix dala.doctor` |
 | `:pre_device` | `failure_modes_test.exs` | Failure modes that don't need a running simulator |
 | `:post_device` | `failure_modes_test.exs` | Failures requiring a live iOS simulator |
 
 **Preserved workspaces:** When a test fails, its workspace is kept at
-`/tmp/mob_onboarding/run_<PID>/<test_id>/`. Inspect `logs/` for per-step output.
+`/tmp/dala_onboarding/run_<PID>/<test_id>/`. Inspect `logs/` for per-step output.
 Workspaces from passing tests are deleted automatically.
 
-**Known limitations (published `mob_dev 0.1.7`):**
+**Known limitations (published `dala_dev 0.1.7`):**
 
-- `MOB_OTP_BASE_URL` is not respected — OTP download URL cannot be overridden for
+- `dala_OTP_BASE_URL` is not respected — OTP download URL cannot be overridden for
   failure injection. Network failure tests verify OTP reporting format instead.
 - `check_elixir` reads `System.version()` (the running BEAM) — PATH-based fake Elixir
   versions have no effect. The Elixir version test verifies the check produces clear output.
@@ -499,12 +499,12 @@ User alias "Nova" = macOS + Nix-managed toolchain throughout.
 
 ## Key files
 
-- `lib/mob/screen.ex` — GenServer wrapper, lifecycle callbacks
-- `lib/mob/socket.ex` — assigns + internal mob state
-- `lib/mob/renderer.ex` — walks component tree, issues NIF calls
-- `lib/mob/dist.ex` — platform-aware distribution startup
-- `src/mob_nif.erl` — Erlang NIF stub (declares all NIF functions)
-- `ios/mob_nif.m` — iOS NIF implementation (SwiftUI bridge + test harness)
-- `android/jni/mob_nif.c` — Android NIF implementation (JNI bridge)
-- `ios/mob_beam.m` — iOS BEAM launcher
-- `android/jni/mob_beam.c` — Android BEAM launcher
+- `lib/dala/screen.ex` — GenServer wrapper, lifecycle callbacks
+- `lib/dala/socket.ex` — assigns + internal dala state
+- `lib/dala/renderer.ex` — walks component tree, issues NIF calls
+- `lib/dala/dist.ex` — platform-aware distribution startup
+- `src/dala_nif.erl` — Erlang NIF stub (declares all NIF functions)
+- `ios/dala_nif.m` — iOS NIF implementation (SwiftUI bridge + test harness)
+- `android/jni/dala_nif.c` — Android NIF implementation (JNI bridge)
+- `ios/dala_beam.m` — iOS BEAM launcher
+- `android/jni/dala_beam.c` — Android BEAM launcher

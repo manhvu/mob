@@ -2,7 +2,7 @@ defmodule SimpleApp.DetailScreen do
   @moduledoc """
   Detail screen showing navigation with back button.
   """
-  use Mob.Screen
+  use Dala.Screen
 
   def mount(_params, _session, socket) do
     {:ok, socket}
@@ -25,6 +25,6 @@ defmodule SimpleApp.DetailScreen do
   end
 
   def handle_event(:go_back, _params, socket) do
-    {:noreply, Mob.Screen.pop_screen(socket)}
+    {:noreply, Dala.Screen.pop_screen(socket)}
   end
 end

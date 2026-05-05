@@ -1,6 +1,6 @@
-# Mob Examples
+# Dala Examples
 
-Ready-to-run example applications demonstrating Mob framework features.
+Ready-to-run example applications demonstrating Dala framework features.
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ All examples are **zero-config** - just run them!
 
 ## 1. Simple App (`simple_app/`)
 
-Basic Mob app with navigation and state management.
+Basic Dala app with navigation and state management.
 
 ### Features:
 - Counter with increment button
@@ -29,9 +29,9 @@ Basic Mob app with navigation and state management.
 ```bash
 cd examples/simple_app
 mix deps.get
-mix mob.deploy --native --ios-sim    # iOS Simulator
+mix dala.deploy --native --ios-sim    # iOS Simulator
 # or
-mix mob.deploy --native --android-emu  # Android Emulator
+mix dala.deploy --native --android-emu  # Android Emulator
 ```
 
 ---
@@ -54,10 +54,10 @@ cd examples/ml_app
 mix deps.get
 
 # iOS (requires EMLX dependencies - auto-downloaded):
-mix mob.deploy --native --ios-sim
+mix dala.deploy --native --ios-sim
 
 # Android:
-mix mob.deploy --native --android-emu
+mix dala.deploy --native --android-emu
 ```
 
 ### What it does:
@@ -89,7 +89,7 @@ These are automatically added in `mix.exs` - no work for you!
 # examples/simple_app/lib/simple_app.ex
 def on_start do
   # Pattern-match ensures failures crash loudly (AGENTS.md Rule #2)
-  {:ok, _pid} = Mob.Screen.start_root(SimpleApp.HomeScreen)
+  {:ok, _pid} = Dala.Screen.start_root(SimpleApp.HomeScreen)
   :ok
 end
 ```
@@ -100,19 +100,19 @@ end
 # examples/ml_app/lib/ml_app.ex
 def on_start do
   # Auto-configure ML backend - that's it!
-  case Mob.ML.EMLX.setup() do
+  case Dala.ML.EMLX.setup() do
     {:ok, config} ->
-      :mob_nif.log("MLApp: EMLX configured - device: #{config.device}")
+      :dala_nif.log("MLApp: EMLX configured - device: #{config.device}")
     :ok ->
-      :mob_nif.log("MLApp: Using default Nx backend (non-iOS)")
+      :dala_nif.log("MLApp: Using default Nx backend (non-iOS)")
   end
 
-  {:ok, _pid} = Mob.Screen.start_root(MLApp.HomeScreen)
+  {:ok, _pid} = Dala.Screen.start_root(MLApp.HomeScreen)
   :ok
 end
 ```
 
-The `Mob.ML.EMLX.setup/0` function:
+The `Dala.ML.EMLX.setup/0` function:
 - Detects iOS device vs simulator
 - Disables JIT on real devices (required by W^X policy)
 - Enables Metal GPU on Apple Silicon
@@ -123,7 +123,7 @@ The `Mob.ML.EMLX.setup/0` function:
 
 ## Next Steps
 
-- Read the [Mob Documentation](https://hexdocs.pm/mob)
+- Read the [Dala Documentation](https://hexdocs.pm/dala)
 - Check out the [guides/](../../guides/) folder
 - Join the community discussions
 

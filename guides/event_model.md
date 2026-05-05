@@ -6,7 +6,7 @@ renderers map onto it, and user code reads it.
 
 ## TL;DR
 
-- One canonical envelope: `{:mob_event, %Mob.Event.Address{}, event, payload}`
+- One canonical envelope: `{:dala_event, %Dala.Event.Address{}, event, payload}`
 - Every event has a **target** — a pid the framework delivers to
 - Default target: nearest stateful ancestor (component or screen)
 - Override at registration with `target:` — accepts any pid, registered atom,
@@ -20,7 +20,7 @@ renderers map onto it, and user code reads it.
 ## Address
 
 ```elixir
-%Mob.Event.Address{
+%Dala.Event.Address{
   screen:         atom() | pid(),    # screen module identifier
   component_path: [id()],            # [] if rooted at screen
   widget:         atom(),            # framework-defined: :button, :text_field, :list, ...
@@ -71,12 +71,12 @@ Inspired directly by Phoenix.LiveView's split:
 
 |  | Stateless | Stateful |
 |---|---|---|
-| Implementation | Plain function: `(assigns) → render_tree` | `Mob.Event.Component` (a GenServer) |
+| Implementation | Plain function: `(assigns) → render_tree` | `Dala.Event.Component` (a GenServer) |
 | State | None | Own assigns |
 | Event handling | None — events pass through | Receives events for its subtree |
 | Lifecycle | None | `mount`, `update`, `terminate` |
 | Use for | Layout helpers, presentation | Behaviour encapsulation, repeating-item containers |
-| Examples | `card`, `avatar`, `tag_pill` | `Mob.List`, `Mob.Form`, `Mob.DatePicker` |
+| Examples | `card`, `avatar`, `tag_pill` | `Dala.List`, `Dala.Form`, `Dala.DatePicker` |
 
 **Rule:** events fired inside a stateless component's subtree resolve as if the
 stateless component weren't there. Only stateful components appear in
@@ -139,26 +139,26 @@ External targets (registered atom, pid, `:via` tuple) are best-effort:
 Every recipient gets:
 
 ```elixir
-{:mob_event, %Mob.Event.Address{...}, event :: atom(), payload :: term()}
+{:dala_event, %Dala.Event.Address{...}, event :: atom(), payload :: term()}
 ```
 
 Examples:
 
 ```elixir
 # Button tap
-{:mob_event, %Address{widget: :button, id: :save}, :tap, nil}
+{:dala_event, %Address{widget: :button, id: :save}, :tap, nil}
 
 # Text field change
-{:mob_event, %Address{widget: :text_field, id: :email}, :change, "user@example.com"}
+{:dala_event, %Address{widget: :text_field, id: :email}, :change, "user@example.com"}
 
 # List row selection
-{:mob_event, %Address{widget: :list, id: :contacts, instance: 47}, :select, nil}
+{:dala_event, %Address{widget: :list, id: :contacts, instance: 47}, :select, nil}
 
 # Long press
-{:mob_event, %Address{widget: :button, id: :avatar}, :long_press, %{duration_ms: 850}}
+{:dala_event, %Address{widget: :button, id: :avatar}, :long_press, %{duration_ms: 850}}
 
 # Swipe
-{:mob_event, %Address{widget: :card, id: "contact:42"}, :swipe, %{direction: :left, distance: 120}}
+{:dala_event, %Address{widget: :card, id: "contact:42"}, :swipe, %{direction: :left, distance: 120}}
 ```
 
 A handler matches whatever it cares about:
@@ -174,11 +174,11 @@ def handle_event(_addr, :tap, _, socket) do ...    # any tap
 Lists own their row events. The screen sees only semantic events.
 
 ```elixir
-# Mob.List is a stateful component. It receives row taps, renders 1000 rows
+# Dala.List is a stateful component. It receives row taps, renders 1000 rows
 # without 1000 processes (rows are data, not components — unless rows
 # themselves are stateful, see below).
 
-# Inside Mob.List:
+# Inside Dala.List:
 def handle_event(%Address{widget: :list_row, instance: index}, :tap, _, state) do
   # Decide whether the screen needs to know.
   # Maybe maintain selection state internally:
@@ -213,7 +213,7 @@ events fire, they carry the render-id at which the widget was registered.
 
 ```elixir
 def handle_event(addr, _event, _payload, socket) do
-  if addr.render_id == socket.__mob__.render_id do
+  if addr.render_id == socket.__dala__.render_id do
     # current generation — handle normally
   else
     # stale — log and drop
@@ -240,29 +240,29 @@ The current emitters and the migration:
 
 | Current shape | New shape | Status |
 |---|---|---|
-| `register_tap({pid, tag})` → `{:tap, tag}` | `{:mob_event, addr, :tap, _}` | Bridged: existing `{:tap, tag}` still arrives at screen for backward compat; new addr-based delivery added alongside |
-| `register_change` → `{:change, tag, value}` | `{:mob_event, addr, :change, value}` | Bridged identically |
-| `Mob.List` → `{:tap, {:list, id, :select, index}}` re-emitted as `{:select, id, index}` | `Mob.List` becomes a stateful `Mob.Event.Component`; emits `{:mob_event, addr, :row_selected, _}` to its parent | Breaking — but mechanical. Migrate one screen at a time. |
+| `register_tap({pid, tag})` → `{:tap, tag}` | `{:dala_event, addr, :tap, _}` | Bridged: existing `{:tap, tag}` still arrives at screen for backward compat; new addr-based delivery added alongside |
+| `register_change` → `{:change, tag, value}` | `{:dala_event, addr, :change, value}` | Bridged identically |
+| `Dala.List` → `{:tap, {:list, id, :select, index}}` re-emitted as `{:select, id, index}` | `Dala.List` becomes a stateful `Dala.Event.Component`; emits `{:dala_event, addr, :row_selected, _}` to its parent | Breaking — but mechanical. Migrate one screen at a time. |
 | Future: `on_long_press`, `on_swipe`, `on_double_tap` | Native-side, register through unified emitter | New — born under new scheme |
 
 ## Test ergonomics
 
 ```elixir
 # Send a synthetic event without going through native:
-Mob.Event.Test.send(addr, :tap, nil)
+Dala.Event.Test.send(addr, :tap, nil)
 
 # Match a delivered event in test process inbox:
-assert_receive {:mob_event, %Address{widget: :button, id: :save}, :tap, _}
+assert_receive {:dala_event, %Address{widget: :button, id: :save}, :tap, _}
 ```
 
 ## Tracing
 
 ```elixir
 # Subscribe to ALL events for debugging:
-Mob.Event.trace(:all)
+Dala.Event.trace(:all)
 
 # Or filter:
-Mob.Event.trace(fn addr -> addr.widget == :list end)
+Dala.Event.trace(fn addr -> addr.widget == :list end)
 
 # Returns a stream of events; useful in IEx during development.
 ```

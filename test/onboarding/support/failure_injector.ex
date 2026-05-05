@@ -1,4 +1,4 @@
-defmodule Mob.Onboarding.FailureInjector do
+defmodule Dala.Onboarding.FailureInjector do
   @moduledoc """
   Helpers that inject specific failure conditions into a workspace or project
   so we can assert that the framework surfaces a useful error message rather
@@ -9,7 +9,7 @@ defmodule Mob.Onboarding.FailureInjector do
   be destroyed), `undo_fn` is a no-op.
   """
 
-  alias Mob.Onboarding.Workspace
+  alias Dala.Onboarding.Workspace
 
   @type undo_fn :: (-> :ok)
 
@@ -19,11 +19,11 @@ defmodule Mob.Onboarding.FailureInjector do
   Create the OTP cache directory but leave it empty, as happens when the Nix
   curl silently fails but `File.mkdir_p!` has already been called.
 
-  The next `mix mob.install` should detect the empty dir, delete it, and
+  The next `mix dala.install` should detect the empty dir, delete it, and
   re-download — or surface a clear error if it cannot.
   """
   @spec empty_otp_cache(Workspace.t(), :ios | :android) :: {:ok, undo_fn()}
-  def empty_otp_cache(%Workspace{mob_cache_dir: cache}, platform) do
+  def empty_otp_cache(%Workspace{dala_cache_dir: cache}, platform) do
     # Match the naming pattern used by OtpDownloader
     prefix =
       case platform do
@@ -45,21 +45,21 @@ defmodule Mob.Onboarding.FailureInjector do
 
   @doc """
   Point the OTP download URL to an unreachable host so the download fails
-  with a connection error. Sets MOB_OTP_BASE_URL in the env overrides.
+  with a connection error. Sets dala_OTP_BASE_URL in the env overrides.
 
   Returns `{:ok, env_patch}` — merge `env_patch` into your Shell.run/2 env.
   """
   @spec bad_download_url() :: {:ok, map()}
   def bad_download_url do
     # Port 1 is almost never open; connection should be refused immediately
-    {:ok, %{"MOB_OTP_BASE_URL" => "http://127.0.0.1:1/nonexistent"}}
+    {:ok, %{"dala_OTP_BASE_URL" => "http://127.0.0.1:1/nonexistent"}}
   end
 
   # ── Toolchain failures ────────────────────────────────────────────────────────
 
   @doc """
   Prepend a fake `elixir` script to PATH that reports a version below the
-  minimum. Useful for testing `mix mob.doctor` version checks.
+  minimum. Useful for testing `mix dala.doctor` version checks.
 
   Returns `{:ok, env_patch}` — merge into Shell env.
   """
@@ -102,7 +102,7 @@ defmodule Mob.Onboarding.FailureInjector do
   directories that contain the real executable from the PATH env var.
 
   This makes `System.find_executable(tool)` return nil in the subprocess,
-  which triggers mob.doctor's "missing tool" failure path rather than the
+  which triggers dala.doctor's "missing tool" failure path rather than the
   "found but broken" path.
 
   Returns `{:ok, env_patch}` — merge into Shell env.
@@ -152,26 +152,26 @@ defmodule Mob.Onboarding.FailureInjector do
   end
 
   @doc """
-  Write a stale (non-existent) `elixir_lib` path into mob.exs — replicates
+  Write a stale (non-existent) `elixir_lib` path into dala.exs — replicates
   the Nix upgrade failure where the Nix store path changes between versions.
   """
   @spec stale_elixir_lib(Workspace.t()) :: {:ok, undo_fn()}
   def stale_elixir_lib(%Workspace{project_dir: project_dir}) when not is_nil(project_dir) do
-    mob_exs = Path.join(project_dir, "mob.exs")
-    original = File.read!(mob_exs)
+    dala_exs = Path.join(project_dir, "dala.exs")
+    original = File.read!(dala_exs)
 
     patched =
       original <>
         """
 
         # Injected by FailureInjector — stale path
-        config :mob_dev, elixir_lib: "/nix/store/aaaaaaaaaaaaaaaa-elixir-1.17.0/lib"
+        config :dala_dev, elixir_lib: "/nix/store/aaaaaaaaaaaaaaaa-elixir-1.17.0/lib"
         """
 
-    File.write!(mob_exs, patched)
+    File.write!(dala_exs, patched)
 
     undo = fn ->
-      File.write!(mob_exs, original)
+      File.write!(dala_exs, original)
       :ok
     end
 
@@ -179,23 +179,23 @@ defmodule Mob.Onboarding.FailureInjector do
   end
 
   @doc """
-  Write a stale (non-existent) `mob_dir` path into mob.exs, replicating what
-  happens when the mob library directory moves (e.g. after a version upgrade
-  or checkout into a different path). `mix mob.doctor` validates mob_dir and
-  will report ✗ mob_dir when it no longer exists.
+  Write a stale (non-existent) `dala_dir` path into dala.exs, replicating what
+  happens when the dala library directory moves (e.g. after a version upgrade
+  or checkout into a different path). `mix dala.doctor` validates dala_dir and
+  will report ✗ dala_dir when it no longer exists.
   """
-  @spec stale_mob_dir(Workspace.t()) :: {:ok, undo_fn()}
-  def stale_mob_dir(%Workspace{project_dir: project_dir}) when not is_nil(project_dir) do
-    mob_exs = Path.join(project_dir, "mob.exs")
-    original = File.read!(mob_exs)
+  @spec stale_dala_dir(Workspace.t()) :: {:ok, undo_fn()}
+  def stale_dala_dir(%Workspace{project_dir: project_dir}) when not is_nil(project_dir) do
+    dala_exs = Path.join(project_dir, "dala.exs")
+    original = File.read!(dala_exs)
 
     patched =
-      Regex.replace(~r/mob_dir: "[^"]*"/, original, "mob_dir: \"/nonexistent/moved/mob-old\"")
+      Regex.replace(~r/dala_dir: "[^"]*"/, original, "dala_dir: \"/nonexistent/moved/dala-old\"")
 
-    File.write!(mob_exs, patched)
+    File.write!(dala_exs, patched)
 
     undo = fn ->
-      File.write!(mob_exs, original)
+      File.write!(dala_exs, original)
       :ok
     end
 
@@ -250,9 +250,9 @@ defmodule Mob.Onboarding.FailureInjector do
   end
 
   @doc """
-  Remove the `Mob.Dist.ensure_started/1` call from the application, so the
+  Remove the `Dala.Dist.ensure_started/1` call from the application, so the
   device BEAM starts but never joins the distribution network. This tests that
-  `mix mob.connect` times out with a clear message rather than hanging forever.
+  `mix dala.connect` times out with a clear message rather than hanging forever.
   """
   @spec remove_dist_start(Workspace.t()) :: {:ok, undo_fn()}
   def remove_dist_start(%Workspace{project_dir: project_dir}) do
@@ -260,7 +260,7 @@ defmodule Mob.Onboarding.FailureInjector do
     app_name = project_name(project_dir)
     app_file = Path.join([project_dir, "lib", app_name, "app.ex"])
     original = File.read!(app_file)
-    patched = Regex.replace(~r/Mob\.Dist\.ensure_started\([^)]+\)\n?/, original, "")
+    patched = Regex.replace(~r/Dala\.Dist\.ensure_started\([^)]+\)\n?/, original, "")
     File.write!(app_file, patched)
 
     undo = fn ->

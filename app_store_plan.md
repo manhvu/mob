@@ -1,6 +1,6 @@
 # App Store Static-Link Plan
 
-Working document for the framework work to make `mix mob.release` produce
+Working document for the framework work to make `mix dala.release` produce
 App Store-shippable `.ipa` files. Update the **Status** line at the top
 and check off workstream items as work progresses.
 
@@ -10,12 +10,12 @@ and check off workstream items as work progresses.
 
 ## Goal
 
-`mix mob.release --app-store` produces an `.ipa` that:
+`mix dala.release --app-store` produces an `.ipa` that:
 
 1. Passes Apple's automated App Store Connect validator (no `.so`/`.a`
    files in bundle, no private UIKit selectors, complete Info.plist)
-2. Lands in TestFlight after `mix mob.publish`
-3. Runs identically to a `mix mob.deploy --native` build from the user's POV
+2. Lands in TestFlight after `mix dala.publish`
+3. Runs identically to a `mix dala.deploy --native` build from the user's POV
 
 **Per-app overhead must stay at zero** — the user runs the same command
 shape; the framework does the right thing under the hood.
@@ -23,13 +23,13 @@ shape; the framework does the right thing under the hood.
 ## Strategy: two release modes, not a rewrite
 
 - **Dev mode (default)**: dynamic OTP runtime, full test harness,
-  hot-reload-friendly. **Unchanged.** This is what `mix mob.deploy
-  --native` and the existing `mix mob.release` produce.
+  hot-reload-friendly. **Unchanged.** This is what `mix dala.deploy
+  --native` and the existing `mix dala.release` produce.
 - **App Store mode (opt-in via `--app-store`)**: statically linked
   `libbeam.a`, no `.so`/`.a` in bundle, test harness compiled out
-  via `#if !MOB_APP_STORE`. This is the new path.
+  via `#if !dala_APP_STORE`. This is the new path.
 
-Justification: dev mode preserves what makes Mob *Mob* (sub-100ms
+Justification: dev mode preserves what makes Dala *Dala* (sub-100ms
 hot-push iteration, full agent test harness). App Store mode is a
 narrower build for a single purpose. They can coexist; users opt in
 when shipping.
@@ -42,7 +42,7 @@ when shipping.
 3. **Scope discipline** — if exqlite cross-build hits a real wall
    (e.g. needs upstream patches to elixir_make), escalate before
    sinking another half day. ✓
-4. **No new Mob features** during this work. Framework-plumbing for
+4. **No new Dala features** during this work. Framework-plumbing for
    App Store only. ✓
 
 ## Prior art and existing artifacts
@@ -64,7 +64,7 @@ when shipping.
 ### Workstream 1 — Cross-build infrastructure (~~half day~~ COLLAPSED)
 
 - [x] Solve exqlite first — **already done by the existing pipeline**
-- [x] Static archive at `~/.mob/cache/otp-ios-device-*/lib/exqlite-*/priv/sqlite3_nif.a`
+- [x] Static archive at `~/.dala/cache/otp-ios-device-*/lib/exqlite-*/priv/sqlite3_nif.a`
       (1.5 MB, valid arm64, `_sqlite3_nif_nif_init` symbol present)
 - [x] All other static archives present too: `libbeam.a`, `liberts_internal_r.a`,
       `libethread.a`, `libei.a`, `libei_st.a`, `libzstd.a`, `libepcre.a`,
@@ -87,26 +87,26 @@ non-trivial piece; everything else is small fixes.
 **Goal**: zero references to private UIKit selectors in App Store builds.
 
 **Scope decision (2026-05-01)**: dropped the planned separate
-`MOB_APP_STORE` flag — `MOB_RELEASE` is only set by the release
+`dala_APP_STORE` flag — `dala_RELEASE` is only set by the release
 script, dev mode never sets it, so reusing it for test-harness gating
 is correct. There's no use case for "release build with test harness"
 or "dev build without test harness".
 
-- [x] Wrap test-harness section in `mob/ios/mob_nif.m` with `#if !MOB_RELEASE`
+- [x] Wrap test-harness section in `dala/ios/dala_nif.m` with `#if !dala_RELEASE`
       (block from `nsstring_to_term` helpers through end of `nif_swipe_xy`)
 - [x] Wrap the test-harness entries in the `nif_funcs[]` table with
-      `#if !MOB_RELEASE`
-- [x] **Add `-DMOB_RELEASE` to mob_nif.m's compile command** in
-      `mob_dev/lib/mob_dev/release.ex` (was only being defined for
-      mob_beam.m — discovered when first verification still showed
+      `#if !dala_RELEASE`
+- [x] **Add `-Ddala_RELEASE` to dala_nif.m's compile command** in
+      `dala_dev/lib/dala_dev/release.ex` (was only being defined for
+      dala_beam.m — discovered when first verification still showed
       private selectors in the binary)
-- [x] Verify dev path still builds (`mix mob.deploy --native` — test
+- [x] Verify dev path still builds (`mix dala.deploy --native` — test
       harness present, app boots)
 - [x] Verify release path strips selectors:
       `strings AirCartMax | grep -cE "^_addTouch|^_setHIDEvent|..."` = 0
 - [x] Verify release path strips test-harness symbols:
       `nm AirCartMax | grep -cE "nif_tap_xy|nif_swipe_xy|..."` = 0
-- [ ] Mirror to `mob/android/jni/mob_nif.c` for symmetry (lower priority
+- [ ] Mirror to `dala/android/jni/dala_nif.c` for symmetry (lower priority
       — Android doesn't have the same review gate; defer to W6)
 
 ### Workstream 3 — Info.plist + IPA packaging fixes (~1 hour)
@@ -114,10 +114,10 @@ or "dev build without test harness".
 **Goal**: the small Apple-error categories (3 of 4) cleared.
 
 - [ ] Synthesize `MinimumOSVersion` and `DTPlatformName` at build time
-      in `mix mob.release` (always match `IPHONEOS_DEPLOYMENT_TARGET`
+      in `mix dala.release` (always match `IPHONEOS_DEPLOYMENT_TARGET`
       and SDK in use)
-- [ ] Update `mob_new` template's Info.plist scaffold to include them
-- [ ] Switch `mob.release` IPA packaging from `zip -r` to
+- [ ] Update `dala_new` template's Info.plist scaffold to include them
+- [ ] Switch `dala.release` IPA packaging from `zip -r` to
       `ditto -c -k --keepParent --sequesterRsrc` (preserves the
       `_CodeSignature/CodeResources` symlink)
 - [ ] Verify: `unzip -l <ipa> | grep CodeResources` shows two entries,
@@ -131,7 +131,7 @@ binary with everything statically linked, bundles only `.beam` files.
 - [ ] New build script: `ios/release_app_store.sh` (generated alongside
       the existing `release_device.sh` when `--app-store` passed)
 - [ ] Single `clang` link invocation taking:
-  - [ ] All app `.o` files (mob_nif.m, mob_beam.m, app-specific Swift)
+  - [ ] All app `.o` files (dala_nif.m, dala_beam.m, app-specific Swift)
   - [ ] `libbeam.a` + companions from `~/code/otp/bin/aarch64-apple-ios/`
   - [ ] All cached static NIF archives from workstream 1
   - [ ] Standard frameworks (UIKit, SwiftUI, AVFoundation, etc.)
@@ -148,8 +148,8 @@ binary with everything statically linked, bundles only `.beam` files.
 
 **Goal**: a real TestFlight build from air_cart_max.
 
-- [x] `mix mob.release` from air_cart_max
-- [x] `mix mob.publish` — **UPLOAD SUCCEEDED 2026-05-02 00:03**
+- [x] `mix dala.release` from air_cart_max
+- [x] `mix dala.publish` — **UPLOAD SUCCEEDED 2026-05-02 00:03**
       (Delivery UUID `6a1711f4-2f11-4023-9711-9ddcef583a73`)
 - [x] Apple validator round trips: 4 cycles total
   - Round 1: 17 errors (.so/.a + selectors + Info.plist + symlink)
@@ -167,12 +167,12 @@ binary with everything statically linked, bundles only `.beam` files.
 
 **Goal**: this doesn't regress; users find current docs.
 
-- [x] Tests for `mix mob.release` (mob_dev 0.3.32 —
-      `test/mob_dev/release_script_test.exs`, 23 assertions):
+- [x] Tests for `mix dala.release` (dala_dev 0.3.32 —
+      `test/dala_dev/release_script_test.exs`, 23 assertions):
   - [x] Strip-from-bundle: `.so`, `.a`, priv/bin executables, erts/bin
         executables, unused OTP libs (megaco, runtime_tools, etc.)
-  - [x] Test-harness compile-out: `-DMOB_RELEASE` lands on both
-        mob_nif.m AND mob_beam.m compile commands
+  - [x] Test-harness compile-out: `-Ddala_RELEASE` lands on both
+        dala_nif.m AND dala_beam.m compile commands
   - [x] Info.plist defensive keys: `MinimumOSVersion`, `DTPlatformName`,
         full DT* set, `UIDeviceFamily`, `CFBundleSupportedPlatforms`
   - [x] DTXcode encoding formula (4-digit MAJOR×100+MINOR×10+PATCH)
@@ -182,17 +182,17 @@ binary with everything statically linked, bundles only `.beam` files.
         embedded, signature verified, no `get-task-allow` in
         entitlements heredoc
   - [x] Order of operations: OTP rsync runs before strip pass
-- [x] Tests for `mix mob.cross_build_nif`: **N/A** — the task was never
+- [x] Tests for `mix dala.cross_build_nif`: **N/A** — the task was never
       built because workstream 1 collapsed (existing pipeline already
       produces static archives)
-- [x] Update `mob_dev/guides/publishing_to_testflight.md`:
-  - [x] Remove "Known limitation" section (mob_dev 0.3.31)
+- [x] Update `dala_dev/guides/publishing_to_testflight.md`:
+  - [x] Remove "Known limitation" section (dala_dev 0.3.31)
   - [x] Replace with the working happy path + every error pattern
         we hit captured in troubleshooting
-- [x] Update `mob/guides/publishing.md`: drop the limitation note,
-      add "Status" section pointing at proven versions (mob 0.5.13 /
-      mob_dev 0.3.32)
-- [x] Update `mob/future_developments.md`: collapsed to one-line
+- [x] Update `dala/guides/publishing.md`: drop the limitation note,
+      add "Status" section pointing at proven versions (dala 0.5.13 /
+      dala_dev 0.3.32)
+- [x] Update `dala/future_developments.md`: collapsed to one-line
       pointer at the plan file
 
 ## Open questions to revisit as work progresses
@@ -203,7 +203,7 @@ These are deliberately deferred until the relevant workstream surfaces them:
   packages using rebar3 (most pure-Erlang NIFs), CMake, or bare
   Makefiles? Document patterns as we encounter them.
 - **dSYM upload** — Apple wants symbol files for crash symbolication.
-  `xcodebuild` already produces them; need to wire into `mob.publish`
+  `xcodebuild` already produces them; need to wire into `dala.publish`
   upload alongside the `.ipa`.
 - **iOS simulator path** — App Store mode is primarily for device
   builds, but we want sim builds for testing too. The `iossimulator`
@@ -212,7 +212,7 @@ These are deliberately deferred until the relevant workstream surfaces them:
   re-enable, need `-fembed-bitcode` in link flags. Out of scope until
   Apple does something.
 - **What if the user's app uses a NIF we can't cross-build statically?**
-  Need a clear error message at `mix mob.release --app-store` time
+  Need a clear error message at `mix dala.release --app-store` time
   pointing at the failed package and the workaround options.
 
 ## Risk register
@@ -220,7 +220,7 @@ These are deliberately deferred until the relevant workstream surfaces them:
 | Risk | P | Impact | Mitigation |
 |---|---|---|---|
 | exqlite cross-build fails / has C++ runtime headaches | M | blocks workstream 1 | Time-box half day; fallback: investigate system `libsqlite3.dylib` |
-| Other NIFs need bespoke per-package work | H (long-term) | future apps may bounce | Document the pattern in mob_dev; accept `--custom-script <path>` escape hatch |
+| Other NIFs need bespoke per-package work | H (long-term) | future apps may bounce | Document the pattern in dala_dev; accept `--custom-script <path>` escape hatch |
 | Apple validator finds new error categories after obvious 17 | M | adds round trips | Iteration is cheap; budget 4-6 cycles |
 | Bitcode requirement re-enabled by Apple | L | needs `-fembed-bitcode` | Out of scope until Apple acts |
 | dSYM upload required and not wired in | M | crash reports unsymbolicated | Already in xcodebuild output; just need altool integration |
@@ -231,7 +231,7 @@ These are deliberately deferred until the relevant workstream surfaces them:
 Capture non-obvious calls made *during* the work here, with date + reason.
 
 - **2026-05-01 — Workstream 1 collapsed.** Recon found that
-  `~/.mob/cache/otp-ios-device-*/lib/exqlite-*/priv/sqlite3_nif.a` is
+  `~/.dala/cache/otp-ios-device-*/lib/exqlite-*/priv/sqlite3_nif.a` is
   already produced by the existing build pipeline (1.5 MB, valid
   arm64). All other static archives (`libbeam.a`, `liberts_internal_r.a`,
   `libethread.a`, `libei.a`, `libei_st.a`, `libzstd.a`, `libepcre.a`,
@@ -240,17 +240,17 @@ Capture non-obvious calls made *during* the work here, with date + reason.
   that get linked into the binary ALSO get bundled into `$APP/otp/lib/`
   via wholesale `rsync` — Apple rejects the bundled copies. Fix moves
   to workstream 4 (strip-from-bundle), no cross-build infra needed.
-- **2026-05-01 — Dropped `MOB_APP_STORE` flag.** Plan called for a new
-  flag separate from `MOB_RELEASE`, but `MOB_RELEASE` is only set by
+- **2026-05-01 — Dropped `dala_APP_STORE` flag.** Plan called for a new
+  flag separate from `dala_RELEASE`, but `dala_RELEASE` is only set by
   the release script; dev mode never sets it. Reusing the existing flag
   for test-harness gating is correct — there's no use case for "release
   build with test harness" or "dev build without test harness". One
   flag, one path.
-- **2026-05-01 — Plan to modify existing `mix mob.release` rather than
-  add `--app-store` opt-in flag.** The current `mix mob.release` task
+- **2026-05-01 — Plan to modify existing `mix dala.release` rather than
+  add `--app-store` opt-in flag.** The current `mix dala.release` task
   already documents itself as producing "App Store / TestFlight" builds.
   Modifying it to actually achieve that is more honest than a parallel
-  task. Anyone using `mix mob.release` today is doing so because they
+  task. Anyone using `mix dala.release` today is doing so because they
   want an App Store build; making it work doesn't break anyone.
 - **2026-05-02 — Apple expects a full set of `DT*` keys in Info.plist.**
   Initial fix added only `MinimumOSVersion` + `DTPlatformName` (per the
@@ -268,12 +268,12 @@ Capture non-obvious calls made *during* the work here, with date + reason.
   been 4 digits because Xcode major was 2-digit through Xcode 16; the
   pattern continued for Xcode 26.
 - **2026-05-02 — Apple's POST-upload validator caught ITMS-90683.**
-  The build accepted by `mix mob.publish` was rejected at the next
+  The build accepted by `mix dala.publish` was rejected at the next
   validation stage (the one that runs before TestFlight promotion):
   `NSCameraUsageDescription` required in Info.plist because the binary
   references camera APIs. Air Cart Maximizer doesn't itself use the
-  camera, but Mob's framework NIFs (`camera_capture_photo`,
-  `camera_start_preview`, etc. in `mob/ios/mob_nif.m`) do. Apple's
+  camera, but Dala's framework NIFs (`camera_capture_photo`,
+  `camera_start_preview`, etc. in `dala/ios/dala_nif.m`) do. Apple's
   scanner sees the API references and demands the strings even when
   unused at runtime.
 
@@ -312,5 +312,5 @@ Capture non-obvious calls made *during* the work here, with date + reason.
 - Day 2 PM: workstream 5
 - Day 3 AM: workstream 6
 
-End state: Mob ships to App Store. air_cart_max is the proof. The
+End state: Dala ships to App Store. air_cart_max is the proof. The
 "Known limitation" sections in both guides get retired.

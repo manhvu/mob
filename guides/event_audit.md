@@ -5,7 +5,7 @@ Snapshot of the event-emission surface as of Batch 1 completion. Pairs with
 
 ## Event props recognised by the renderer
 
-`lib/mob/renderer.ex` translates these node prop keys into native handle
+`lib/dala/renderer.ex` translates these node prop keys into native handle
 registrations. Each is opt-in per widget; absence means no event delivery.
 
 ### Tap-family (existing)
@@ -35,36 +35,36 @@ registrations. Each is opt-in per widget; absence means no event delivery.
 
 ## Existing native event paths
 
-### iOS (`mob_nif.m` → `MobRootView.swift`)
+### iOS (`dala_nif.m` → `DalaRootView.swift`)
 
-- Tap-family: SwiftUI `.onTapGesture { closure() }` calls `mob_send_*` from
-  the closure stored on `MobNode`. Closure was wired by the JSON deserialiser
+- Tap-family: SwiftUI `.onTapGesture { closure() }` calls `dala_send_*` from
+  the closure stored on `DalaNode`. Closure was wired by the JSON deserialiser
   using the integer handle from `register_tap`.
 - Audio session and lifecycle observers: `[NSNotificationCenter defaultCenter]`
   with blocks that `enif_send` to a registered dispatcher pid.
-- Gestures (new in this pass): `extension View { func mobGestures(_:) }` adds
+- Gestures (new in this pass): `extension View { func dalaGestures(_:) }` adds
   `.onLongPressGesture`, `.onTapGesture(count: 2)`, and a `DragGesture`
   (only when at least one swipe handler is set, to avoid interfering with
   ScrollView).
 
-### Android (`android/jni/mob_nif.c` + `MobBridge.kt`)
+### Android (`android/jni/dala_nif.c` + `dalaBridge.kt`)
 
-- Tap-family: same handle-lookup pattern via `mob_send_*` C functions called
-  from JNI stubs (`Java_..._MobBridge_nativeSendTap`).
+- Tap-family: same handle-lookup pattern via `dala_send_*` C functions called
+  from JNI stubs (`Java_..._dalaBridge_nativeSendTap`).
 - Gestures (new in this pass): C senders declared and exported via
-  `mob_beam.h`. JNI stubs in `beam_jni.c` and Compose `Modifier` setup in the
-  generated app's `MobBridge` are still pending — see "Pending native work."
+  `dala_beam.h`. JNI stubs in `beam_jni.c` and Compose `Modifier` setup in the
+  generated app's `dalaBridge` are still pending — see "Pending native work."
 
 ## Bridge to canonical envelope
 
 Today, screens receive legacy shapes (`{:tap, tag}`, `{:change, tag, value}`).
-`Mob.Event.Bridge` converts these to the canonical
-`{:mob_event, %Address{}, event, payload}` envelope on demand. Screens can
+`Dala.Event.Bridge` converts these to the canonical
+`{:dala_event, %Address{}, event, payload}` envelope on demand. Screens can
 opt in incrementally:
 
 ```elixir
 def handle_info(msg, socket) do
-  case Mob.Event.Bridge.legacy_to_canonical(msg, __MODULE__) do
+  case Dala.Event.Bridge.legacy_to_canonical(msg, __MODULE__) do
     {:ok, envelope} -> handle_canonical(envelope, socket)
     :passthrough    -> # not a recognised legacy shape — handle directly
   end
@@ -78,51 +78,51 @@ can be removed.
 
 ### iOS
 
-- ✅ NIF entry points (`mob_send_long_press`, `mob_send_double_tap`,
-  `mob_send_swipe_*`)
-- ✅ MobNode property declarations (`onLongPress`, `onDoubleTap`,
+- ✅ NIF entry points (`dala_send_long_press`, `dala_send_double_tap`,
+  `dala_send_swipe_*`)
+- ✅ DalaNode property declarations (`onLongPress`, `onDoubleTap`,
   `onSwipe`, `onSwipeLeft`, `onSwipeRight`, `onSwipeUp`, `onSwipeDown`)
 - ✅ Prop deserialiser wires them up
-- ✅ SwiftUI `.mobGestures()` modifier applies them
+- ✅ SwiftUI `.dalaGestures()` modifier applies them
 - ⏳ Verify on physical device — gesture conflicts with scroll need real-world
   testing
 
 ### Android
 
-- ✅ C sender functions (`mob_send_long_press` etc.)
-- ✅ Header export in `mob_beam.h`
+- ✅ C sender functions (`dala_send_long_press` etc.)
+- ✅ Header export in `dala_beam.h`
 - ⏳ JNI stubs in `beam_jni.c` (need entries calling the C functions)
-- ⏳ Kotlin `MobBridge` JNI declarations
+- ⏳ Kotlin `dalaBridge` JNI declarations
 - ⏳ Compose `Modifier` setup — `pointerInput { detectTapGestures(...) }` for
   long-press/double-tap, `detectDragGestures` for swipes, gated per-node by
   the corresponding handle being non-null
 
-## Migration path for `Mob.List`
+## Migration path for `Dala.List`
 
-Currently `Mob.List` is a render helper, not a stateful component. Each row
-gets `on_tap: {screen_pid, {:list, list_id, :select, index}}`. `Mob.Screen`
+Currently `Dala.List` is a render helper, not a stateful component. Each row
+gets `on_tap: {screen_pid, {:list, list_id, :select, index}}`. `Dala.Screen`
 has hardcoded knowledge of this shape and re-emits as `{:select, list_id, index}`.
 
 Under the new event model, this becomes a stateful component (planned, not in
 this pass):
 
-1. `Mob.List` becomes a `Mob.Event.StatefulComponent` (see future module)
+1. `Dala.List` becomes a `Dala.Event.StatefulComponent` (see future module)
 2. Row taps target the list's pid, not the screen's
 3. List handles row events internally (selection state, scroll position,
    etc.) and emits semantic events upward to its parent
 
 Until that lands, the bridge module handles the existing list-tap shape:
 `{:tap, {:list, id, :select, index}}` →
-`{:mob_event, addr(:list, id, instance: index), :select, nil}`.
+`{:dala_event, addr(:list, id, instance: index), :select, nil}`.
 
 ## Tests
 
 | Module | Coverage |
 |--------|----------|
-| `Mob.Event.Address` | 47 tests + 10 doctests (struct, validation, formatting, pattern matching) |
-| `Mob.Event.Target` | 17 tests + 3 doctests (every target form + classification) |
-| `Mob.Event` | 20 tests + 4 doctests (dispatch, emit, matchers, test helpers) |
-| `Mob.Event.Bridge` | 19 tests + 4 doctests (each legacy shape + passthrough) |
-| `Mob.Renderer` | 9 new tests (Batch 3 + Batch 4 prop registration) |
+| `Dala.Event.Address` | 47 tests + 10 doctests (struct, validation, formatting, pattern matching) |
+| `Dala.Event.Target` | 17 tests + 3 doctests (every target form + classification) |
+| `Dala.Event` | 20 tests + 4 doctests (dispatch, emit, matchers, test helpers) |
+| `Dala.Event.Bridge` | 19 tests + 4 doctests (each legacy shape + passthrough) |
+| `Dala.Renderer` | 9 new tests (Batch 3 + Batch 4 prop registration) |
 
-Total Mob.Event-related tests added in this pass: **125 + doctests**.
+Total Dala.Event-related tests added in this pass: **125 + doctests**.

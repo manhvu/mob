@@ -1,17 +1,17 @@
-defmodule Mob.MixProject do
+defmodule Dala.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :mob,
-      version: "0.5.14",
-      elixir: "~> 1.19",
+      app: :dala,
+      version: "0.0.1",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      description: "BEAM-on-device mobile framework for Elixir",
-      source_url: "https://github.com/genericjam/mob",
-      homepage_url: "https://hexdocs.pm/mob",
+      description: "BEAM-on-device dalaile framework for Elixir",
+      source_url: "https://github.com/manhvu/mob",
+      homepage_url: "https://hexdocs.pm/dala",
       package: package(),
       docs: docs(),
       # Rustler configuration
@@ -29,10 +29,10 @@ defmodule Mob.MixProject do
     [
       main: "readme",
       logo: "assets/logo/logo_full_color.png",
-      source_url: "https://github.com/genericjam/mob",
-      source_url_pattern: "https://github.com/genericjam/mob/blob/main/%{path}#L%{line}",
+      source_url: "https://github.com/manhvu/mob",
+      source_url_pattern: "https://github.com/manhvu/mob/blob/main/%{path}#L%{line}",
       extras: [
-        "README.md": [title: "Mob"],
+        "README.md": [title: "Dala"],
         "guides/why_beam.md": [title: "Why the BEAM?"],
         "guides/getting_started.md": [title: "Getting Started"],
         "guides/architecture.md": [title: "Architecture & Prior Art"],
@@ -53,34 +53,34 @@ defmodule Mob.MixProject do
         Guides: ~r/guides\/.*/
       ],
       groups_for_modules: [
-        Core: [Mob, Mob.App, Mob.Screen, Mob.Socket, Mob.State],
+        Core: [Dala, Dala.App, Dala.Screen, Dala.Socket, Dala.State],
         UI: [
-          Mob.UI,
-          Mob.Style,
-          Mob.Renderer,
-          Mob.Theme,
-          Mob.Theme.Obsidian,
-          Mob.Theme.Citrus,
-          Mob.Theme.Birch
+          Dala.UI,
+          Dala.Style,
+          Dala.Renderer,
+          Dala.Theme,
+          Dala.Theme.Obsidian,
+          Dala.Theme.Citrus,
+          Dala.Theme.Birch
         ],
-        Navigation: [Mob.Nav.Registry],
+        Navigation: [Dala.Nav.Registry],
         "Device APIs": [
-          Mob.Haptic,
-          Mob.Clipboard,
-          Mob.Share,
-          Mob.Permissions,
-          Mob.Biometric,
-          Mob.Location,
-          Mob.Camera,
-          Mob.Photos,
-          Mob.Files,
-          Mob.Audio,
-          Mob.Motion,
-          Mob.Scanner,
-          Mob.Notify
+          Dala.Haptic,
+          Dala.Clipboard,
+          Dala.Share,
+          Dala.Permissions,
+          Dala.Biometric,
+          Dala.Location,
+          Dala.Camera,
+          Dala.Photos,
+          Dala.Files,
+          Dala.Audio,
+          Dala.Motion,
+          Dala.Scanner,
+          Dala.Notify
         ],
-        "Testing & Debugging": [Mob.Test],
-        Internals: [Mob.Dist, Mob.NativeLogger, Mob.List, Mob.Sigil]
+        "Testing & Debugging": [Dala.Test],
+        Internals: [Dala.Dist, Dala.NativeLogger, Dala.List, Dala.Sigil]
       ],
       before_closing_body_tag: &before_closing_body_tag/1
     ]
@@ -102,8 +102,8 @@ defmodule Mob.MixProject do
   # Rustler crate configuration
   defp rustler_crates do
     [
-      mob_nif: [
-        path: "native/mob_nif",
+      dala_nif: [
+        path: "native/dala_nif",
         mode: if(Mix.env() == :prod, do: :release, else: :debug)
       ]
     ]
@@ -115,7 +115,7 @@ defmodule Mob.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/genericjam/mob"},
+      links: %{"GitHub" => "https://github.com/genericjam/dala"},
       files: ~w(
         lib src priv
         android ios assets

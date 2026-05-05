@@ -20,7 +20,7 @@ defmodule SimpleApp.MixProject do
 
   defp deps do
     [
-      {:mob, path: "../../"}
+      {:dala, path: "../../"}
     ]
   end
 end

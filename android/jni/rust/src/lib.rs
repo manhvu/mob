@@ -11,18 +11,18 @@ pub extern "C" fn erts_init_static_drivers() {
 }
 
 #[no_mangle]
-pub extern "C" fn mob_start_beam(_app_module: *const i8) {
-    println!("mob_start_beam called");
+pub extern "C" fn dala_start_beam(_app_module: *const i8) {
+    println!("dala_start_beam called");
 }
 
 #[no_mangle]
-pub extern "C" fn mob_set_startup_phase(_phase: *const i8) {
-    println!("mob_set_startup_phase called");
+pub extern "C" fn dala_set_startup_phase(_phase: *const i8) {
+    println!("dala_set_startup_phase called");
 }
 
 #[no_mangle]
-pub extern "C" fn mob_set_startup_error(_error: *const i8) {
-    println!("mob_set_startup_error called");
+pub extern "C" fn dala_set_startup_error(_error: *const i8) {
+    println!("dala_set_startup_error called");
 }
 
 #[no_mangle]

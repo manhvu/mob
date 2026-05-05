@@ -1,10 +1,10 @@
-# LiveView on iOS and Android (Mob) — What It Took
+# LiveView on iOS and Android (Dala) — What It Took
 
 This documents the fixes required to get Phoenix LiveView running fully on-device
 inside a native WebView. Use this when the setup breaks or when setting up a new app.
 
 The working reference is `/tmp/lv_test` (deployed to iOS simulator and Android emulator/Moto phone in April 2026).
-`mix mob.enable liveview` automates the parts that apply to every new project.
+`mix dala.enable liveview` automates the parts that apply to every new project.
 
 ---
 
@@ -13,7 +13,7 @@ The working reference is `/tmp/lv_test` (deployed to iOS simulator and Android e
 ### iOS
 ```
 iOS native (ObjC/Swift)
-  └─ mob_beam.m  →  lv_test:start()  →  LvTest.MobApp.start/0
+  └─ dala_beam.m  →  lv_test:start()  →  LvTest.dalaApp.start/0
        └─ Application.put_env → ensure_all_started(:lv_test)
             └─ Phoenix/Bandit on 127.0.0.1:4200
                  └─ WKWebView loads http://127.0.0.1:4200/
@@ -26,7 +26,7 @@ Port 4200 avoids conflict with `mix phx.server` running on the host at 4000.
 ### Android
 ```
 Android native (Kotlin/Compose)
-  └─ mob_beam.c  →  lv_test:start()  →  LvTest.MobApp.start/0
+  └─ dala_beam.c  →  lv_test:start()  →  LvTest.dalaApp.start/0
        └─ Application.put_env → ensure_all_started(:lv_test)
             └─ Phoenix/Bandit on 127.0.0.1:4200
                  └─ Android WebView loads http://127.0.0.1:4200/
@@ -50,7 +50,7 @@ The Android emulator and real device both have their own loopback interface, so
 starts from a native binary. You cannot rely on `Application.get_env/3` returning
 values set by config files.
 
-**Solution:** Use `Application.put_env/3` in `MobApp.start/0` *before* calling
+**Solution:** Use `Application.put_env/3` in `dalaApp.start/0` *before* calling
 `Application.ensure_all_started/1`.
 
 ```elixir
@@ -80,18 +80,18 @@ Application.put_env(:lv_test, LvTestWeb.Endpoint,
 
 ---
 
-## Fix 3: Mob.ComponentRegistry must be started manually
+## Fix 3: Dala.ComponentRegistry must be started manually
 
-In a normal Mob app, `Mob.App` starts `Mob.ComponentRegistry` as part of its
-supervision tree. In LiveView mode we skip `Mob.App` entirely. If you call
-`Mob.Screen.start_root/1` without `ComponentRegistry` running, it crashes.
+In a normal Dala app, `Dala.App` starts `Dala.ComponentRegistry` as part of its
+supervision tree. In LiveView mode we skip `Dala.App` entirely. If you call
+`Dala.Screen.start_root/1` without `ComponentRegistry` running, it crashes.
 
 Start it explicitly after `ensure_all_started/1`:
 
 ```elixir
 {:ok, _} = Application.ensure_all_started(:lv_test)
-{:ok, _} = Mob.ComponentRegistry.start_link()
-Mob.Screen.start_root(LvTest.MobScreen)
+{:ok, _} = Dala.ComponentRegistry.start_link()
+Dala.Screen.start_root(LvTest.dalaScreen)
 ```
 
 ---
@@ -147,7 +147,7 @@ Build and copy assets in build.sh:
 mix assets.build
 mkdir -p "$BEAMS_DIR/priv/static"
 cp -r priv/static/. "$BEAMS_DIR/priv/static/"
-# Also sync into /tmp/otp-ios-sim (which mob_beam.m hardcodes as OTP_ROOT)
+# Also sync into /tmp/otp-ios-sim (which dala_beam.m hardcodes as OTP_ROOT)
 rsync -a "$BEAMS_DIR/priv/" "/tmp/otp-ios-sim/lv_test/priv/"
 ```
 
@@ -156,7 +156,7 @@ JavaScript never executes because `app.js` returns 404.
 
 ---
 
-## Fix 6: Crypto shim — OTP builds for mobile have no OpenSSL NIF
+## Fix 6: Crypto shim — OTP builds for dalaile have no OpenSSL NIF
 
 **Applies to: iOS and Android**
 
@@ -166,8 +166,8 @@ session system (`plug_crypto`) uses `:crypto.pbkdf2_hmac/5` to derive session ke
 Without these, every request crashes.
 
 The fix is a pure-Erlang shim compiled with `erlc` on the host and deployed alongside
-the app's BEAM files. `mob_dev` generates and deploys it automatically as part of
-`mix mob.deploy`. Critical exports:
+the app's BEAM files. `dala_dev` generates and deploys it automatically as part of
+`mix dala.deploy`. Critical exports:
 
 - `pbkdf2_hmac/5` — session key derivation (PBKDF2 using HMAC-MD5 as PRF)
 - `exor/2` — XORs two binaries; used by `Plug.CSRFProtection.mask/1`
@@ -180,7 +180,7 @@ intentional — MD5 is available as an Erlang BIF without any NIF. For a loopbac
 dev server there is no meaningful attack surface. Do not ship this in a production app
 with external network access.
 
-See `MobDev.Deployer.generate_crypto_shim/0` for the current implementation.
+See `dalaDev.Deployer.generate_crypto_shim/0` for the current implementation.
 
 ---
 
@@ -237,7 +237,7 @@ exor(A, B) ->
 
 ---
 
-## Fix 9: SSL — thousand_island requires :ssl but mobile OTP builds omit it
+## Fix 9: SSL — thousand_island requires :ssl but dalaile OTP builds omit it
 
 **Applies to: iOS and Android**
 
@@ -263,7 +263,7 @@ successfully for thousand_island to boot.
 
 ## Fix 10: Use glob loop to copy all compiled deps
 
-**Applies to: iOS** (Android uses `mix mob.deploy` which already collects all dep ebins)
+**Applies to: iOS** (Android uses `mix dala.deploy` which already collects all dep ebins)
 
 Hardcoding individual dep names in build.sh is brittle. When deps change, the list
 goes stale and modules are missing on-device.
@@ -292,31 +292,31 @@ LiveView deployment in April 2026.
 
 ---
 
-## Fix A1: `"web_view"` type name mismatch in MobBridge.kt
+## Fix A1: `"web_view"` type name mismatch in dalaBridge.kt
 
 **Symptom:** App shows a solid white screen. The BEAM starts, Phoenix is listening on
 port 4200 (`ss -tlnp` confirms it), and step 5 logs `ok` — but nothing is ever rendered.
 
-**Root cause:** `Mob.UI.webview/1` in `mob/lib/mob/ui.ex` returns `%{type: :web_view, ...}`.
-`Mob.Renderer` converts that atom to a string via `Atom.to_string(:web_view)`, producing
+**Root cause:** `Dala.UI.webview/1` in `dala/lib/dala/ui.ex` returns `%{type: :web_view, ...}`.
+`Dala.Renderer` converts that atom to a string via `Atom.to_string(:web_view)`, producing
 `"web_view"` in the JSON payload sent to the native layer. But `RenderNode` in
-`MobBridge.kt` had:
+`dalaBridge.kt` had:
 
 ```kotlin
-"webview" -> MobWebView(node, m)   // wrong — underscore missing
+"webview" -> dalaWebView(node, m)   // wrong — underscore missing
 ```
 
-The switch case never matched, so Compose never created a `MobWebView`, and the
+The switch case never matched, so Compose never created a `dalaWebView`, and the
 `_rootState.node` remained null — blank screen.
 
 **Fix:** Change the case string to match the snake_case atom:
 
 ```kotlin
-"web_view" -> MobWebView(node, m)
+"web_view" -> dalaWebView(node, m)
 ```
 
-**Where:** `android/app/src/main/java/com/mob/<app>/MobBridge.kt` — the `RenderNode`
-`when` block. Fixed in `lv_test` and `mob_demo` in April 2026. Any project created before
+**Where:** `android/app/src/main/java/com/dala/<app>/dalaBridge.kt` — the `RenderNode`
+`when` block. Fixed in `lv_test` and `dala_demo` in April 2026. Any project created before
 that fix must be patched manually.
 
 **How to spot it:** `_rootState.node` is non-null (Compose received JSON) but the screen
@@ -357,9 +357,9 @@ and localhost.
     ...>
 ```
 
-**Automated:** `mix mob.enable liveview` now does both of these steps automatically
-(idempotent). See `MobDev.Enable.inject_android_network_security_config/1` and
-`MobDev.Enable.network_security_config_xml/0`.
+**Automated:** `mix dala.enable liveview` now does both of these steps automatically
+(idempotent). See `dalaDev.Enable.inject_android_network_security_config/1` and
+`dalaDev.Enable.network_security_config_xml/0`.
 
 ---
 
@@ -375,11 +375,11 @@ accessibility hierarchy by default.
 To see what Compose is actually rendering, read logcat and check `_rootState`:
 
 ```bash
-adb -s <device> shell logcat | grep -E "Elixir|MobBridge|step [0-9]"
+adb -s <device> shell logcat | grep -E "Elixir|dalaBridge|step [0-9]"
 ```
 
-Alternatively, add a `Log.d("MobBridge", "RenderNode type=${node.type}")` call inside
-`RenderNode` in `MobBridge.kt` to confirm what type string the BEAM sent. This is much
+Alternatively, add a `Log.d("dalaBridge", "RenderNode type=${node.type}")` call inside
+`RenderNode` in `dalaBridge.kt` to confirm what type string the BEAM sent. This is much
 faster than trying to interpret screenshot pixels.
 
 ---
@@ -400,11 +400,11 @@ faster than trying to interpret screenshot pixels.
    {'Elixir.Phoenix.Endpoint.Supervisor',build_url,2, ...}
 ```
 
-**Root cause:** The mob Android OTP bundles a specific Elixir stdlib version. The Elixir stdlib (including `Regex`) is pushed to the device by `mix mob.deploy --native` using the host Elixir at that time. If the host Elixir is later upgraded (e.g. 1.18.4 → 1.19.5), the device retains the old stdlib. Phoenix compiled with Elixir 1.19.5 embeds regex patterns in OTP 28's NIF format; Elixir 1.18.4's `Regex.safe_run` doesn't handle that format → `function_clause`.
+**Root cause:** The dala Android OTP bundles a specific Elixir stdlib version. The Elixir stdlib (including `Regex`) is pushed to the device by `mix dala.deploy --native` using the host Elixir at that time. If the host Elixir is later upgraded (e.g. 1.18.4 → 1.19.5), the device retains the old stdlib. Phoenix compiled with Elixir 1.19.5 embeds regex patterns in OTP 28's NIF format; Elixir 1.18.4's `Regex.safe_run` doesn't handle that format → `function_clause`.
 
-**Fix:** `mix mob.deploy` now automatically detects Elixir version mismatches between host and device and re-pushes the stdlib (elixir, logger, eex) when they differ. This happens transparently on every deploy with no extra flags.
+**Fix:** `mix dala.deploy` now automatically detects Elixir version mismatches between host and device and re-pushes the stdlib (elixir, logger, eex) when they differ. This happens transparently on every deploy with no extra flags.
 
-**Manual workaround** (before the fix was in `mob_dev`):
+**Manual workaround** (before the fix was in `dala_dev`):
 
 ```bash
 ELIXIR_EBIN=$(elixir -e "IO.puts(:code.lib_dir(:elixir))")/ebin
@@ -413,7 +413,7 @@ adb -s SERIAL push "$ELIXIR_EBIN/." /data/data/PKG/files/otp/lib/elixir/ebin/
 am force-stop PKG && am start -n PKG/.MainActivity
 ```
 
-**Where:** `mob_dev/lib/mob_dev/deployer.ex` — `sync_elixir_stdlib_android/1`.
+**Where:** `dala_dev/lib/dala_dev/deployer.ex` — `sync_elixir_stdlib_android/1`.
 
 ---
 
@@ -425,33 +425,33 @@ am force-stop PKG && am start -n PKG/.MainActivity
 |---|-----|--------------------|
 | 1 | `put_env` before `ensure_all_started` | Endpoint never starts (wrong config) |
 | 2 | `adapter: Bandit.PhoenixAdapter` | Phoenix refuses to start |
-| 3 | `Mob.ComponentRegistry.start_link()` | Crash calling `start_root` |
+| 3 | `Dala.ComponentRegistry.start_link()` | Crash calling `start_root` |
 | 4 | Route to `PageLive`, not `PageController` | HTTP 500 on every request |
 | 5 | Deploy `priv/static` to BEAMS_DIR | Blank WebView (JS 404) |
 | 6 | Full crypto shim (`pbkdf2_hmac`, `exor`, `mac`, `hash`) | Crash on every request |
 | 7 | Zip pairs in `xor_bytes`, not cartesian product | Process hang / OOM in pbkdf2 |
 | 8 | `iolist_to_binary` on all crypto shim inputs | `ArgumentError` in binary construction |
 | 9 | SSL BEAM files from host OTP | `thousand_island` fails to start |
-| 10 | Glob loop for dep BEAM copy (iOS) / `mob.deploy` (Android) | Missing module errors at runtime |
+| 10 | Glob loop for dep BEAM copy (iOS) / `dala.deploy` (Android) | Missing module errors at runtime |
 
 ### Android-only
 
 | # | Fix | Symptom without it |
 |---|-----|--------------------|
-| A1 | `"web_view"` (not `"webview"`) in `MobBridge.kt` `RenderNode` | Solid white screen, no error |
+| A1 | `"web_view"` (not `"webview"`) in `dalaBridge.kt` `RenderNode` | Solid white screen, no error |
 | A2 | `network_security_config.xml` + manifest attribute | `net::ERR_CLEARTEXT_NOT_PERMITTED` |
 | A3 | (awareness) Compose hides from `uiautomator` / `inspect_ui` | Misleading "empty" UI dump |
-| A4 | Elixir stdlib version must match host (auto-synced by `mob.deploy`) | `function_clause` in `Regex.safe_run` on endpoint start |
+| A4 | Elixir stdlib version must match host (auto-synced by `dala.deploy`) | `function_clause` in `Regex.safe_run` on endpoint start |
 
 ---
 
 ## Relevant files
 
 - `/tmp/lv_test/` — working reference project (iOS + Android, April 2026)
-- `/tmp/lv_test/lib/lv_test/mob_app.ex` — the on-device BEAM entry point (shared)
+- `/tmp/lv_test/lib/lv_test/dala_app.ex` — the on-device BEAM entry point (shared)
 - `/tmp/lv_test/ios/build.sh` — iOS build script with all shared fixes applied
-- `/tmp/lv_test/android/app/src/main/java/com/mob/lv_test/MobBridge.kt` — Android Compose renderer (fix A1 here)
+- `/tmp/lv_test/android/app/src/main/java/com/dala/lv_test/dalaBridge.kt` — Android Compose renderer (fix A1 here)
 - `/tmp/lv_test/android/app/src/main/res/xml/network_security_config.xml` — cleartext whitelist (fix A2)
-- `mob_dev/lib/mob_dev/deployer.ex` — `generate_crypto_shim/0` (fix 6, shared)
-- `mob_dev/lib/mob_dev/enable.ex` — `inject_android_network_security_config/1` (fix A2, automated)
-- `mob/lib/mob/ui.ex` — `Mob.UI.webview/1` generates `:web_view` atom (the type A1 must match)
+- `dala_dev/lib/dala_dev/deployer.ex` — `generate_crypto_shim/0` (fix 6, shared)
+- `dala_dev/lib/dala_dev/enable.ex` — `inject_android_network_security_config/1` (fix A2, automated)
+- `dala/lib/dala/ui.ex` — `Dala.UI.webview/1` generates `:web_view` atom (the type A1 must match)

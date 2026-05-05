@@ -1,6 +1,6 @@
-# Mob component tags supported on Android (Jetpack Compose)
+# dala component tags supported on Android (Jetpack Compose)
 # One PascalCase tag name per line.
-# Generated source: android/jni/mob_nif.c / MobBridge.kt switch statement
+# Generated source: android/jni/dala_nif.c / dalaBridge.kt switch statement
 # See guides/styling.md for native mapping details.
 # Note: Video is a stub pending ExoPlayer integration.
 

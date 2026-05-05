@@ -1,1 +1,23 @@
-{"rustc":18415816196306954164,"features":"[\"default\"]","declared_features":"[\"beam_full_nerves\", \"beam_sbwt_only\", \"beam_untuned\", \"beam_use_custom_flags\", \"default\"]","target":8625254402885387268,"profile":15057526963834790232,"path":13277499706983441278,"deps":[[10630857666389190470,"log",false,4777401070492060868],[13385779688343444241,"jni",false,14291223277394639970]],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/mob-beam-android-4ba263c24cf95fee/dep-test-integration-test-simple_test","checksum":false}}],"rustflags":[],"config":2069994364910194474,"compile_kind":0}
+{
+  "rustc": 18415816196306954164,
+  "features": "[\"default\"]",
+  "declared_features": "[\"beam_full_nerves\", \"beam_sbwt_only\", \"beam_untuned\", \"beam_use_custom_flags\", \"default\"]",
+  "target": 8625254402885387268,
+  "profile": 15057526963834790232,
+  "path": 13277499706983441278,
+  "deps": [
+    [10630857666389190470, "log", false, 4777401070492060868],
+    [13385779688343444241, "jni", false, 14291223277394639970]
+  ],
+  "local": [
+    {
+      "CheckDepInfo": {
+        "dep_info": "debug/.fingerprint/dala-beam-android-4ba263c24cf95fee/dep-test-integration-test-simple_test",
+        "checksum": false
+      }
+    }
+  ],
+  "rustflags": [],
+  "config": 2069994364910194474,
+  "compile_kind": 0
+}

@@ -2,10 +2,10 @@ defmodule SimpleApp.HomeScreen do
   @moduledoc """
   Home screen with counter and navigation to detail screen.
   """
-  use Mob.Screen
+  use Dala.Screen
 
   def mount(_params, _session, socket) do
-    {:ok, Mob.Socket.assign(socket, :count, 0)}
+    {:ok, Dala.Socket.assign(socket, :count, 0)}
   end
 
   def render(assigns) do
@@ -13,7 +13,7 @@ defmodule SimpleApp.HomeScreen do
       type: :column,
       props: %{padding: 16, spacing: 8},
       children: [
-        %{type: :text, props: %{text: "Welcome to Mob!", text_size: :xl}},
+        %{type: :text, props: %{text: "Welcome to Dala!", text_size: :xl}},
         %{type: :text, props: %{text: "Count: #{assigns.count}"}},
         %{
           type: :button,
@@ -31,10 +31,10 @@ defmodule SimpleApp.HomeScreen do
 
   def handle_event(:increment, _params, socket) do
     new_count = socket.assigns.count + 1
-    {:noreply, Mob.Socket.assign(socket, :count, new_count)}
+    {:noreply, Dala.Socket.assign(socket, :count, new_count)}
   end
 
   def handle_event(:navigate, _params, socket) do
-    {:noreply, Mob.Screen.push_screen(socket, SimpleApp.DetailScreen)}
+    {:noreply, Dala.Screen.push_screen(socket, SimpleApp.DetailScreen)}
   end
 end

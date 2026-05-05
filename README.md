@@ -1,9 +1,9 @@
-# Mob
+# Dala
 
-BEAM-on-device mobile framework for Elixir. OTP runs inside your iOS and Android apps — embedded directly in the app bundle, no server required. Screens are GenServers; the UI is rendered by Compose and SwiftUI via a thin NIF.
+BEAM-on-device dalaile framework for Elixir. OTP runs inside your iOS and Android apps — embedded directly in the app bundle, no server required. Screens are GenServers; the UI is rendered by Compose and SwiftUI via a thin NIF.
 
-[![Hex.pm](https://img.shields.io/hexpm/v/mob.svg)](https://hex.pm/packages/mob)
-[![Docs](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/mob)
+[![Hex.pm](https://img.shields.io/hexpm/v/dala.svg)](https://hex.pm/packages/dala)
+[![Docs](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/dala)
 
 > **Status:** Early development. Android emulator and iOS simulator confirmed working. Not yet ready for production use.
 
@@ -12,9 +12,9 @@ BEAM-on-device mobile framework for Elixir. OTP runs inside your iOS and Android
 ```
 Your Elixir app (GenServers, OTP supervision, pattern matching, pipes)
           ↓
-     Mob.Screen  (GenServer — your logic lives here)
+     Dala.Screen  (GenServer — your logic lives here)
           ↓
-    Mob.Renderer  (component tree → JSON → NIF call)
+    Dala.Renderer  (component tree → JSON → NIF call)
           ↓
 Compose (Android)   SwiftUI (iOS)   ← native rendering, native gestures
 ```
@@ -27,24 +27,24 @@ Add to `mix.exs`:
 
 ```elixir
 def deps do
-  [{:mob, "~> 0.5"}]
+  [{:dala, "~> 0.5"}]
 end
 ```
 
-The `mob_new` package (separate) provides project generation, deployment tooling, and will import `mob_dev` which is a live dashboard. Install it as a Mix archive:
+The `dala_new` package (separate) provides project generation, deployment tooling, and will import `dala_dev` which is a live dashboard. Install it as a Mix archive:
 
 ```bash
-mix archive.install hex mob_new
+mix archive.install hex dala_new
 ```
 
 ## A screen
 
 ```elixir
 defmodule MyApp.CounterScreen do
-  use Mob.Screen
+  use Dala.Screen
 
   def mount(_params, _session, socket) do
-    {:ok, Mob.Socket.assign(socket, :count, 0)}
+    {:ok, Dala.Socket.assign(socket, :count, 0)}
   end
 
   def render(assigns) do
@@ -59,7 +59,7 @@ defmodule MyApp.CounterScreen do
   end
 
   def handle_event("tap", %{"tag" => "increment"}, socket) do
-    {:noreply, Mob.Socket.assign(socket, :count, socket.assigns.count + 1)}
+    {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
   end
 end
 ```
@@ -68,15 +68,15 @@ end
 
 ```elixir
 defmodule MyApp do
-  use Mob.App, theme: Mob.Theme.Obsidian
+  use Dala.App, theme: Dala.Theme.Obsidian
 
   def navigation(_platform) do
     stack(:home, root: MyApp.CounterScreen)
   end
 
   def on_start do
-    Mob.Screen.start_root(MyApp.CounterScreen)
-    Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
+    Dala.Screen.start_root(MyApp.CounterScreen)
+    Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
   end
 end
 ```
@@ -85,10 +85,10 @@ end
 
 ```elixir
 # Push a new screen
-Mob.Socket.push_screen(socket, MyApp.DetailScreen, %{id: 42})
+Dala.Socket.push_screen(socket, MyApp.DetailScreen, %{id: 42})
 
 # Pop back
-Mob.Socket.pop_screen(socket)
+Dala.Socket.pop_screen(socket)
 
 # Tab bar layout
 tab_bar([
@@ -101,19 +101,19 @@ tab_bar([
 
 ```elixir
 # Named theme
-use Mob.App, theme: Mob.Theme.Obsidian
+use Dala.App, theme: Dala.Theme.Obsidian
 
 # Override individual tokens
-use Mob.App, theme: {Mob.Theme.Obsidian, primary: :rose_500}
+use Dala.App, theme: {Dala.Theme.Obsidian, primary: :rose_500}
 
 # From scratch
-use Mob.App, theme: [primary: :emerald_500, background: :gray_950]
+use Dala.App, theme: [primary: :emerald_500, background: :gray_950]
 
 # Runtime switch (accessibility, user preference)
-Mob.Theme.set(Mob.Theme.Citrus)
+Dala.Theme.set(Dala.Theme.Citrus)
 ```
 
-Built-in themes: `Mob.Theme.Obsidian` (dark violet), `Mob.Theme.Citrus` (warm charcoal + lime), `Mob.Theme.Birch` (warm parchment).
+Built-in themes: `Dala.Theme.Obsidian` (dark violet), `Dala.Theme.Citrus` (warm charcoal + lime), `Dala.Theme.Birch` (warm parchment).
 
 ## Device APIs
 
@@ -121,42 +121,42 @@ All async — call the function, handle the result in `handle_info/2`:
 
 ```elixir
 # Haptic feedback (synchronous — no handle_info needed)
-Mob.Haptic.trigger(socket, :success)
+Dala.Haptic.trigger(socket, :success)
 
 # Camera
-Mob.Camera.capture_photo(socket)
+Dala.Camera.capture_photo(socket)
 def handle_info({:camera, :photo, %{path: path}}, socket), do: ...
 
 # Location
-Mob.Location.start(socket, accuracy: :high)
+Dala.Location.start(socket, accuracy: :high)
 def handle_info({:location, %{lat: lat, lon: lon}}, socket), do: ...
 
 # Push notifications
-Mob.Notify.register_push(socket)
+Dala.Notify.register_push(socket)
 def handle_info({:push_token, :ios, token}, socket), do: ...
 ```
 
-Also: `Mob.Clipboard`, `Mob.Share`, `Mob.Photos`, `Mob.Files`, `Mob.Audio`, `Mob.Motion`, `Mob.Biometric`, `Mob.Scanner`, `Mob.Permissions`.
+Also: `Dala.Clipboard`, `Dala.Share`, `Dala.Photos`, `Dala.Files`, `Dala.Audio`, `Dala.Motion`, `Dala.Biometric`, `Dala.Scanner`, `Dala.Permissions`.
 
 ## Live development
 
 ```bash
-mix mob.connect          # tunnel + connect IEx to running device
+mix dala.connect          # tunnel + connect IEx to running device
 nl(MyApp.SomeScreen)     # hot-push new bytecode, no restart
 
 # In IEx:
-Mob.Test.screen(:"my_app_ios@127.0.0.1")  #=> MyApp.CounterScreen
-Mob.Test.assigns(:"my_app_ios@127.0.0.1") #=> %{count: 3, ...}
-Mob.Test.tap(:"my_app_ios@127.0.0.1", :increment)
+Dala.Test.screen(:"my_app_ios@127.0.0.1")  #=> MyApp.CounterScreen
+Dala.Test.assigns(:"my_app_ios@127.0.0.1") #=> %{count: 3, ...}
+Dala.Test.tap(:"my_app_ios@127.0.0.1", :increment)
 ```
 
 ## Testing
 
 ```elixir
 test "increments count" do
-  {:ok, pid} = Mob.Screen.start_link(MyApp.CounterScreen, %{})
-  :ok = Mob.Screen.dispatch(pid, "tap", %{"tag" => "increment"})
-  assert Mob.Screen.get_socket(pid).assigns.count == 1
+  {:ok, pid} = Dala.Screen.start_link(MyApp.CounterScreen, %{})
+  :ok = Dala.Screen.dispatch(pid, "tap", %{"tag" => "increment"})
+  assert Dala.Screen.get_socket(pid).assigns.count == 1
 end
 ```
 
@@ -164,21 +164,21 @@ end
 
 | Package | Purpose |
 |---------|---------|
-| [`mob_dev`](https://hex.pm/packages/mob_dev) | Dev tooling: `mix mob.new`, `mix mob.deploy`, `mix mob.connect`, live dashboard |
-| [`mob_push`](https://hex.pm/packages/mob_push) | Server-side push notifications (APNs + FCM) |
+| [`dala_dev`](https://hex.pm/packages/dala_dev) | Dev tooling: `mix dala.new`, `mix dala.deploy`, `mix dala.connect`, live dashboard |
+| [`dala_push`](https://hex.pm/packages/dala_push) | Server-side push notifications (APNs + FCM) |
 
 ## Documentation
 
-Full documentation at [hexdocs.pm/mob](https://hexdocs.pm/mob), including:
+Full documentation at [hexdocs.pm/dala](https://hexdocs.pm/dala), including:
 
-- [Getting Started](https://hexdocs.pm/mob/getting_started.html)
-- [Architecture & Prior Art](https://hexdocs.pm/mob/architecture.html) — comparison to LiveView Native, Elixir Desktop, React Native, Flutter, and native development
-- [Screen Lifecycle](https://hexdocs.pm/mob/screen_lifecycle.html)
-- [Components](https://hexdocs.pm/mob/components.html)
-- [Theming](https://hexdocs.pm/mob/theming.html)
-- [Navigation](https://hexdocs.pm/mob/navigation.html)
-- [Device Capabilities](https://hexdocs.pm/mob/device_capabilities.html)
-- [Testing](https://hexdocs.pm/mob/testing.html)
+- [Getting Started](https://hexdocs.pm/dala/getting_started.html)
+- [Architecture & Prior Art](https://hexdocs.pm/dala/architecture.html) — comparison to LiveView Native, Elixir Desktop, React Native, Flutter, and native development
+- [Screen Lifecycle](https://hexdocs.pm/dala/screen_lifecycle.html)
+- [Components](https://hexdocs.pm/dala/components.html)
+- [Theming](https://hexdocs.pm/dala/theming.html)
+- [Navigation](https://hexdocs.pm/dala/navigation.html)
+- [Device Capabilities](https://hexdocs.pm/dala/device_capabilities.html)
+- [Testing](https://hexdocs.pm/dala/testing.html)
 
 ## License
 

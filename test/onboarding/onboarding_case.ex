@@ -1,4 +1,4 @@
-defmodule Mob.Onboarding.Case do
+defmodule Dala.Onboarding.Case do
   @moduledoc """
   ExUnit case template for onboarding integration tests.
 
@@ -11,10 +11,10 @@ defmodule Mob.Onboarding.Case do
   Usage:
 
       defmodule MyOnboardingTest do
-        use Mob.Onboarding.Case
+        use Dala.Onboarding.Case
 
         test "generates a valid project", %{ws: ws} do
-          result = shell("mix mob.new my_app", ws)
+          result = shell("mix dala.new my_app", ws)
           assert_success result
           assert_file ws, "my_app/mix.exs"
         end
@@ -30,17 +30,17 @@ defmodule Mob.Onboarding.Case do
 
   use ExUnit.CaseTemplate
 
-  alias Mob.Onboarding.Shell
-  alias Mob.Onboarding.Workspace
+  alias Dala.Onboarding.Shell
+  alias Dala.Onboarding.Workspace
 
   using do
     quote do
-      import Mob.Onboarding.Case
+      import Dala.Onboarding.Case
 
-      alias Mob.Onboarding.Shell
-      alias Mob.Onboarding.Workspace
-      alias Mob.Onboarding.DeviceManager
-      alias Mob.Onboarding.FailureInjector
+      alias Dala.Onboarding.Shell
+      alias Dala.Onboarding.Workspace
+      alias Dala.Onboarding.DeviceManager
+      alias Dala.Onboarding.FailureInjector
 
       @moduletag :onboarding
     end
@@ -185,7 +185,7 @@ defmodule Mob.Onboarding.Case do
   end
 
   @doc """
-  Assert that `mix mob.doctor` output contains a passing check for `item`.
+  Assert that `mix dala.doctor` output contains a passing check for `item`.
   Checks for the ✓ prefix.
   """
   def assert_doctor_pass(%Shell{} = r, item) do
@@ -193,7 +193,7 @@ defmodule Mob.Onboarding.Case do
   end
 
   @doc """
-  Assert that `mix mob.doctor` output contains a failing check for `item`.
+  Assert that `mix dala.doctor` output contains a failing check for `item`.
   Checks for the ✗ prefix.
   """
   def assert_doctor_fail(%Shell{} = r, item) do
@@ -201,7 +201,7 @@ defmodule Mob.Onboarding.Case do
   end
 
   @doc """
-  Assert that `mix mob.doctor` output contains a warning for `item`.
+  Assert that `mix dala.doctor` output contains a warning for `item`.
   Checks for the ⚠ prefix.
   """
   def assert_doctor_warn(%Shell{} = r, item) do
@@ -209,26 +209,26 @@ defmodule Mob.Onboarding.Case do
   end
 
   @doc """
-  Write `mob.exs` before running `mix mob.install` so the interactive path
-  configuration prompt is skipped. Points `mob_dir` at the project's own
-  `deps/mob` directory (which is already fetched by `mix mob.new`).
+  Write `dala.exs` before running `mix dala.install` so the interactive path
+  configuration prompt is skipped. Points `dala_dir` at the project's own
+  `deps/dala` directory (which is already fetched by `mix dala.new`).
 
-  Call this after `Workspace.set_project/2` and before `shell_project("mix mob.install", ...)`.
+  Call this after `Workspace.set_project/2` and before `shell_project("mix dala.install", ...)`.
   """
-  def configure_mob_exs(%Workspace{project_dir: nil}),
-    do: raise("call Workspace.set_project/2 before configure_mob_exs/1")
+  def configure_dala_exs(%Workspace{project_dir: nil}),
+    do: raise("call Workspace.set_project/2 before configure_dala_exs/1")
 
-  def configure_mob_exs(%Workspace{project_dir: project_dir} = ws) do
-    mob_dir = Path.join(project_dir, "deps/mob")
-    path = Path.join(project_dir, "mob.exs")
+  def configure_dala_exs(%Workspace{project_dir: project_dir} = ws) do
+    dala_dir = Path.join(project_dir, "deps/dala")
+    path = Path.join(project_dir, "dala.exs")
 
     File.write!(path, """
     import Config
 
-    # Pre-configured for automated onboarding tests. mob_dir points to the
-    # local :mob dep so mix mob.install skips the interactive path prompt.
-    config :mob_dev,
-      mob_dir: #{inspect(mob_dir)}
+    # Pre-configured for automated onboarding tests. dala_dir points to the
+    # local :dala dep so mix dala.install skips the interactive path prompt.
+    config :dala_dev,
+      dala_dir: #{inspect(dala_dir)}
     """)
 
     ws

@@ -89,7 +89,7 @@ On the device, `/tmp` is the app's sandbox — empty on every install. OTP must 
 bundled inside the `.app` and the path resolved at runtime:
 
 ```objc
-#ifdef MOB_BUNDLE_OTP
+#ifdef dala_BUNDLE_OTP
 NSString *bundle_otp = [[[NSBundle mainBundle] bundlePath]
                          stringByAppendingPathComponent:@"otp"];
 const char *otp_root = [bundle_otp UTF8String];
@@ -102,11 +102,11 @@ Bundle the OTP tree at `.app/otp/` using `rsync` during the build:
 OTP_BUNDLE="$APP/otp"
 rsync -a --delete "$OTP_ROOT/lib/"      "$OTP_BUNDLE/lib/"
 rsync -a --delete "$OTP_ROOT/releases/" "$OTP_BUNDLE/releases/"
-rsync -a --delete "$OTP_ROOT/mob_qa/"   "$OTP_BUNDLE/mob_qa/"
+rsync -a --delete "$OTP_ROOT/dala_qa/"   "$OTP_BUNDLE/dala_qa/"
 mkdir -p "$OTP_BUNDLE/$ERTS_VSN/bin"    # BINDIR must exist (even if empty)
 ```
 
-Compile `mob_beam.m` with `-DMOB_BUNDLE_OTP -DERTS_VSN=\"erts-16.1\" -DOTP_RELEASE=\"28\"`.
+Compile `dala_beam.m` with `-Ddala_BUNDLE_OTP -DERTS_VSN=\"erts-16.1\" -DOTP_RELEASE=\"28\"`.
 
 ### 4. Cap the BEAM memory super carrier
 
@@ -116,7 +116,7 @@ the process is killed silently before any Elixir code runs. Add `-MIscs 10` to
 the `erl_start` args to cap it at 10 MB:
 
 ```c
-#ifdef MOB_BUNDLE_OTP
+#ifdef dala_BUNDLE_OTP
 "-MIscs", "10",
 #endif
 ```
@@ -146,8 +146,8 @@ xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=17.0 \
 ```
 
 ```objc
-// mob_beam.m
-#ifdef MOB_BUNDLE_OTP
+// dala_beam.m
+#ifdef dala_BUNDLE_OTP
 extern int epmd_ios_main(int argc, char **argv);
 static void* epmd_thread(void *arg) {
     char *args[] = {"epmd", NULL};
@@ -157,7 +157,7 @@ static void* epmd_thread(void *arg) {
 #endif
 
 // ... before erl_start() ...
-#ifdef MOB_BUNDLE_OTP
+#ifdef dala_BUNDLE_OTP
 pthread_t epmd_t;
 pthread_create(&epmd_t, NULL, epmd_thread, NULL);
 pthread_detach(epmd_t);
@@ -200,8 +200,8 @@ ErtsStaticNif erts_static_nif_tab[] = {
 
 ## Erlang Distribution
 
-The BEAM on a physical device supports full Erlang distribution — `mix mob.connect`,
-`Mob.Test.*`, hot code push, and direct IEx RPC all work the same as on the simulator.
+The BEAM on a physical device supports full Erlang distribution — `mix dala.connect`,
+`Dala.Test.*`, hot code push, and direct IEx RPC all work the same as on the simulator.
 
 The node name is determined at startup by walking the device's network interfaces in
 priority order:
@@ -223,7 +223,7 @@ priority order:
 > WiFi IP. Plugging in USB afterwards does not change it.
 >
 > **USB only (no WiFi):** the node falls back to the link-local address and
-> `mix mob.connect` finds it the same way — no difference in that workflow.
+> `mix dala.connect` finds it the same way — no difference in that workflow.
 
 ### The node name is still fixed at app launch
 
@@ -233,14 +233,14 @@ that WiFi is now chosen over USB at launch time, so the node survives USB
 reconnects without needing a restart.
 
 **If distribution isn't working:** force-quit the app and relaunch it so it picks
-up the current network state. `mix mob.connect` will find it automatically.
+up the current network state. `mix dala.connect` will find it automatically.
 
 ### USB (recommended for development)
 
 Plug in the cable. No configuration needed.
 
 ```bash
-mix mob.connect
+mix dala.connect
 ```
 
 The iPhone presents a USB networking interface on the Mac (typically `en11`) with a
@@ -252,11 +252,11 @@ The iPhone presents a USB networking interface on the Mac (typically `en11`) wit
 Works automatically when Mac and iPhone are on the same network — no cable, no setup.
 
 ```bash
-mix mob.connect
+mix dala.connect
 ```
 
 If it doesn't connect, check: was the app last launched with USB plugged in? If so,
-force-quit and relaunch the app on the iPhone (without USB), then run `mix mob.connect`
+force-quit and relaunch the app on the iPhone (without USB), then run `mix dala.connect`
 again.
 
 **Limitation:** public WiFi (coffee shops, hotels, conferences) and many corporate
@@ -278,7 +278,7 @@ different WiFi, cellular, corporate network. It's free for personal use.
 **Usage:**
 
 ```bash
-mix mob.connect   # works the same — no change to the workflow
+mix dala.connect   # works the same — no change to the workflow
 ```
 
 The BEAM detects the Tailscale interface (`100.x.x.x`) at startup and registers the
@@ -324,9 +324,9 @@ check the exit code and the "App installed" line instead.
 
 ### Bundle ID with underscores rejected
 
-`com.mob.mob_qa` is rejected when creating provisioning profiles (Xcode
-generates an invalid scheme name like `XC com mob mob_qa`). Use only dots and
-alphanumeric characters: `com.mob.mobqa`.
+`com.dala.dala_qa` is rejected when creating provisioning profiles (Xcode
+generates an invalid scheme name like `XC com dala dala_qa`). Use only dots and
+alphanumeric characters: `com.dala.dalaqa`.
 
 ### No crash log after silent crash
 
@@ -447,7 +447,7 @@ On the device, `/tmp` is the app's sandbox temporary directory and is cleared
 on each install. Set `ERL_CRASH_DUMP` to a path inside Documents:
 
 ```c
-snprintf(crash_dump, sizeof(crash_dump), "%s/mob_erl_crash.dump", docs_dir);
+snprintf(crash_dump, sizeof(crash_dump), "%s/dala_erl_crash.dump", docs_dir);
 setenv("ERL_CRASH_DUMP", crash_dump, 1);
 ```
 
@@ -461,9 +461,9 @@ Pull Documents off the device (no Xcode needed):
 xcrun devicectl device copy from \
   --device <DEVICE_UUID> \
   --domain-type appDataContainer \
-  --domain-identifier com.mob.mobqa \
+  --domain-identifier com.dala.dalaqa \
   --source Documents \
-  --destination /tmp/mobqa_docs
+  --destination /tmp/dalaqa_docs
 ```
 
 List files on device without pulling:
@@ -472,7 +472,7 @@ List files on device without pulling:
 xcrun devicectl device info files \
   --device <DEVICE_UUID> \
   --domain-type appDataContainer \
-  --domain-identifier com.mob.mobqa
+  --domain-identifier com.dala.dalaqa
 ```
 
 System crash logs (Jetsam events, signal crashes):

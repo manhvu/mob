@@ -1,10 +1,10 @@
-defmodule Mob.Onboarding.Workspace do
+defmodule Dala.Onboarding.Workspace do
   @moduledoc """
   Creates and manages an isolated temp workspace for a single onboarding test run.
 
   Each workspace gets:
   - A unique directory under /tmp
-  - Its own MIX_HOME, HEX_HOME, and MOB_CACHE_DIR so nothing leaks from the
+  - Its own MIX_HOME, HEX_HOME, and dala_CACHE_DIR so nothing leaks from the
     developer's real environment
   - A logs/ subdirectory where Shell output is persisted per step
   - Automatic cleanup on success; preservation on failure with a printed path
@@ -20,7 +20,7 @@ defmodule Mob.Onboarding.Workspace do
   `Workspace.shell_opts/1`, which injects the correct cd/env overrides.
   """
 
-  defstruct [:id, :root, :project_dir, :mix_home, :hex_home, :mob_cache_dir, :logs_dir]
+  defstruct [:id, :root, :project_dir, :mix_home, :hex_home, :dala_cache_dir, :logs_dir]
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -28,14 +28,14 @@ defmodule Mob.Onboarding.Workspace do
           project_dir: Path.t() | nil,
           mix_home: Path.t(),
           hex_home: Path.t(),
-          mob_cache_dir: Path.t(),
+          dala_cache_dir: Path.t(),
           logs_dir: Path.t()
         }
 
   # Each test run gets its own subdirectory keyed by OS PID. This prevents
   # successive runs from reusing the same workspace paths — leftover directories
   # from a failed run would otherwise cause File.rm_rf!/mkdir_p! conflicts.
-  defp base_dir, do: "/tmp/mob_onboarding/run_#{:os.getpid()}"
+  defp base_dir, do: "/tmp/dala_onboarding/run_#{:os.getpid()}"
 
   @doc "Create a fresh workspace. Raises if the directory already exists."
   @spec create(String.t()) :: t()
@@ -50,14 +50,14 @@ defmodule Mob.Onboarding.Workspace do
       project_dir: nil,
       mix_home: mkdir!(root, "mix_home"),
       hex_home: mkdir!(root, "hex_home"),
-      mob_cache_dir: mkdir!(root, "mob_cache"),
+      dala_cache_dir: mkdir!(root, "dala_cache"),
       logs_dir: mkdir!(root, "logs")
     }
 
     ws
   end
 
-  @doc "Set the project directory once `mix mob.new` has run."
+  @doc "Set the project directory once `mix dala.new` has run."
   def set_project(ws, app_name) do
     %{ws | project_dir: Path.join(ws.root, app_name)}
   end
@@ -90,7 +90,7 @@ defmodule Mob.Onboarding.Workspace do
 
   @doc """
   Shell options to pass to Shell.run/2 for a command that runs in the
-  workspace root (e.g. `mix mob.new`).
+  workspace root (e.g. `mix dala.new`).
   """
   @spec shell_opts(t(), keyword()) :: keyword()
   def shell_opts(%__MODULE__{} = ws, extra_opts \\ []) do
@@ -110,7 +110,7 @@ defmodule Mob.Onboarding.Workspace do
   """
   @spec project_opts(t(), keyword()) :: keyword()
   def project_opts(%__MODULE__{project_dir: nil}, _opts) do
-    raise "project_dir not set — call Workspace.set_project/2 after mix mob.new"
+    raise "project_dir not set — call Workspace.set_project/2 after mix dala.new"
   end
 
   def project_opts(%__MODULE__{} = ws, extra_opts) do
@@ -131,7 +131,7 @@ defmodule Mob.Onboarding.Workspace do
     %{
       "MIX_HOME" => ws.mix_home,
       "HEX_HOME" => ws.hex_home,
-      "MOB_CACHE_DIR" => ws.mob_cache_dir,
+      "dala_CACHE_DIR" => ws.dala_cache_dir,
       # Prevent the running node from trying to connect to anything
       "MIX_ENV" => "dev",
       "RELEASE_DISTRIBUTION" => "none"
@@ -155,7 +155,7 @@ defmodule Mob.Onboarding.Workspace do
     path
   end
 
-  defp format_log(step, %Mob.Onboarding.Shell{} = r) do
+  defp format_log(step, %Dala.Onboarding.Shell{} = r) do
     status = if r.timed_out, do: "TIMEOUT", else: "exit #{r.exit_code}"
 
     """

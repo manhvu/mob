@@ -1,22 +1,22 @@
 # Google Play Store Plan
 
-Working document for the framework work to make `mix mob.republish
+Working document for the framework work to make `mix dala.republish
 --android` produce Play-Store-shippable `.aab` files. Mirrors the
 shape of `app_store_plan.md` (which delivered the iOS path).
 
-**Status (2026-05-02):** Workstreams 1, 2, 2.5 substantially complete. W2 added release signing config to air_cart_max + keystore.properties.example template (user-side `keytool` step pending). W2.5 delivered the Kotlin extractor in MobBridge (+ mob_new template) and `MobDev.OtpAssetBundle` strip+zip helper with 7 tests. Next: W3 (build pipeline that wires OtpAssetBundle into `mix mob.release --android` and produces the signed `.aab`).
+**Status (2026-05-02):** Workstreams 1, 2, 2.5 substantially complete. W2 added release signing config to air_cart_max + keystore.properties.example template (user-side `keytool` step pending). W2.5 delivered the Kotlin extractor in dalaBridge (+ dala_new template) and `dalaDev.OtpAssetBundle` strip+zip helper with 7 tests. Next: W3 (build pipeline that wires OtpAssetBundle into `mix dala.release --android` and produces the signed `.aab`).
 
 ---
 
 ## Goal
 
-`mix mob.republish --android` produces an `.aab` that:
+`mix dala.republish --android` produces an `.aab` that:
 
 1. Builds with the upload keystore signing config
 2. Uploads to Google Play Publishing API v3 cleanly
 3. Lands in the app's Internal testing track (default), available to
    listed internal testers within ~5-15 minutes
-4. Runs identically to a `mix mob.deploy --native --android` build from
+4. Runs identically to a `mix dala.deploy --native --android` build from
    the user's POV
 
 **Per-app overhead must stay at zero** — same command shape, framework
@@ -26,15 +26,15 @@ does the right thing under the hood.
 
 - **Dev mode (default)**: Gradle assembleDebug, USB sideload via adb,
   full test harness, Erlang distribution surface. **Unchanged.** This
-  is what `mix mob.deploy --native --android` produces today.
-- **Release mode (`--android` flag on `mix mob.release` / `publish` /
+  is what `mix dala.deploy --native --android` produces today.
+- **Release mode (`--android` flag on `mix dala.release` / `publish` /
   `republish`)**: Gradle bundleRelease with upload keystore, signed
   `.aab`, uploaded to Play via Publishing API, released to a track.
 
 ## Confirmed decisions (2026-05-02)
 
 1. **Native HTTP for the Play Publishing API**, not `fastlane supply`.
-   Keeps mob_dev's deps minimal (`Req` + `JOSE` for JWT signing —
+   Keeps dala_dev's deps minimal (`Req` + `JOSE` for JWT signing —
    both small, both Hex-grade). No Ruby/Bundler/fastlane runtime
    prereq for users.
 2. **Per-project gitignored upload keystore** at `android/upload.keystore`.
@@ -43,14 +43,14 @@ does the right thing under the hood.
 3. **Internal track is the default** for `publish --android`.
    Analogous to TestFlight Internal. `--track <closed|open|production>`
    for explicit selection.
-4. **`mix mob.release` gains required `--ios|--android` flag.**
-   Breaking change for anyone scripting `mix mob.release` without args.
+4. **`mix dala.release` gains required `--ios|--android` flag.**
+   Breaking change for anyone scripting `mix dala.release` without args.
    Cleaner long-term — makes the platform asymmetry visible everywhere.
    Error message points at the flags.
 
 ## Prior art
 
-- **`mix mob.deploy --native --android`** already builds and installs
+- **`mix dala.deploy --native --android`** already builds and installs
   debug APKs on connected devices. The Gradle pipeline + JNI bridge is
   proven; release mode just needs different signing + bundle output.
 - **iOS path (`app_store_plan.md`)** — same parallel structure for the
@@ -81,8 +81,8 @@ mode is a delta, not a rewrite.
 - [ ] Read current Gradle setup in air_cart_max — what does
       `assembleDebug` produce, where does it live, what's the JNI
       build configuration look like
-- [ ] Trace `mix mob.deploy --native --android` end-to-end —
-      which mob_dev module drives the build, how is the APK pushed,
+- [ ] Trace `mix dala.deploy --native --android` end-to-end —
+      which dala_dev module drives the build, how is the APK pushed,
       how is the BEAM started
 - [ ] Identify what's missing for release: signing config, bundleRelease
       target, ProGuard/R8 considerations for the embedded BEAM
@@ -113,94 +113,94 @@ mode is a delta, not a rewrite.
 
 ### Workstream 2.5 — OTP asset bundling + first-launch extractor (~half day)
 
-**Goal**: Mob's release Android apps can extract their bundled OTP
+**Goal**: Dala's release Android apps can extract their bundled OTP
 runtime on first launch (since they can't `adb push` like dev builds).
 
 Mirrors the elixir-desktop example-app pattern. Adds:
 
 - [x] Strip-from-bundle pass for the OTP tree (same as iOS — drop
       unused libs like megaco, drop standalone executables, etc.)
-      — `MobDev.OtpAssetBundle.build/3` (mob_dev)
+      — `dalaDev.OtpAssetBundle.build/3` (dala_dev)
 - [x] `zip -9r android/app/src/main/assets/otp.zip ...` (excluding
       `.so` files; those go to `jniLibs/`) — same module
 - [ ] Copy `.so` files from OTP into
-      `android/app/src/main/jniLibs/<abi>/` (mob already has this
+      `android/app/src/main/jniLibs/<abi>/` (dala already has this
       mechanism for ERTS helpers like `erl_child_setup`) — deferred
       to W3 build pipeline since it's tied to where build outputs land
-- [x] Kotlin extractor in `MobBridge.kt` (or new `MobOtpExtractor.kt`):
+- [x] Kotlin extractor in `dalaBridge.kt` (or new `dalaOtpExtractor.kt`):
   - [x] On startup, check `<filesDir>/otp/.installed_version`
   - [x] If absent or doesn't match `packageInfo.lastUpdateTime`,
         delete `<filesDir>/otp/` and extract `assets/otp.zip` into it
   - [x] Write `lastUpdateTime` to `.installed_version`
   - [x] Then proceed with the existing BEAM startup (which reads
         `<filesDir>/otp/`)
-- [x] mob_new template gets the extractor too — every fresh app
+- [x] dala_new template gets the extractor too — every fresh app
       ships with the asset-bundling path ready
 
 **Status: W2.5 substantially done.** Only the `.so` → jniLibs copy
 is deferred; that lives more naturally in W3 alongside the bundle
 output path resolution.
 
-### Workstream 3 — Build pipeline (`mix mob.release --android`) (~3 hrs)
+### Workstream 3 — Build pipeline (`mix dala.release --android`) (~3 hrs)
 
-**Goal**: `mix mob.release --android` produces
-`_build/mob_release/<App>.aab` from any Mob app.
+**Goal**: `mix dala.release --android` produces
+`_build/dala_release/<App>.aab` from any Dala app.
 
-- [ ] Refactor `Mix.Tasks.Mob.Release` to require `--ios|--android`
+- [ ] Refactor `Mix.Tasks.Dala.Release` to require `--ios|--android`
       (breaking change; clear error message)
-- [ ] Add `MobDev.Release.Android` module (sibling of the existing
-      iOS-only `MobDev.Release`)
-- [ ] `MobDev.Release.Android.build_aab/1`:
+- [ ] Add `dalaDev.Release.Android` module (sibling of the existing
+      iOS-only `dalaDev.Release`)
+- [ ] `dalaDev.Release.Android.build_aab/1`:
   - [ ] Resolves keystore path + credentials (per-project,
         `android/keystore.properties`)
   - [ ] Runs `./gradlew bundleRelease` with right env
   - [ ] Validates the output `.aab` is signed
-  - [ ] Copies to `_build/mob_release/<App>.aab`
+  - [ ] Copies to `_build/dala_release/<App>.aab`
 - [ ] Verify the produced `.aab` opens in `bundletool` without
       errors (locally — verifies bundle structure before upload)
 - [ ] Tests (string-shape, parallel to `release_script_test.exs`):
       keystore config emitted, bundleRelease invoked, output path
       asserted
 
-### Workstream 4 — Publish (`mix mob.publish --android`) (~3 hrs)
+### Workstream 4 — Publish (`mix dala.publish --android`) (~3 hrs)
 
-**Goal**: `mix mob.publish --android` uploads `.aab` to Play.
+**Goal**: `mix dala.publish --android` uploads `.aab` to Play.
 
-- [ ] Add deps to mob_dev: `req` (HTTP client, ~50 KB), `jose`
+- [ ] Add deps to dala_dev: `req` (HTTP client, ~50 KB), `jose`
       (JWT signing, ~100 KB)
-- [ ] `mob.exs` config block for Play credentials:
+- [ ] `dala.exs` config block for Play credentials:
 
       ```elixir
-      config :mob_dev,
+      config :dala_dev,
         google_play: [
           package_name: "com.beyondagronomy.aircartmax",
-          service_account_json: "~/.mob/google-play/<app>.service-account.json",
+          service_account_json: "~/.dala/google-play/<app>.service-account.json",
           default_track: "internal"
         ]
       ```
 
-- [ ] `MobDev.Play.Auth` — JWT-bearer flow against
+- [ ] `dalaDev.Play.Auth` — JWT-bearer flow against
       `https://oauth2.googleapis.com/token` to get an access token
       from the service account JSON. ~30 lines.
-- [ ] `MobDev.Play.Publish` — Publishing API v3 sequence:
+- [ ] `dalaDev.Play.Publish` — Publishing API v3 sequence:
   1. POST `/edits` → get edit ID
   2. POST `/edits/{editId}/bundles` (multipart, AAB body) → get
      versionCode of uploaded bundle
   3. PUT `/edits/{editId}/tracks/{track}` with the new versionCode
      in the release group
   4. POST `/edits/{editId}:commit` → makes it live on the track
-- [ ] `Mix.Tasks.Mob.Publish` — extend to dispatch `--android` to
+- [ ] `Mix.Tasks.Dala.Publish` — extend to dispatch `--android` to
       the new module (currently raises "not yet implemented")
 - [ ] `--track <name>` flag (`internal`/`closed`/`open`/`production`,
       default `internal`)
 - [ ] Tests for auth (mock the OAuth endpoint) + the API sequence
       shape (mock the Play API)
 
-### Workstream 5 — Republish (`mix mob.republish --android`) (~1 hr)
+### Workstream 5 — Republish (`mix dala.republish --android`) (~1 hr)
 
 **Goal**: same one-shot wrapper as iOS but for Android.
 
-- [ ] Extend `Mix.Tasks.Mob.Republish` — add the `:android` branch
+- [ ] Extend `Mix.Tasks.Dala.Republish` — add the `:android` branch
 - [ ] `bump_android_version_code!/1` — equivalent of
       `bump_ios_build_number!/1` but reads/writes `versionCode` in
       `android/app/build.gradle` (regex-based — gradle is more annoying
@@ -218,12 +218,12 @@ output path resolution.
       working). The old name is a misnomer once Android is in.
 - [ ] Add Part 1B: Android one-time setup (Play Console account,
       keystore generation, Play app record, App Signing setup,
-      service account JSON, `mob.exs` config)
-- [ ] Add Part 2B: per-release flow with `mix mob.republish --android`
+      service account JSON, `dala.exs` config)
+- [ ] Add Part 2B: per-release flow with `mix dala.republish --android`
 - [ ] Add Android-specific troubleshooting entries (Play API errors,
       keystore issues, ProGuard surprises)
-- [ ] Update `mob/guides/publishing.md` brief to mention both stores
-- [ ] Update `mob/future_developments.md`: collapse the Android entry
+- [ ] Update `dala/guides/publishing.md` brief to mention both stores
+- [ ] Update `dala/future_developments.md`: collapse the Android entry
       to "done" pointer
 
 ### Workstream 7 — End-to-end loop (~as long as it takes)
@@ -234,8 +234,8 @@ output path resolution.
 - [ ] Create app in Play Console (`com.beyondagronomy.aircartmax`)
 - [ ] Set up App Signing by Google Play (upload the upload-key cert)
 - [ ] Create Google Cloud service account, give it Play Console access
-- [ ] Configure `mob.exs` with Play credentials block
-- [ ] `mix mob.republish --android` → upload accepted → build appears
+- [ ] Configure `dala.exs` with Play credentials block
+- [ ] `mix dala.republish --android` → upload accepted → build appears
       in Play Console → installable via Play Store on a test device
 - [ ] Verify app boots, themes work, calculator math correct,
       mailto link launches, settings persistence works
@@ -249,7 +249,7 @@ Plan for 3-5 round trips with Play API errors. Each cycle is fast
   symbols it doesn't recognize? Need to either disable R8 for release
   or add `-keep` rules. Will surface in workstream 1 recon.
 - **Bundle / dynamic feature module separation** — Play wants apps
-  modularized for download size. Mob ships everything in one module.
+  modularized for download size. Dala ships everything in one module.
   Should be fine but Play might warn / lower the install conversion
   rate. Optimization for later.
 - **Targeting requirements** — Play raised `targetSdk` requirements
@@ -259,7 +259,7 @@ Plan for 3-5 round trips with Play API errors. Each cycle is fast
   doesn't. Verify our test path stays in internal until we explicitly
   promote.
 - **Multiple ABI splits** — `.aab` lets Play deliver per-ABI APKs,
-  potentially smaller installs. Need to confirm Mob's JNI builds
+  potentially smaller installs. Need to confirm Dala's JNI builds
   cleanly for both arm64-v8a and armeabi-v7a in release mode.
 
 ## Risk register
@@ -267,11 +267,11 @@ Plan for 3-5 round trips with Play API errors. Each cycle is fast
 | Risk | P | Impact | Mitigation |
 |---|---|---|---|
 | R8 strips/breaks Erlang VM symbols | M | release crashes immediately | Add `-keep` rules in proguard config, or disable R8 for release |
-| Service account doesn't have right permissions | H (first time) | API 403 errors | Doc the exact roles needed; clear error mapping in `MobDev.Play.Auth` |
+| Service account doesn't have right permissions | H (first time) | API 403 errors | Doc the exact roles needed; clear error mapping in `dalaDev.Play.Auth` |
 | Multipart upload of large `.aab` is finicky in Req | L | upload fails | Fall back to gen-server-style chunked upload; `req` supports streaming |
 | Play Console rejects upload because bundle isn't formatted right | M | manual investigation per error | bundletool validate locally first |
 | Keystore generation steps differ between Java versions | L | docs go stale | Pin a `keytool` invocation that works across JDK 11/17/21 |
-| User commits keystore by mistake | M | leaks signing key | `.gitignore` template entry + scary warning in docs + `mix mob.republish --android` checks for tracked keystore at start |
+| User commits keystore by mistake | M | leaks signing key | `.gitignore` template entry + scary warning in docs + `mix dala.republish --android` checks for tracked keystore at start |
 
 ## Decisions log
 
@@ -280,13 +280,13 @@ Capture non-obvious calls made *during* the work here, with date + reason.
 - **2026-05-02 — Workstream 1 recon: Android needs an OTP-bundling
   path that doesn't exist yet.** Today's Android dev pipeline pushes
   the OTP runtime tree to `/data/data/<bundle_id>/files/otp/` via
-  `adb push` (in `MobDev.NativeBuild.push_otp_release_android/5`).
+  `adb push` (in `dalaDev.NativeBuild.push_otp_release_android/5`).
   Release mode can't do that — the user installs the `.aab` from
   Play Store via the normal app install flow, no adb. So OTP must
   ship INSIDE the bundle and extract on first launch.
 
-  iOS already has this concept — `MOB_BUNDLE_OTP` flag in
-  `mob/ios/mob_beam.m` causes the iOS app to bundle OTP inside the
+  iOS already has this concept — `dala_BUNDLE_OTP` flag in
+  `dala/ios/dala_beam.m` causes the iOS app to bundle OTP inside the
   `.app` and find it at runtime. There's NO Android equivalent.
 
   This is meaningful new work that wasn't in the original 1-2 day
@@ -296,7 +296,7 @@ Capture non-obvious calls made *during* the work here, with date + reason.
   - **First-launch extractor** in Kotlin/Java (read `assets/otp.zip`
     via `AssetManager`, extract to `filesDir/otp/`, write a version
     marker so we don't re-extract on every launch)
-  - **JNI wiring** so `mob_beam.c` reads from the extracted path
+  - **JNI wiring** so `dala_beam.c` reads from the extracted path
     in release mode (it already reads from `<files_dir>/otp/` so
     minimal change there)
   - **Detection** that the extracted OTP is current (hash check
@@ -310,7 +310,7 @@ Capture non-obvious calls made *during* the work here, with date + reason.
   After identifying the gap, checked `~/code/desktop` (the framework
   itself doesn't have packaging code — that's in their example-app
   on GitHub). Cloned `desktop-example-app` and confirmed the exact
-  approach Mob will use:
+  approach Dala will use:
 
   1. `zip -9r app.zip lib/ releases/ --exclude "*.so"` — Elixir
      release tree zipped, `.so` files excluded (they go in `jniLibs/`)
@@ -321,7 +321,7 @@ Capture non-obvious calls made *during* the work here, with date + reason.
   5. After extraction, `startErlang(releaseDir, logdir)` proceeds
      as today
 
-  Pattern is proven in production. Mob's version will be near-identical
+  Pattern is proven in production. Dala's version will be near-identical
   with minor naming changes (`otp.zip` instead of `app.zip`,
   `<filesDir>/otp/` instead of `<filesDir>/app/`). Revised estimate
   stays at 2-3 days with high confidence (no novel research needed).
@@ -335,6 +335,6 @@ Capture non-obvious calls made *during* the work here, with date + reason.
 - Day 2 PM: workstreams 5 + 6 (republish + docs)
 - Buffer: workstream 7 (real upload, may surface gotchas)
 
-End state: Mob ships to Play Store. air_cart_max is the proof.
+End state: Dala ships to Play Store. air_cart_max is the proof.
 The publishing guide covers both stores and the framework is
 genuinely cross-platform end-to-end.

@@ -1,4 +1,4 @@
-// driver_tab_ios.c — Static NIF table with mob_nif added.
+// driver_tab_ios.c — Static NIF table with dala_nif added.
 // Link BEFORE libbeam.a to override the built-in driver_tab.
 // Mirrors driver_tab_android.c for iOS.
 
@@ -35,14 +35,14 @@ void *prim_socket_nif_init(void);
 void *prim_net_nif_init(void);
 void *asn1rt_nif_nif_init(void);
 
-// mob_nif.m's ERL_NIF_INIT(mob_nif,...) with -DSTATIC_ERLANG_NIF
-// generates function name: mob_nif_nif_init
-void *mob_nif_nif_init(void);
+// dala_nif.m's ERL_NIF_INIT(dala_nif,...) with -DSTATIC_ERLANG_NIF
+// generates function name: dala_nif_nif_init
+void *dala_nif_nif_init(void);
 
-// exqlite sqlite3_nif is linked statically on device (pass -DMOB_STATIC_SQLITE_NIF
+// exqlite sqlite3_nif is linked statically on device (pass -DDALA_STATIC_SQLITE_NIF
 // when compiling this file in device builds). On simulator it loads dynamically
 // as a .so and must NOT appear in the static table.
-#ifdef MOB_STATIC_SQLITE_NIF
+#ifdef DALA_STATIC_SQLITE_NIF
 void *sqlite3_nif_nif_init(void);
 #endif
 
@@ -56,8 +56,8 @@ ErtsStaticNif erts_static_nif_tab[] = {
     {prim_socket_nif_init,  0, THE_NON_VALUE, NULL},
     {prim_net_nif_init,     0, THE_NON_VALUE, NULL},
     {asn1rt_nif_nif_init,   1, THE_NON_VALUE, NULL},
-    {mob_nif_nif_init,      0, THE_NON_VALUE, NULL},
-#ifdef MOB_STATIC_SQLITE_NIF
+    {dala_nif_nif_init,      0, THE_NON_VALUE, NULL},
+#ifdef DALA_STATIC_SQLITE_NIF
     {sqlite3_nif_nif_init,  0, THE_NON_VALUE, NULL},
 #endif
     {NULL,                  0, THE_NON_VALUE, NULL}

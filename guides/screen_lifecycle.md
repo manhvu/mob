@@ -1,14 +1,14 @@
 # Screen Lifecycle
 
-A Mob screen is a GenServer wrapped by `Mob.Screen`. Each screen in the navigation stack is a separate, supervised process. Understanding the lifecycle means understanding when each callback fires and what you can do in it.
+A Dala screen is a GenServer wrapped by `Dala.Screen`. Each screen in the navigation stack is a separate, supervised process. Understanding the lifecycle means understanding when each callback fires and what you can do in it.
 
 ## Callbacks
 
 ### `mount/3`
 
 ```elixir
-@callback mount(params :: map(), session :: map(), socket :: Mob.Socket.t()) ::
-  {:ok, Mob.Socket.t()} | {:error, term()}
+@callback mount(params :: map(), session :: map(), socket :: Dala.Socket.t()) ::
+  {:ok, Dala.Socket.t()} | {:error, term()}
 ```
 
 Called once when the screen process starts. Initialize your assigns here.
@@ -17,12 +17,12 @@ Called once when the screen process starts. Initialize your assigns here.
 
 ```elixir
 # Screen A navigates to Screen B with params:
-Mob.Socket.push_screen(socket, MyApp.DetailScreen, %{id: 42})
+Dala.Socket.push_screen(socket, MyApp.DetailScreen, %{id: 42})
 
 # Screen B receives them in mount:
 def mount(%{id: id}, _session, socket) do
   item = fetch_item(id)
-  {:ok, Mob.Socket.assign(socket, :item, item)}
+  {:ok, Dala.Socket.assign(socket, :item, item)}
 end
 ```
 
@@ -38,11 +38,11 @@ If `mount/3` returns `{:error, reason}`, the GenServer stops with that reason.
 
 Returns the component tree as a plain Elixir map. Called after every callback that returns a modified socket. The renderer serialises the tree, resolves tokens, and calls the NIF — Compose or SwiftUI diffs and updates the display.
 
-The `~MOB` sigil (imported automatically by `use Mob.Screen`) compiles to the same maps at compile time:
+The `~dala` sigil (imported automatically by `use Dala.Screen`) compiles to the same maps at compile time:
 
 ```elixir
 def render(assigns) do
-  ~MOB"""
+  ~dala"""
   <Column padding={:space_md} background={:background}>
     <Text text={assigns.title} text_size={:xl} text_color={:on_background} />
     <Button text="Save" on_tap={{self(), :save}} />
@@ -56,8 +56,8 @@ Keep `render/1` pure. No side effects, no process sends. It may be called more t
 ### `handle_info/2`
 
 ```elixir
-@callback handle_info(message :: term(), socket :: Mob.Socket.t()) ::
-  {:noreply, Mob.Socket.t()}
+@callback handle_info(message :: term(), socket :: Dala.Socket.t()) ::
+  {:noreply, Dala.Socket.t()}
 ```
 
 The primary callback for responding to user interaction and async results. All UI events — taps, text changes, list selections — arrive here as messages sent by the NIF directly to the screen process.
@@ -66,7 +66,7 @@ The primary callback for responding to user interaction and async results. All U
 
 ```elixir
 # In render:
-~MOB(<Button text="Save" on_tap={tap} />) # where tap = {self(), :save}
+~dala(<Button text="Save" on_tap={tap} />) # where tap = {self(), :save}
 
 # In handle_info:
 def handle_info({:tap, :save}, socket) do
@@ -80,11 +80,11 @@ end
 ```elixir
 # In render — pre-compute the handler tuple:
 name_change = {self(), :name_changed}
-~MOB(<TextField value={assigns.name} on_change={name_change} />)
+~dala(<TextField value={assigns.name} on_change={name_change} />)
 
 # In handle_info:
 def handle_info({:change, :name_changed, value}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :name, value)}
+  {:noreply, Dala.Socket.assign(socket, :name, value)}
 end
 ```
 
@@ -92,7 +92,7 @@ end
 
 ```elixir
 def handle_info({:camera, :photo, %{path: path}}, socket) do
-  {:noreply, Mob.Socket.assign(socket, :photo_path, path)}
+  {:noreply, Dala.Socket.assign(socket, :photo_path, path)}
 end
 
 def handle_info({:camera, :cancelled}, socket) do
@@ -104,11 +104,11 @@ Navigation is triggered by returning a modified socket:
 
 ```elixir
 def handle_info({:tap, :open_detail}, socket) do
-  {:noreply, Mob.Socket.push_screen(socket, MyApp.DetailScreen, %{id: socket.assigns.id})}
+  {:noreply, Dala.Socket.push_screen(socket, MyApp.DetailScreen, %{id: socket.assigns.id})}
 end
 ```
 
-The default implementation (from `use Mob.Screen`) is a no-op that returns the socket unchanged. Always add a catch-all clause to handle messages you don't care about:
+The default implementation (from `use Dala.Screen`) is a no-op that returns the socket unchanged. Always add a catch-all clause to handle messages you don't care about:
 
 ```elixir
 def handle_info(_message, socket), do: {:noreply, socket}
@@ -117,29 +117,29 @@ def handle_info(_message, socket), do: {:noreply, socket}
 ### `handle_event/3`
 
 ```elixir
-@callback handle_event(event :: String.t(), params :: map(), socket :: Mob.Socket.t()) ::
-  {:noreply, Mob.Socket.t()} | {:reply, map(), socket :: Mob.Socket.t()}
+@callback handle_event(event :: String.t(), params :: map(), socket :: Dala.Socket.t()) ::
+  {:noreply, Dala.Socket.t()} | {:reply, map(), socket :: Dala.Socket.t()}
 ```
 
-Dispatched programmatically via `Mob.Screen.dispatch/3` — used in tests to send string-keyed events to a screen process. Not called for normal UI interactions (those go through `handle_info/2`).
+Dispatched programmatically via `Dala.Screen.dispatch/3` — used in tests to send string-keyed events to a screen process. Not called for normal UI interactions (those go through `handle_info/2`).
 
 ```elixir
 # In tests:
-Mob.Screen.dispatch(pid, "increment", %{})
-Mob.Screen.dispatch(pid, "tap", %{"tag" => "save"})
+Dala.Screen.dispatch(pid, "increment", %{})
+Dala.Screen.dispatch(pid, "tap", %{"tag" => "save"})
 
 # In the screen:
 def handle_event("increment", _params, socket) do
-  {:noreply, Mob.Socket.assign(socket, :count, socket.assigns.count + 1)}
+  {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
 end
 ```
 
-The default implementation (from `use Mob.Screen`) raises for any unhandled event, so only define clauses for events you explicitly dispatch.
+The default implementation (from `use Dala.Screen`) raises for any unhandled event, so only define clauses for events you explicitly dispatch.
 
 ### `terminate/2`
 
 ```elixir
-@callback terminate(reason :: term(), socket :: Mob.Socket.t()) :: term()
+@callback terminate(reason :: term(), socket :: Dala.Socket.t()) :: term()
 ```
 
 Called when the screen process is about to stop. Use it for cleanup — cancel timers, release resources. The return value is ignored.
@@ -170,18 +170,18 @@ start_root/2 or push_screen/2
 
 ## The socket
 
-All callbacks receive and return a `Mob.Socket.t()`. Think of it as a struct carrying your screen's state:
+All callbacks receive and return a `Dala.Socket.t()`. Think of it as a struct carrying your screen's state:
 
 - `socket.assigns` — your data (`:count`, `:user`, `:items`, etc.)
-- `socket.__mob__` — internal framework state; do not touch directly
+- `socket.__dala__` — internal framework state; do not touch directly
 
-Use `Mob.Socket.assign/2,3` to update assigns. Use the navigation functions (`push_screen`, `pop_screen`, etc.) to queue navigation actions. Both return a new socket; they never mutate in place.
+Use `Dala.Socket.assign/2,3` to update assigns. Use the navigation functions (`push_screen`, `pop_screen`, etc.) to queue navigation actions. Both return a new socket; they never mutate in place.
 
 ```elixir
 socket
-|> Mob.Socket.assign(:loading, false)
-|> Mob.Socket.assign(:items, items)
-|> Mob.Socket.push_screen(MyApp.DetailScreen, %{id: id})
+|> Dala.Socket.assign(:loading, false)
+|> Dala.Socket.assign(:items, items)
+|> Dala.Socket.push_screen(MyApp.DetailScreen, %{id: id})
 ```
 
 ## Safe area
@@ -200,7 +200,7 @@ def render(assigns) do
   sa = assigns.safe_area
   top    = {self(), :top}
   bottom = {self(), :bottom}
-  ~MOB"""
+  ~dala"""
   <Column padding_top={sa.top} padding_bottom={sa.bottom}>
     ...
   </Column>
@@ -210,4 +210,4 @@ end
 
 ## System back
 
-The framework handles the system back gesture (Android hardware back / swipe, iOS edge-pan) automatically. If there is a screen behind the current one in the navigation stack, it pops. If the stack is empty, the app exits. You do not need to handle `{:mob, :back}` unless you want to override this behaviour.
+The framework handles the system back gesture (Android hardware back / swipe, iOS edge-pan) automatically. If there is a screen behind the current one in the navigation stack, it pops. If the stack is empty, the app exits. You do not need to handle `{:dala, :back}` unless you want to override this behaviour.

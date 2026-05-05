@@ -1,6 +1,6 @@
 # iOS ML Support Guide
 
-This guide covers adding machine learning capabilities to Mob apps on iOS using the Nx ecosystem.
+This guide covers adding machine learning capabilities to Dala apps on iOS using the Nx ecosystem.
 
 ## Overview
 
@@ -20,7 +20,7 @@ For iOS development, only these libraries are supported:
 
 ### 1. Add Dependencies
 
-In your Mob app's `mix.exs`:
+In your Dala app's `mix.exs`:
 
 ```elixir
 def deps do
@@ -49,15 +49,15 @@ config :nx, :default_backend, {EMLX.Backend, device: :gpu}
 
 ### 3. Initialize in Your App
 
-In your app's startup (e.g., `Mob.App.start/2`):
+In your app's startup (e.g., `Dala.App.start/2`):
 
 ```elixir
 defmodule MyApp.App do
-  use Mob.App
+  use Dala.App
 
   def start(_type, _args) do
     # Initialize ML backend for iOS
-    Mob.ML.Nx.init_for_ios()
+    Dala.ML.Nx.init_for_ios()
 
     # ... rest of your app startup
   end
@@ -80,11 +80,11 @@ end
 
 ```elixir
 # Check if running on iOS device or simulator
-Mob.ML.EMLX.ios_device?()    # true for real device
-Mob.ML.EMLX.ios_simulator?() # true for simulator
+Dala.ML.EMLX.ios_device?()    # true for real device
+Dala.ML.EMLX.ios_simulator?() # true for simulator
 
 # Get platform-appropriate config
-Mob.ML.EMLX.platform_config()
+Dala.ML.EMLX.platform_config()
 # Returns %{device: :gpu, jit_enabled: false, metal_jit: false} for device
 ```
 
@@ -115,7 +115,7 @@ end
 
 EMLX requires the MLX library. The build process:
 
-1. **For iOS Simulator**: Standard `mix mob.deploy --native` should work.
+1. **For iOS Simulator**: Standard `mix dala.deploy --native` should work.
 
 2. **For iOS Device**: Cross-compile MLX for iOS arm64:
    - Download precompiled MLX iOS binaries from [mlx-build](https://github.com/cocoa-xu/mlx-build)

@@ -124,21 +124,21 @@ jobs:
           sdkmanager "system-images;android-35;google_apis;arm64-v8a"
           sdkmanager "platforms;android-34" "platforms;android-35"
 
-      # ── Install Hex and mob archive ───────────────────────────────────────
+      # ── Install Hex and dala archive ───────────────────────────────────────
       - name: Install Hex
         run: mix local.hex --force
 
-      - name: Cache mob archive
+      - name: Cache dala archive
         uses: actions/cache@v4
         with:
           path: ~/.mix/archives
-          key: mob-archive-${{ hashFiles('mix.exs') }}
+          key: dala-archive-${{ hashFiles('mix.exs') }}
 
       # ── Run tests ─────────────────────────────────────────────────────────
       - name: Run generator + pre-device tests
         run: |
-          mix mob.onboarding_test --only generator --env ${{ matrix.env }}
-          mix mob.onboarding_test --only pre_device --env ${{ matrix.env }}
+          mix dala.onboarding_test --only generator --env ${{ matrix.env }}
+          mix dala.onboarding_test --only pre_device --env ${{ matrix.env }}
         timeout-minutes: 20
         env:
           MIX_ENV: test
@@ -151,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: onboarding-pre-device-run-${{ matrix.run }}
-          path: /tmp/mob_onboarding_*/logs/
+          path: /tmp/dala_onboarding_*/logs/
           retention-days: 7
 
   # ── Full device tests: iOS + Android simulators/emulators ────────────────────
@@ -187,7 +187,7 @@ jobs:
         with:
           version: latest
 
-      - name: Install Hex + mob archive
+      - name: Install Hex + dala archive
         run: mix local.hex --force
 
       - name: Set up Android SDK
@@ -207,12 +207,12 @@ jobs:
         timeout-minutes: 15
 
       - name: Run full onboarding test (ios=${{ matrix.ios }}, android=${{ matrix.android }})
-        run: mix mob.onboarding_test --all --env mise
+        run: mix dala.onboarding_test --all --env mise
         timeout-minutes: 45
         env:
           MIX_ENV: test
-          MOB_TEST_IOS_SLOT: ${{ matrix.ios }}
-          MOB_TEST_ANDROID_SLOT: ${{ matrix.android }}
+          dala_TEST_IOS_SLOT: ${{ matrix.ios }}
+          dala_TEST_ANDROID_SLOT: ${{ matrix.android }}
 
       - name: Upload failure logs and workspace
         if: failure()
@@ -220,8 +220,8 @@ jobs:
         with:
           name: onboarding-device-${{ matrix.run }}
           path: |
-            /tmp/mob_onboarding_*/logs/
-            /tmp/mob_onboarding_*/mob_failure_test/
+            /tmp/dala_onboarding_*/logs/
+            /tmp/dala_onboarding_*/dala_failure_test/
           retention-days: 7
 
   # ── Summary ───────────────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ for target in "${TARGETS[@]}"; do
     cd "$RUST_DIR"
     cargo build --target "$target" --release
 
-    echo "Built: $RUST_DIR/target/$target/release/libmob_beam.so"
+    echo "Built: $RUST_DIR/target/$target/release/libdala_beam.so"
 done
 
 echo "Android build complete!"

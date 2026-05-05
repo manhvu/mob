@@ -1,29 +1,29 @@
-# Rustler in Mob - Guide for Developers
+# Rustler in Dala - Guide for Developers
 
 ## Overview
 
-Mob uses [Rustler](https://github.com/ruster/rustler) to create NIFs (Native Implemented Functions) that bridge Elixir with native code written in Rust. This guide explains how to extend Mob with your own Rust code.
+Dala uses [Rustler](https://github.com/ruster/rustler) to create NIFs (Native Implemented Functions) that bridge Elixir with native code written in Rust. This guide explains how to extend Dala with your own Rust code.
 
-## When to Use Rustler in Mob
+## When to Use Rustler in Dala
 
 Use Rustler when you need to:
 - Call platform-specific native APIs (iOS/Android) from Elixir
 - Perform CPU-intensive operations that benefit from Rust's performance
-- Integrate existing Rust libraries into your Mob app
-- Create custom native components that aren't covered by Mob's built-in NIF
+- Integrate existing Rust libraries into your Dala app
+- Create custom native components that aren't covered by Dala's built-in NIF
 
 ## Project Structure
 
-Mob's Rust code lives in:
-- `mob/native/mob_nif/` - Main NIF library (Rustler-based)
-- `mob/ios/rust/` - iOS-specific Rust code
-- `mob/android/jni/rust/` - Android-specific Rust code
+Dala's Rust code lives in:
+- `dala/native/dala_nif/` - Main NIF library (Rustler-based)
+- `dala/ios/rust/` - iOS-specific Rust code
+- `dala/android/jni/rust/` - Android-specific Rust code
 
 ## Creating a New NIF Function
 
 ### 1. Add the Rust function
 
-Edit `mob/native/mob_nif/src/lib.rs`:
+Edit `dala/native/dala_nif/src/lib.rs`:
 
 ```rust
 use rustler::{Env, NifResult, Term};
@@ -42,7 +42,7 @@ fn my_custom_function<'a>(env: Env<'a>, input: Term<'a>) -> NifResult<Term<'a>> 
 
 // Register the function in the rustler::init! macro at the bottom of the file:
 rustler::init!(
-    "Elixir.Mob.Native",
+    "Elixir.Dala.Native",
     [
         // ... existing functions ...
         my_custom_function,
@@ -52,10 +52,10 @@ rustler::init!(
 
 ### 2. Add the Elixir wrapper
 
-Edit `mob/lib/mob/native.ex`:
+Edit `dala/lib/dala/native.ex`:
 
 ```elixir
-defmodule Mob.Native do
+defmodule Dala.Native do
   # ... existing functions ...
   
   @doc "My custom function"
@@ -67,14 +67,14 @@ end
 
 **iOS:**
 ```bash
-cd mob/ios/rust
+cd dala/ios/rust
 cargo build --release --target aarch64-apple-ios
 cargo build --release --target x86_64-apple-ios  # for simulator
 ```
 
 **Android:**
 ```bash
-cd mob/android/jni/rust
+cd dala/android/jni/rust
 cargo build --release --target aarch64-linux-android
 cargo build --release --target armv7-linux-androideabi
 ```
@@ -112,7 +112,7 @@ pub fn get_platform_info() -> String {
 
 ## Calling Objective-C/Swift from Rust (iOS)
 
-Mob uses FFI (Foreign Function Interface) to call into iOS frameworks:
+Dala uses FFI (Foreign Function Interface) to call into iOS frameworks:
 
 ```rust
 use objc::runtime::{Class, Object};
@@ -137,7 +137,7 @@ use jni::objects::{JClass, JString};
 use jni::JNIEnv;
 
 pub fn android_specific_task(env: &mut JNIEnv) {
-    let class = env.find_class("com/example/mob/MobBridge").unwrap();
+    let class = env.find_class("com/example/dala/dalaBridge").unwrap();
     let method = env.get_static_method_id(class, "someMethod", "()V").unwrap();
     // Call the method...
 }
@@ -161,11 +161,11 @@ pub fn android_specific_task(env: &mut JNIEnv) {
 2. **Integration tests from Elixir:**
    ```elixir
    test "my custom function works" do
-     assert {:ok, result} = Mob.Native.my_custom_function("test")
+     assert {:ok, result} = Dala.Native.my_custom_function("test")
    end
    ```
 
-## Common Patterns in Mob
+## Common Patterns in Dala
 
 ### Message Delivery from Native to Elixir
 
@@ -187,7 +187,7 @@ pub extern "C" fn deliver_to_elixir(json_utf8: *const std::ffi::c_char) {
 
 ### Caching Environment for Callbacks
 
-Mob caches the Erlang environment for use by ObjC callbacks:
+Dala caches the Erlang environment for use by ObjC callbacks:
 
 ```rust
 lazy_static::lazy_static! {
@@ -208,16 +208,16 @@ fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
 1. **Use logging:**
    - Rust: `eprintln!("Debug: {}", value);` (shows in logcat on Android, stderr on iOS)
    - iOS: Use `NSLog` via FFI
-   - Elixir: Use `:mob_nif.log/1` for early startup, `Logger` after `Mob.App.start`
+   - Elixir: Use `:dala_nif.log/1` for early startup, `Logger` after `Dala.App.start`
 
 2. **Check NIF loading:**
    ```elixir
-   :code.is_loaded(Mob.Native)
+   :code.is_loaded(Dala.Native)
    ```
 
 3. **Test NIF functions directly:**
    ```elixir
-   :mob_nif.my_custom_function("test")
+   :dala_nif.my_custom_function("test")
    ```
 
 ## Best Practices
@@ -228,12 +228,12 @@ fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
 4. **Documentation:** Document your NIF functions in both Rust and Elixir
 5. **Testing:** Write tests for both Rust and Elixir sides
 
-## Examples from Mob's Codebase
+## Examples from Dala's Codebase
 
-- `mob/native/mob_nif/src/lib.rs` - Main NIF entry point
-- `mob/native/mob_nif/src/ios.rs` - iOS-specific implementations
-- `mob/native/mob_nif/src/android.rs` - Android-specific implementations
-- `mob/native/mob_nif/src/common.rs` - Shared code and platform dispatch
+- `dala/native/dala_nif/src/lib.rs` - Main NIF entry point
+- `dala/native/dala_nif/src/ios.rs` - iOS-specific implementations
+- `dala/native/dala_nif/src/android.rs` - Android-specific implementations
+- `dala/native/dala_nif/src/common.rs` - Shared code and platform dispatch
 
 ## Further Reading
 

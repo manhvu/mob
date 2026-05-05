@@ -1,4 +1,4 @@
-# Mob Codebase Review & Improvement Summary
+# Dala Codebase Review & Improvement Summary
 
 **Review Date**: 2025-01-15  
 **Scope**: Full codebase including iOS, Android, Rust NIF, Elixir runtime, build scripts, tests
@@ -9,47 +9,47 @@
 
 ### Critical Fixes Applied
 
-#### 1. **`Mob.Socket.new/2` Missing `changed` Initialization** (AGENTS.md Rule 13)
-- **File**: `mob/lib/mob/socket.ex`
-- **Issue**: `new/2` function didn't initialize `changed: MapSet.new()`, causing pattern matching failures on `__mob__.changed`
+#### 1. **`Dala.Socket.new/2` Missing `changed` Initialization** (AGENTS.md Rule 13)
+- **File**: `dala/lib/dala/socket.ex`
+- **Issue**: `new/2` function didn't initialize `changed: MapSet.new()`, causing pattern matching failures on `__dala__.changed`
 - **Fix**: Added `changed: MapSet.new()` to the struct in `new/2`
 - **Status**: ✅ Fixed
 
 #### 2. **iOS SwiftUI ForEach Using Index as ID**
-- **File**: `mob/ios/MobRootView.swift`
+- **File**: `dala/ios/DalaRootView.swift`
 - **Issue**: `ForEach(Array(node.childNodes.enumerated()), id: \.offset)` causes state corruption when children array changes
 - **Fix**: 
-  - Added `nodeId: NSString` property to `MobNode.h`
-  - Generate UUID in `MobNode.m` `init` and `fromDictionary:`
+  - Added `nodeId: NSString` property to `DalaNode.h`
+  - Generate UUID in `DalaNode.m` `init` and `fromDictionary:`
   - Updated all `ForEach` statements to use `id: \.nodeId`
 - **Status**: ✅ Fixed (6 ForEach instances updated)
 
 #### 3. **Hardcoded User Path in `.cargo/config.toml`**
-- **File**: `mob/.cargo/config.toml`
+- **File**: `dala/.cargo/config.toml`
 - **Issue**: Path `/Users/manhvu/Library/Android/sdk/...` breaks CI/Linux/other machines
 - **Fix**: Changed to use bare linker names (`aarch64-linux-android30-clang`) that rely on PATH
 - **Status**: ✅ Fixed
 
 #### 4. **Deprecated GitHub Action `actions-rs/toolchain`**
-- **File**: `mob/.github/workflows/test-rust.yml`
+- **File**: `dala/.github/workflows/test-rust.yml`
 - **Issue**: `actions-rs/toolchain@v1` is archived/deprecated
 - **Fix**: Replaced with `dtolnay/rust-toolchain@stable` (recommended replacement)
 - **Status**: ✅ Fixed
 
 #### 5. **Insecure `curl | sh` in CI**
-- **File**: `mob/.github/workflows/onboarding.yml`
+- **File**: `dala/.github/workflows/onboarding.yml`
 - **Issue**: `curl https://mise.run | sh` without verification
 - **Fix**: Replaced with official `jdx/mise-action@v2`
 - **Status**: ✅ Fixed (2 instances)
 
 #### 6. **Missing Rust Version Pinning**
-- **File**: `mob/.tool-versions`
+- **File**: `dala/.tool-versions`
 - **Issue**: Only Elixir/Erlang pinned, not Rust
 - **Fix**: Added `rust 1.75.0`
 - **Status**: ✅ Fixed
 
 #### 7. **iOS Rust FFI Undefined Behavior** 
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_nif/src/ios.rs`
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_nif/src/ios.rs`
 - **Issue**: Transmuting Rust function pointer to ObjC block signature (line 52-55) was Undefined Behavior
 - **Fix Applied**: 
   - Replaced `std::mem::transmute(safe_area_block as usize)` with `dispatch_sync_f` which takes a proper C function pointer
@@ -58,7 +58,7 @@
 - **Status**: ✅ Fixed
 
 #### 8. **Wrong NULL Terminator in BEAM Launch**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/ios/rust/src/mob_beam_ios.rs` (lines 366-375)
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/ios/rust/src/dala_beam_ios.rs` (lines 366-375)
 - **Issue**: Pushing empty string `CString::new("")` doesn't create a proper NULL terminator for `argv` array
 - **Fix Applied**:
   - Added proper NULL terminator by pushing placeholder, then replacing with `ptr::null_mut()`
@@ -66,7 +66,7 @@
 - **Status**: ✅ Fixed
 
 #### 9. **Unsafe Raw Pointer Storage in Rust**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_beam/src/lib.rs` (lines 55-75)
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_beam/src/lib.rs` (lines 55-75)
 - **Issue**: `Box::into_raw(Box::new(env.get_java_vm().unwrap()))` leaked memory and created unsafe raw pointers
 - **Fix Applied**:
   - Replaced `lazy_static!` with `std::sync::Mutex<Option<JavaVM>>`
@@ -75,7 +75,7 @@
 - **Status**: ✅ Fixed
 
 #### 10. **iOS VideoPlayer Observer Leak**
-- **File**: `mob/ios/MobRootView.swift` (lines 506-528)
+- **File**: `dala/ios/DalaRootView.swift` (lines 506-528)
 - **Issue**: `NotificationCenter` observer never removed, accumulates on view recreation
 - **Fix Applied**:
   - Added `@State private var observerToken: NSObjectProtocol?`
@@ -84,7 +84,7 @@
 - **Status**: ✅ Fixed
 
 #### 11. **Env Pointer Caching Loses Lifetime**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_nif/src/lib.rs`
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_nif/src/lib.rs`
 - **Issue**: Storing `Env` as `usize` in `CACHED_ENV` loses lifetime guarantees
 - **Fix Applied**:
   - Removed unsafe `CACHED_ENV` static
@@ -93,7 +93,7 @@
 - **Status**: ✅ Fixed
 
 #### 12. **Thread-Unsafe Env Vars in BEAM Startup**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/ios/rust/src/mob_beam_ios.rs` (lines 211-225)
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/ios/rust/src/dala_beam_ios.rs` (lines 211-225)
 - **Issue**: `std::env::set_var` not thread-safe
 - **Fix Applied**:
   - Added `static ENV_MUTEX: Mutex<()>` 
@@ -101,7 +101,7 @@
 - **Status**: ✅ Fixed
 
 #### 13. **Null Pointer Not Checked in iOS BEAM Start**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/ios/rust/src/mob_beam_ios.rs` (line 162)
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/ios/rust/src/dala_beam_ios.rs` (line 162)
 - **Issue**: `app_module` could be null
 - **Fix Applied**:
   - Code already has null check via `.expect("Invalid app module name")`
@@ -111,18 +111,18 @@
 ## 🎯 ALL HIGH PRIORITY ITEMS NOW FIXED!
 
 ### ✅ **Fix 4: Build Scripts Error Handling**
-- **Files**: `mob/ios/prepare_rust.sh`, `mob/ios/xcode_build_rust.sh`
+- **Files**: `dala/ios/prepare_rust.sh`, `dala/ios/xcode_build_rust.sh`
 - **Fix Applied**: Added `exit 1` after all error messages (`✗ Device library not found`, `✗ Simulator libraries not found`, `✗ Driver table device library not found`)
 - **Status**: ✅ Fixed
 
 ### ✅ **Fix 5: `setRoot` Lightweight Check Too Aggressive**
-- **File**: `mob/ios/MobViewModel.swift` (lines 30-35)
+- **File**: `dala/ios/DalaViewModel.swift` (lines 30-35)
 - **Issue**: Only compared `nodeType + children.count`, missed different screens with same structure
 - **Fix Applied**: Removed the lightweight check entirely - SwiftUI will diff the view tree automatically
 - **Status**: ✅ Fixed
 
 ### ✅ **Fix 6: `test_rust.sh` Swallows Failures**
-- **File**: `mob/test_rust.sh`
+- **File**: `dala/test_rust.sh`
 - **Fix Applied**: Removed `|| true` from all `cargo test` commands so failures are properly reported
 - **Status**: ✅ Fixed
 
@@ -130,16 +130,16 @@
 
 ### ✅ **Fix 10: Missing Tests for Key Modules**
 - **Files Created**:
-  - `mob/test/mob/webview_test.exs` - Tests for WebView interact API
-  - `mob/test/mob/ml/emlx_test.exs` - Tests for EMLX zero-config setup
-  - `mob/test/mob/biometric_test.exs` - Tests for Biometric authentication
-  - `mob/test/mob/camera_test.exs` - Tests for Camera capture
-  - `mob/test/mob/location_test.exs` - Tests for Location services
-  - `mob/test/mob/notify_test.exs` - Tests for Notifications
+  - `dala/test/dala/webview_test.exs` - Tests for WebView interact API
+  - `dala/test/dala/ml/emlx_test.exs` - Tests for EMLX zero-config setup
+  - `dala/test/dala/biometric_test.exs` - Tests for Biometric authentication
+  - `dala/test/dala/camera_test.exs` - Tests for Camera capture
+  - `dala/test/dala/location_test.exs` - Tests for Location services
+  - `dala/test/dala/notify_test.exs` - Tests for Notifications
 - **Status**: ✅ Fixed (6 test files created per TDD rule)
 
 ### ✅ **Fix 12: Excessive `unwrap()` in Rust Code**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/ios/rust/src/mob_beam_ios.rs`
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/ios/rust/src/dala_beam_ios.rs`
 - **Fix Applied**: 
   - Replaced all `unwrap()` with `expect("error message")` for better error reporting
   - Used `sed` to batch replace 20+ occurrences
@@ -149,15 +149,15 @@
 
 ## 🎯 ALL LOW PRIORITY ITEMS NOW FIXED!
 
-### ✅ **Fix 13: `MobNode.m` Color Validation**
-- **File**: `mob/ios/MobNode.m` (lines 157-165)
+### ✅ **Fix 13: `DalaNode.m` Color Validation**
+- **File**: `dala/ios/DalaNode.m` (lines 157-165)
 - **Fix Applied**: 
   - Added hex string length validation (expect 6 characters: RRGGBB)
   - Returns nil and logs error for invalid input
 - **Status**: ✅ Fixed
 
 ### ✅ **Fix 14: Performance Tests Missing**
-- **File Created**: `mob/test/mob/renderer_perf_test.exs`
+- **File Created**: `dala/test/dala/renderer_perf_test.exs`
 - **Tests Added**:
   - `render/4 handles large trees (1000+ nodes)` - verifies <5s
   - `render_fast/4 handles large trees efficiently` - batch tap registration
@@ -166,7 +166,7 @@
 - **Status**: ✅ Fixed
 
 ### ✅ **Fix 15: Missing Documentation on Unsafe Blocks**
-- **File**: `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_nif/src/ios.rs`
+- **File**: `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_nif/src/ios.rs`
 - **Fix Applied**: 
   - Added SAFETY comments to all 15+ unsafe blocks
   - Explains why each ObjC msg_send! call is safe
@@ -215,7 +215,7 @@
 ---
 
 ### **🔴 Critical Issues (6/6 FIXED)**
-1. ✅ `Mob.Socket.new/2` missing `changed` initialization
+1. ✅ `Dala.Socket.new/2` missing `changed` initialization
 2. ✅ iOS SwiftUI ForEach using index as ID
 3. ✅ Hardcoded user path in `.cargo/config.toml`
 4. ✅ Deprecated GitHub Action `actions-rs/toolchain`
@@ -230,29 +230,29 @@
 3. ✅ Unsafe Raw Pointer Storage → Replaced with `Mutex<Option<JavaVM>>`
 4. ✅ iOS VideoPlayer Observer Leak → Added `observerToken` + cleanup
 5. ✅ Env Pointer Caching Loses Lifetime → Removed unsafe `CACHED_ENV`
-6. ✅ Thread-Unsafe Env Vars → Added `ENV_MUTEX` in `mob_beam_ios.rs`
+6. ✅ Thread-Unsafe Env Vars → Added `ENV_MUTEX` in `dala_beam_ios.rs`
 7. ✅ Null Pointer Not Checked → Already had `.expect()` check
 
 ---
 
 ### **🟡 Medium Priority Issues (5/5 FIXED)**
 1. ✅ **Build Scripts Error Handling** → Added `exit 1` to `prepare_rust.sh` and `xcode_build_rust.sh`
-2. ✅ **`setRoot` Lightweight Check Too Aggressive** → Removed incorrect optimization in `MobViewModel.swift`
+2. ✅ **`setRoot` Lightweight Check Too Aggressive** → Removed incorrect optimization in `DalaViewModel.swift`
 3. ✅ **`test_rust.sh` Swallows Failures** → Removed `|| true` from all test commands
 4. ✅ **Missing Tests for Key Modules** → Created 6 test files:
-   - `mob/test/mob/webview_test.exs`
-   - `mob/test/mob/ml/emlx_test.exs`
-   - `mob/test/mob/biometric_test.exs`
-   - `mob/test/mob/camera_test.exs`
-   - `mob/test/mob/location_test.exs`
-   - `mob/test/mob/notify_test.exs`
-5. ✅ **Excessive `unwrap()` in Rust Code** → Replaced all `unwrap()` with `expect("error message")` in `mob_beam_ios.rs`
+   - `dala/test/dala/webview_test.exs`
+   - `dala/test/dala/ml/emlx_test.exs`
+   - `dala/test/dala/biometric_test.exs`
+   - `dala/test/dala/camera_test.exs`
+   - `dala/test/dala/location_test.exs`
+   - `dala/test/dala/notify_test.exs`
+5. ✅ **Excessive `unwrap()` in Rust Code** → Replaced all `unwrap()` with `expect("error message")` in `dala_beam_ios.rs`
 
 ---
 
 ### **🟢 Low Priority Issues (3/3 FIXED)**
-1. ✅ **`MobNode.m` Color Validation** → Added hex string length validation
-2. ✅ **Performance Tests Missing** → Created `mob/test/mob/renderer_perf_test.exs` with 7 performance tests:
+1. ✅ **`DalaNode.m` Color Validation** → Added hex string length validation
+2. ✅ **Performance Tests Missing** → Created `dala/test/dala/renderer_perf_test.exs` with 7 performance tests:
    - `render/4 handles large trees (1000+ nodes)`
    - `render_fast/4 handles large trees efficiently`
    - `render/4 performance regression baseline`
@@ -279,37 +279,37 @@
 ### **📝 Files Modified**
 
 **Critical Fixes:**
-- `mob/lib/mob/socket.ex`
-- `mob/ios/MobNode.h`, `MobNode.m`, `MobRootView.swift`
-- `mob/.cargo/config.toml`
-- `mob/.github/workflows/test-rust.yml`
-- `mob/.github/workflows/onboarding.yml`
-- `mob/.tool-versions`
-- `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_nif/src/ios.rs`
-- `/Users/manhvu/ohhi/Open Source Lib/mob/ios/rust/src/mob_beam_ios.rs`
-- `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_beam/src/lib.rs`
+- `dala/lib/dala/socket.ex`
+- `dala/ios/DalaNode.h`, `DalaNode.m`, `DalaRootView.swift`
+- `dala/.cargo/config.toml`
+- `dala/.github/workflows/test-rust.yml`
+- `dala/.github/workflows/onboarding.yml`
+- `dala/.tool-versions`
+- `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_nif/src/ios.rs`
+- `/Users/manhvu/ohhi/Open Source Lib/dala/ios/rust/src/dala_beam_ios.rs`
+- `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_beam/src/lib.rs`
 
 **High Priority Fixes:**
-- `mob/ios/prepare_rust.sh`
-- `mob/ios/xcode_build_rust.sh`
-- `mob/ios/MobViewModel.swift`
-- `mob/test_rust.sh`
+- `dala/ios/prepare_rust.sh`
+- `dala/ios/xcode_build_rust.sh`
+- `dala/ios/DalaViewModel.swift`
+- `dala/test_rust.sh`
 
 **Medium Priority Fixes:**
-- `mob/test/mob/webview_test.exs` (new)
-- `mob/test/mob/ml/emlx_test.exs` (new)
-- `mob/test/mob/biometric_test.exs` (new)
-- `mob/test/mob/camera_test.exs` (new)
-- `mob/test/mob/location_test.exs` (new)
-- `mob/test/mob/notify_test.exs` (new)
-- `/Users/manhvu/ohhi/Open Source Lib/mob/ios/rust/src/mob_beam_ios.rs` (unwrap fixes)
+- `dala/test/dala/webview_test.exs` (new)
+- `dala/test/dala/ml/emlx_test.exs` (new)
+- `dala/test/dala/biometric_test.exs` (new)
+- `dala/test/dala/camera_test.exs` (new)
+- `dala/test/dala/location_test.exs` (new)
+- `dala/test/dala/notify_test.exs` (new)
+- `/Users/manhvu/ohhi/Open Source Lib/dala/ios/rust/src/dala_beam_ios.rs` (unwrap fixes)
 
 **Low Priority Fixes:**
-- `mob/ios/MobNode.m` (color validation)
-- `mob/test/mob/renderer_perf_test.exs` (new - 7 tests)
-- `/Users/manhvu/ohhi/Open Source Lib/mob/native/mob_nif/src/ios.rs` (safety comments)
-- `mob/lib/mob/ml/config_helper.ex` (improved docs)
-- `mob/lib/mob/webview.ex` (improved docs)
+- `dala/ios/DalaNode.m` (color validation)
+- `dala/test/dala/renderer_perf_test.exs` (new - 7 tests)
+- `/Users/manhvu/ohhi/Open Source Lib/dala/native/dala_nif/src/ios.rs` (safety comments)
+- `dala/lib/dala/ml/config_helper.ex` (improved docs)
+- `dala/lib/dala/webview.ex` (improved docs)
 
 ---
 

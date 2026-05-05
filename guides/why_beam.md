@@ -2,7 +2,7 @@
 
 ## Your app is a distributed system whether you like it or not
 
-A mobile app talks to a server, handles push notifications while in the
+A dalaile app talks to a server, handles push notifications while in the
 background, manages local state, streams data, processes user input — all
 concurrently, all the time. Most frameworks pretend this isn't true and make you
 assemble it from callbacks, promises, state machines, and background workers.
@@ -27,23 +27,23 @@ things crash and write recovery logic once, at the top of the tree.
 
 **Hot code loading.** Push new BEAM files to a running app and the code changes
 in place — no restart, no lost state, no user impact. This works in development
-(see `mix mob.deploy`) and it works in production via OTA update. No App Store
+(see `mix dala.deploy`) and it works in production via OTA update. No App Store
 review required for Elixir changes.
 
 **Distribution is a first-class primitive.** This is the one that changes what
 apps are possible.
 
-## Mob.Cluster: phones as nodes
+## Dala.Cluster: phones as nodes
 
 In the BEAM, every running instance is a *node*. Nodes connect to each other
 over Erlang distribution and immediately share the full OTP primitive set:
 remote procedure calls, message passing to a pid on another machine, distributed
 process registries, global GenServers.
 
-Two Mob apps that share a cookie become a cluster:
+Two Dala apps that share a cookie become a cluster:
 
 ```elixir
-Mob.Cluster.join(:"their_app@192.168.1.42", cookie: :session_token)
+Dala.Cluster.join(:"their_app@192.168.1.42", cookie: :session_token)
 
 # Now this works, across devices, over WiFi, with no server:
 :rpc.call(:"their_app@192.168.1.42", TheirApp.GameServer, :move, [:left])
@@ -55,7 +55,7 @@ distribution — the same thing that has been running telecoms switches, trading
 systems, and WhatsApp's backend (two million connections per server, in 2012,
 on hardware that would embarrass a modern phone) for decades.
 
-The implications for mobile:
+The implications for dalaile:
 
 - **Multiplayer without a server.** Two phones, local network, no backend. Real
   state synchronisation, not eventual consistency hacks.
@@ -83,7 +83,7 @@ platform workaround.
 
 ## Battery consumption
 
-The BEAM has a reputation for being hard on mobile batteries. The numbers below
+The BEAM has a reputation for being hard on dalaile batteries. The numbers below
 are measured on real hardware. All runs use the same conditions within each
 mode so the results are directly comparable.
 
@@ -104,8 +104,8 @@ tuning, which is what gives the BEAM its battery reputation.
 ### iOS (physical iPhone, screen off, background)
 
 Measured on a physical iPhone with the screen off the entire run, BEAM kept
-alive via Mob's iOS background-audio keep-alive. Battery read every ~10 s via
-`mob_nif:battery_level/0`; precise final reading via `ideviceinfo` (USB
+alive via Dala's iOS background-audio keep-alive. Battery read every ~10 s via
+`dala_nif:battery_level/0`; precise final reading via `ideviceinfo` (USB
 connected briefly at end). All probe samples succeeded with the BEAM in
 `alive_rpc` state for 100% of the runtime, zero reconnects.
 
@@ -131,7 +131,7 @@ while the screen is off.
 ### Android (screen off, background)
 
 Measured on two Motorola phones with the screen off the entire run, BEAM kept
-alive via Mob's Android foreground service. Battery read every ~10 s by
+alive via Dala's Android foreground service. Battery read every ~10 s by
 `adb shell dumpsys battery` (1% resolution + raw mAh).
 
 | Device | ABI | Start | End | Drain | Rate |
@@ -150,7 +150,7 @@ from the underlying current draw — both runs measured the *same* 29 mAh.
 
 The two Moto G runs are wider apart — 74 mAh on the first, 0 mAh on the
 second — but both consistent with the broader claim. Run 1 (74 mAh / 30 min)
-landed during a session with several mob_dev fixes still in flight (stale
+landed during a session with several dala_dev fixes still in flight (stale
 EPMD entries, mismatched node-suffixes between deploy and bench, possibly
 extra background activity). Run 2 was a clean run after the per-device
 suffix and dirty-NIF work landed: 180/180 probe samples in `alive_rpc`
@@ -169,14 +169,14 @@ The Moto E runs are also the first end-to-end validation of `armeabi-v7a`
 on real hardware: the BEAM completes startup, runs continuously through
 screen-off for half an hour, and remains reachable over Erlang distribution.
 
-**Methodology:** `mix mob.battery_bench_ios` builds and installs the app, connects to
-the device BEAM over WiFi, reads battery every 10 seconds via `mob_nif:battery_level/0`,
+**Methodology:** `mix dala.battery_bench_ios` builds and installs the app, connects to
+the device BEAM over WiFi, reads battery every 10 seconds via `dala_nif:battery_level/0`,
 and reports drain and rate. The 30-minute duration is the default; longer runs give
 better rate estimates. Battery is read via `ideviceinfo` at start and end (USB
 connected briefly for reads only) for 1% precision. The screen-on row was measured
 at minimum brightness with the screen forced on; the screen-off row uses
-`Mob.Background` audio keep-alive so the BEAM keeps running after the device
-locks. Android uses `mix mob.battery_bench_android` with `adb shell dumpsys
+`Dala.Background` audio keep-alive so the BEAM keeps running after the device
+locks. Android uses `mix dala.battery_bench_android` with `adb shell dumpsys
 battery` for per-second mAh readings.
 
 **Resolution note:** `UIDevice.batteryLevel` reports in 5% increments on real
@@ -192,8 +192,8 @@ animation library, a specific native SDK wrapper — require more work. But the 
 are impossible on React Native are possible now.
 
 What you are buying is a runtime that was engineered for exactly the problem
-mobile apps have: high concurrency, fault tolerance, live updates, distributed
-state. You are not adapting a web runtime or a game engine to the mobile
+dalaile apps have: high concurrency, fault tolerance, live updates, distributed
+state. You are not adapting a web runtime or a game engine to the dalaile
 problem. You are using a tool that was built for it, forty years before the
 iPhone existed.
 

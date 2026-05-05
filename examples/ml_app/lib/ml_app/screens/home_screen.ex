@@ -7,14 +7,14 @@ defmodule MLApp.HomeScreen do
   - Simulated YOLO object detection
   - Camera integration ready
   """
-  use Mob.Screen
+  use Dala.Screen
 
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> Mob.Socket.assign(:detections, [])
-      |> Mob.Socket.assign(:is_detecting, false)
-      |> Mob.Socket.assign(:backend, detect_backend())
+      |> Dala.Socket.assign(:detections, [])
+      |> Dala.Socket.assign(:is_detecting, false)
+      |> Dala.Socket.assign(:backend, detect_backend())
 
     {:ok, socket}
   end
@@ -57,22 +57,22 @@ defmodule MLApp.HomeScreen do
   end
 
   def handle_event(:detect, _params, socket) do
-    socket = Mob.Socket.assign(socket, :is_detecting, true)
+    socket = Dala.Socket.assign(socket, :is_detecting, true)
 
     # Simulate YOLO detection (in real app, this would use camera frame)
     detections = simulate_yolo_detection()
 
     socket =
       socket
-      |> Mob.Socket.assign(:detections, detections)
-      |> Mob.Socket.assign(:is_detecting, false)
+      |> Dala.Socket.assign(:detections, detections)
+      |> Dala.Socket.assign(:is_detecting, false)
 
     {:noreply, socket}
   end
 
   def handle_event(:open_camera, _params, socket) do
     # Open camera for live detection
-    # Mob.Camera.start_preview(label: "camera_preview")
+    # Dala.Camera.start_preview(label: "camera_preview")
     {:noreply, socket}
   end
 

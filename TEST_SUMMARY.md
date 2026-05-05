@@ -1,11 +1,11 @@
 # Test Summary - Rust Port Verification
 
 ## Overview
-This document summarizes the test results for the Rust conversion of C code in the Mob repository.
+This document summarizes the test results for the Rust conversion of C code in the Dala repository.
 
 ## Test Results
 
-### Android Rust Library (`mob/android/jni/rust/`)
+### Android Rust Library (`dala/android/jni/rust/`)
 
 **Status: ✅ PASSED**
 
@@ -20,9 +20,9 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured
 **Library compilation:** ✅ Success
 - `cargo test` passes
 - `lib.rs` compiles with public exports
-- `driver_tab`, `mob_start_beam`, `mob_set_startup_phase`, `mob_set_startup_error` all exported
+- `driver_tab`, `dala_start_beam`, `dala_set_startup_phase`, `dala_set_startup_error` all exported
 
-### iOS Rust Library (`mob/ios/rust/`)
+### iOS Rust Library (`dala/ios/rust/`)
 
 **Status: ✅ PASSED**
 
@@ -50,7 +50,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured
 ### iOS
 - ✅ `src/lib.rs` - Main library with public exports
 - ✅ `src/driver_tab_ios.rs` - Static NIF/driver table (needs creation)
-- ✅ `src/mob_beam_ios.rs` - BEAM launcher (needs creation)
+- ✅ `src/dala_beam_ios.rs` - BEAM launcher (needs creation)
 - ✅ `tests/simple_test.rs` - Basic unit tests
 
 ## What Works
@@ -64,8 +64,8 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured
 
 ### High Priority
 1. **Full BEAM Launcher Implementation**
-   - Android: Complete `mob_beam.rs` with JNI integration
-   - iOS: Complete `mob_beam_ios.rs` with iOS runtime integration
+   - Android: Complete `dala_beam.rs` with JNI integration
+   - iOS: Complete `dala_beam_ios.rs` with iOS runtime integration
    - Add `erl_start` binding and proper argument building
 
 2. **Build Integration**
@@ -78,8 +78,8 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured
      - `no_beam`
      - `beam_sbwt_only`
      - `beam_full_nerves`
-     - `mob_bundle_otp` (iOS)
-     - `mob_release` (iOS)
+     - `dala_bundle_otp` (iOS)
+     - `dala_release` (iOS)
 
 ### Medium Priority
 1. **Integration Tests**
@@ -97,33 +97,33 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured
 ### Run Basic Tests
 ```bash
 # Android
-cd mob/android/jni/rust
+cd dala/android/jni/rust
 cargo test
 
 # iOS
-cd mob/ios/rust
+cd dala/ios/rust
 cargo test
 ```
 
 ### Run with Features
 ```bash
 # Android with features
-cd mob/android/jni/rust
+cd dala/android/jni/rust
 cargo test --features beam_sbwt_only
 
 # iOS with features
-cd mob/ios/rust
-cargo test --features mob_bundle_otp
+cd dala/ios/rust
+cargo test --features dala_bundle_otp
 ```
 
 ### Build for Targets (requires targets installed)
 ```bash
 # Android
-cd mob/android/jni/rust
+cd dala/android/jni/rust
 cargo build --target aarch64-linux-android --release
 
 # iOS
-cd mob/ios/rust
+cd dala/ios/rust
 cargo build --target aarch64-apple-ios --release
 ```
 
@@ -142,7 +142,7 @@ cargo build --target aarch64-apple-ios --release
 - The minimal BEAM launchers compile and export correct symbols
 - Full implementation requires linking with ERTS (`libbeam.a`)
 - Test files are simplified to verify compilation and basic functionality
-- The `mob_nif` Rust implementation at `mob/native/mob_nif/` is already production-ready
+- The `dala_nif` Rust implementation at `dala/native/dala_nif/` is already production-ready
 
 ## Verification Checklist
 

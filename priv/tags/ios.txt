@@ -1,6 +1,6 @@
-# Mob component tags supported on iOS (SwiftUI)
+# dala component tags supported on iOS (SwiftUI)
 # One PascalCase tag name per line.
-# Generated source: mob/ios/mob_nif.m switch statement
+# Generated source: dala/ios/dala_nif.m switch statement
 # See guides/styling.md for native mapping details.
 
 Box

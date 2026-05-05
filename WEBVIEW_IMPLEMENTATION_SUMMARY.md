@@ -2,11 +2,11 @@
 
 ## Overview
 
-This document summarizes the WebView implementation improvements made to the Mob framework, including the new `Mob.WebView.interact/2` API and supporting infrastructure.
+This document summarizes the WebView implementation improvements made to the Dala framework, including the new `Dala.WebView.interact/2` API and supporting infrastructure.
 
 ## Completed Work
 
-### 1. **`Mob.WebView.interact/2` API** (`mob/lib/mob/webview.ex`)
+### 1. **`Dala.WebView.interact/2` API** (`dala/lib/dala/webview.ex`)
 Created a high-level API for programmatic WebView control:
 
 **Navigation:**
@@ -28,23 +28,23 @@ Created a high-level API for programmatic WebView control:
 - `eval_js/2` - Evaluate JS and return result
 - `post_message/2` - Send message to WebView page
 
-### 2. **iOS WebView Improvements** (`mob/ios/MobRootView.swift`)
+### 2. **iOS WebView Improvements** (`dala/ios/DalaRootView.swift`)
 - Added `webView(_:didFinishEvaluatingJavaScript:error:)` delegate method
 - Added `takeScreenshot` method (stub)
 - Fixed string escaping issues in error handling
 - Properly handles JS evaluation results
 
-### 3. **Rust NIF Improvements** (`mob/native/mob_nif/src/lib.rs`)
+### 3. **Rust NIF Improvements** (`dala/native/dala_nif/src/lib.rs`)
 - Added `CACHED_ENV` static variable using `lazy_static!`
 - Implemented `cache_env` NIF to cache Erlang environment
-- Added `mob_deliver_webview_eval_result` extern function
+- Added `dala_deliver_webview_eval_result` extern function
   - Receives JSON from ObjC callbacks
   - Logs results (stub for message sending)
-  - TODO: Properly send to `:mob_screen` process
+  - TODO: Properly send to `:dala_screen` process
 - Added `webview_screenshot` NIF (stub)
 - Registered all new functions in `rustler::init!` macro
 
-### 4. **Android WebView Stubs** (`mob/native/mob_nif/src/android.rs`)
+### 4. **Android WebView Stubs** (`dala/native/dala_nif/src/android.rs`)
 Documented stubs for:
 - `webview_eval_js` - Evaluate JavaScript via JNI
 - `webview_post_message` - Send messages via JNI
@@ -54,7 +54,7 @@ Documented stubs for:
 
 Each function has TODO comments for JNI implementation.
 
-### 5. **`Mob.Test` WebView Functions** (`mob/lib/mob/test.ex`)
+### 5. **`Dala.Test` WebView Functions** (`dala/lib/dala/test.ex`)
 Added testing functions for WebView:
 - `webview_eval/2`, `webview_post_message/2`
 - `webview_navigate/2`, `webview_reload/1`, `webview_stop_loading/1`, `webview_go_forward/1`
@@ -63,7 +63,7 @@ Added testing functions for WebView:
 
 ### 6. **Documentation Updates**
 - **`AGENTS.md`**: Added rule #15 documenting the WebView interact API
-- **`guides/rustler_in_mob.md`**: Created comprehensive guide for developers:
+- **`guides/rustler_in_dala.md`**: Created comprehensive guide for developers:
   - When to use Rustler
   - Project structure
   - Creating NIF functions
@@ -74,12 +74,12 @@ Added testing functions for WebView:
   - Debugging tips
   - Best practices
 
-### 7. **Example Usage** (`mob/examples/webview_interact.examples.md`)
+### 7. **Example Usage** (`dala/examples/webview_interact.examples.md`)
 Created comprehensive example demonstrating:
 - HTML page with form and JavaScript
-- Mob screen using `Mob.WebView.interact/2` API
+- Dala screen using `Dala.WebView.interact/2` API
 - Event handlers for WebView messages
-- Test scripts using `Mob.Test` functions
+- Test scripts using `Dala.Test` functions
 - Documentation for CSS selectors, timing, and platform differences
 
 ### 8. **Code Quality**
@@ -89,13 +89,13 @@ Created comprehensive example demonstrating:
 
 ## Remaining Work (TODOs)
 
-### 1. **Proper Message Sending** (`mob_deliver_webview_eval_result`)
-**Problem**: Need to send messages from Rust to Erlang `:mob_screen` process.
+### 1. **Proper Message Sending** (`dala_deliver_webview_eval_result`)
+**Problem**: Need to send messages from Rust to Erlang `:dala_screen` process.
 
 **Solution**:
 ```rust
 // Get the process ID
-let pid = rustler::types::pid::get_local_pid("mob_screen");
+let pid = rustler::types::pid::get_local_pid("dala_screen");
 if let Ok(pid) = pid {
     // Create the message tuple {:webview, :eval_result, json}
     let webview_atom = rustler::types::atom::Atom::from_str(&env, "webview")
@@ -140,7 +140,7 @@ pub fn webview_eval_js(env: &mut JNIEnv, code: &str) {
 
 ### 3. **Screenshot Implementation**
 
-**iOS** (`MobRootView.swift`):
+**iOS** (`DalaRootView.swift`):
 ```swift
 func takeScreenshot(_ wv: WKWebView, completion: @escaping (Data?) -> Void) {
     let config = WKSnapshotConfiguration()
@@ -157,7 +157,7 @@ func takeScreenshot(_ wv: WKWebView, completion: @escaping (Data?) -> Void) {
 **Android** (`android.rs`):
 ```rust
 pub fn webview_screenshot(env: &mut JNIEnv) -> bool {
-    // 1. Get WebView instance from MobBridge
+    // 1. Get WebView instance from dalaBridge
     // 2. Call drawing cache or PixelCopy (API 26+)
     // 3. Compress to PNG and return data
     false
@@ -165,60 +165,60 @@ pub fn webview_screenshot(env: &mut JNIEnv) -> bool {
 ```
 
 ### 4. **Test the Interact API**
-- Deploy the example in `mob/examples/webview_interact.examples.md`
+- Deploy the example in `dala/examples/webview_interact.examples.md`
 - Verify all interact actions work correctly
 - Test on both iOS simulator and Android emulator
-- Add unit tests for `Mob.WebView` functions
+- Add unit tests for `Dala.WebView` functions
 
 ## Architecture Notes
 
 ### Message Flow (WebView JS → Elixir)
 ```
-JavaScript (window.mob.send(data))
+JavaScript (window.dala.send(data))
     ↓
 WKWebView (iOS) / WebView (Android)
     ↓
 WKScriptMessageHandler (iOS) / JavascriptInterface (Android)
     ↓
-mob_deliver_webview_message() (ObjC) / JNI call (Android)
+dala_deliver_webview_message() (ObjC) / JNI call (Android)
     ↓
-Rust NIF (mob_nif)
+Rust NIF (dala_nif)
     ↓
-Erlang process (:mob_screen)
+Erlang process (:dala_screen)
     ↓
 handle_info({:webview, :message, data}, socket)
 ```
 
 ### Message Flow (Elixir → WebView JS)
 ```
-Mob.WebView.post_message(socket, data)
+Dala.WebView.post_message(socket, data)
     ↓
-:mob_nif.webview_post_message(json)
+:dala_nif.webview_post_message(json)
     ↓
 platform_webview_post_message() (Rust)
     ↓
 evaluateJavascript() / loadUrl("javascript:...") (iOS/Android)
     ↓
-window.mob._dispatch(json) (JavaScript)
+window.dala._dispatch(json) (JavaScript)
     ↓
 onMessage handlers (JavaScript)
 ```
 
 ## Files Modified
 
-1. `mob/lib/mob/webview.ex` - Added interact API and navigation functions
-2. `mob/lib/mob/test.ex` - Added WebView testing functions
-3. `mob/ios/MobRootView.swift` - Added JS evaluation result handling
-4. `mob/native/mob_nif/src/lib.rs` - Added cache_env, webview_screenshot, mob_deliver_webview_eval_result
-5. `mob/native/mob_nif/src/android.rs` - Updated WebView stubs with JNI signatures
-6. `mob/AGENTS.md` - Added rule #15 for WebView interact API
-7. `mob/guides/rustler_in_mob.md` - Created Rustler guide (NEW)
-8. `mob/examples/webview_interact.examples.md` - Created example (NEW)
-9. `mob/test_webview_api.sh` - Created test script (NEW)
+1. `dala/lib/dala/webview.ex` - Added interact API and navigation functions
+2. `dala/lib/dala/test.ex` - Added WebView testing functions
+3. `dala/ios/DalaRootView.swift` - Added JS evaluation result handling
+4. `dala/native/dala_nif/src/lib.rs` - Added cache_env, webview_screenshot, dala_deliver_webview_eval_result
+5. `dala/native/dala_nif/src/android.rs` - Updated WebView stubs with JNI signatures
+6. `dala/AGENTS.md` - Added rule #15 for WebView interact API
+7. `dala/guides/rustler_in_dala.md` - Created Rustler guide (NEW)
+8. `dala/examples/webview_interact.examples.md` - Created example (NEW)
+9. `dala/test_webview_api.sh` - Created test script (NEW)
 
 ## Next Steps
 
-1. **Implement proper message sending** in `mob_deliver_webview_eval_result`
+1. **Implement proper message sending** in `dala_deliver_webview_eval_result`
 2. **Complete Android JNI implementation** in `android.rs`
 3. **Implement screenshot capture** for both platforms
 4. **Test the interact API** with the provided example

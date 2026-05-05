@@ -1,4 +1,4 @@
-defmodule Mob.Onboarding.Shell do
+defmodule Dala.Onboarding.Shell do
   @moduledoc """
   Execute shell commands in an isolated environment with captured output,
   timeout enforcement, and structured error reporting.

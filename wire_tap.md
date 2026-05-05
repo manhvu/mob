@@ -1,6 +1,6 @@
 # WireTap
 
-> Phone + Mob = WireTap
+> Phone + Dala = WireTap
 
 A universal runtime transparency and test automation layer for native iOS and Android apps,
 powered by the BEAM running in-process as a sidecar. The Elixir internals are opaque to
@@ -28,7 +28,7 @@ WireTap runs inside the app process via the BEAM NIF. It has privileges no exter
 
 ## What it is
 
-Playwright unified browser automation. WireTap does the same for native mobile apps.
+Playwright unified browser automation. WireTap does the same for native dalaile apps.
 
 The analogy holds structurally:
 
@@ -72,7 +72,7 @@ and read the source code through the MCP server simultaneously.
 │                                                                 │
 │  Erlang distribution  ·  accessibility tree walker              │
 │  touch event interception (cocoon model)                        │
-│  BEAM render tree (Mob UI apps only)                            │
+│  BEAM render tree (Dala UI apps only)                            │
 │  source code reader / project structure parser                  │
 │  device API simulation (location, camera, push, etc.)          │
 └─────────────────────────────────────────────────────────────────┘
@@ -118,14 +118,14 @@ class LoginTests : WireTapTest() {
 }
 ```
 
-### Mob app developers (Elixir)
+### Dala app developers (Elixir)
 
 They get the full apparatus. BEAM state, render tree, component registry, device
-simulation, everything. The on-device tests tagged `:on_device` in mob itself are
+simulation, everything. The on-device tests tagged `:on_device` in dala itself are
 the Elixir-facing surface of WireTap.
 
 ```elixir
-use WireTap.Case, node: :"mob_demo_ios@127.0.0.1"
+use WireTap.Case, node: :"dala_demo_ios@127.0.0.1"
 
 test "counter increments", %{conn: conn} do
   conn
@@ -161,12 +161,12 @@ responder chain and is visible to the OS as synthetic.
 
 Two parallel trees are available simultaneously:
 
-**Native accessibility tree** — what the OS sees. Works for any app, no Mob required.
+**Native accessibility tree** — what the OS sees. Works for any app, no Dala required.
 Available via the NIF's in-process UIAccessibility / AccessibilityNodeInfo walk. Faster
 and more reliable than XCUITest (no IPC round-trip).
 
-**BEAM render tree** — what Mob computed. Exact structured data, sub-millisecond reads.
-Only available for Mob UI apps. Contains assigns, component registry state, nav stack,
+**BEAM render tree** — what Dala computed. Exact structured data, sub-millisecond reads.
+Only available for Dala UI apps. Contains assigns, component registry state, nav stack,
 pending events.
 
 Tests can mix both. Assert against BEAM state for exactness; assert against the
@@ -266,7 +266,7 @@ For agents (Claude Code, Cursor, etc.) the MCP server exposes:
 | `wiretap_simulate` | Simulate device API (location, camera, etc.) |
 | `wiretap_read_source` | Read source file with project context |
 | `wiretap_search_source` | Search across project files |
-| `wiretap_assigns` | Get live BEAM assigns (Mob apps only) |
+| `wiretap_assigns` | Get live BEAM assigns (Dala apps only) |
 | `wiretap_logs` | Tail app logs |
 
 ---
@@ -287,16 +287,16 @@ WireTap categorically different from Appium.
 
 ---
 
-## Relation to Mob
+## Relation to Dala
 
-WireTap lives beside Mob but is independent of it. Mob UI apps get the full apparatus
+WireTap lives beside Dala but is independent of it. Dala UI apps get the full apparatus
 (BEAM render tree, assigns, component registry). Native apps get everything except
-the Mob-specific layers.
+the Dala-specific layers.
 
-The existing `Mob.Test` module and `:on_device` tagged tests in the Mob test suite
-are the Elixir-facing prototype of WireTap. When WireTap ships, Mob's own test
+The existing `Dala.Test` module and `:on_device` tagged tests in the Dala test suite
+are the Elixir-facing prototype of WireTap. When WireTap ships, Dala's own test
 infrastructure will be built on it.
 
 ---
 
-*First captured 2026-04-24. Return to this after Mob framework tidying.*
+*First captured 2026-04-24. Return to this after Dala framework tidying.*

@@ -2,28 +2,28 @@
 
 ## Overview
 
-Successfully converted the Mob BEAM launcher and static NIF tables from C to Rust.
+Successfully converted the Dala BEAM launcher and static NIF tables from C to Rust.
 
 ## Files Converted
 
 | Original C File | Rust File | Status |
 |----------------|-----------|---------|
-| `android/jni/mob_beam.c` | `native/mob_beam/src/lib.rs` | ✅ Converted (with stubs) |
-| `android/jni/mob_beam.h` | `native/mob_beam/src/header.rs` | ✅ Converted |
-| `android/jni/driver_tab_android.c` | `native/mob_beam/src/driver_tab_android.rs` | ✅ Converted |
-| `ios/driver_tab_ios.c` | `native/mob_beam/src/driver_tab_ios.rs` | ✅ Converted |
+| `android/jni/dala_beam.c` | `native/dala_beam/src/lib.rs` | ✅ Converted (with stubs) |
+| `android/jni/dala_beam.h` | `native/dala_beam/src/header.rs` | ✅ Converted |
+| `android/jni/driver_tab_android.c` | `native/dala_beam/src/driver_tab_android.rs` | ✅ Converted |
+| `ios/driver_tab_ios.c` | `native/dala_beam/src/driver_tab_ios.rs` | ✅ Converted |
 
 ## New Rust Crate Structure
 
 ```
-mob/native/mob_beam/
+dala/native/dala_beam/
 ├── Cargo.toml              # Package config with feature flags
 ├── build.rs                # Conditional compilation support
 ├── README.md               # Usage documentation
 ├── CONVERSION_SUMMARY.md   # Detailed conversion notes
 └── src/
     ├── lib.rs             # Main BEAM launcher + JNI functions
-    ├── header.rs          # Public API (mirrors mob_beam.h)
+    ├── header.rs          # Public API (mirrors dala_beam.h)
     ├── driver_tab_android.rs  # Android static NIF table
     └── driver_tab_ios.rs      # iOS static NIF table
 ```
@@ -39,7 +39,7 @@ mob/native/mob_beam/
 | `beam_sbwt_only` | `BEAM_SBWT_ONLY` |
 | `beam_full_nerves` | `BEAM_FULL_NERVES` |
 | `beam_use_custom_flags` | `BEAM_USE_CUSTOM_FLAGS` |
-| `mob_static_sqlite_nif` | `MOB_STATIC_SQLITE_NIF` |
+| `dala_static_sqlite_nif` | `dala_STATIC_SQLITE_NIF` |
 
 ### 2. Static NIF Tables
 
@@ -65,10 +65,10 @@ Both Android and iOS static tables are now in Rust with proper `#[repr(C)]` and 
 ⚠️ **Stubs (require full implementation):**
 
 ### High Priority
-1. **JNI Bridge Cache**: `_mob_ui_cache_class_impl`, `_mob_bridge_init_activity`
+1. **JNI Bridge Cache**: `_dala_ui_cache_class_impl`, `_dala_bridge_init_activity`
 2. **Cold-start Fix**: `wait_for_window_focus()` with proper JNI polling
 3. **BEAM Startup**: Call to `erl_start()` via FFI
-4. **Event Senders**: All `mob_send_*` functions
+4. **Event Senders**: All `dala_send_*` functions
 
 ### Medium Priority
 5. **SQLite3 Symlinks**: exqlite NIF symlink logic
@@ -79,23 +79,23 @@ Both Android and iOS static tables are now in Rust with proper `#[repr(C)]` and 
 
 ```bash
 # Add to workspace Cargo.toml
-members = ["native/mob_nif", "native/mob_beam"]
+members = ["native/dala_nif", "native/dala_beam"]
 
 # Build for Android
-cargo build -p mob_beam --target aarch64-linux-android
+cargo build -p dala_beam --target aarch64-linux-android
 
 # Build for iOS device
-cargo build -p mob_beam --target aarch64-apple-ios
+cargo build -p dala_beam --target aarch64-apple-ios
 
 # Build for iOS Simulator
-cargo build -p mob_beam --target x86_64-apple-ios
+cargo build -p dala_beam --target x86_64-apple-ios
 ```
 
 ## Architecture Notes
 
-1. **mob_nif** crate: Handles actual NIF implementations using Rustler
-2. **mob_beam** crate: Handles BEAM startup and JNI bridge initialization
-3. Static tables reference `mob_nif_nif_init` exported by `mob_nif` crate
+1. **dala_nif** crate: Handles actual NIF implementations using Rustler
+2. **dala_beam** crate: Handles BEAM startup and JNI bridge initialization
+3. Static tables reference `dala_nif_nif_init` exported by `dala_nif` crate
 
 ## Migration Path
 
@@ -103,10 +103,10 @@ cargo build -p mob_beam --target x86_64-apple-ios
 2. ⚠️ Implement stub functions
 3. ⚠️ Test on Android/iOS devices
 4. ⚠️ Remove original C files once tested
-5. ⚠️ Update build scripts in `mob_dev` to use Rust instead of C
+5. ⚠️ Update build scripts in `dala_dev` to use Rust instead of C
 
 ## References
 
 - Original C files preserved for reference
-- See `native/mob_beam/README.md` for usage
-- See `native/mob_beam/CONVERSION_SUMMARY.md` for details
+- See `native/dala_beam/README.md` for usage
+- See `native/dala_beam/CONVERSION_SUMMARY.md` for details

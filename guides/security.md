@@ -1,10 +1,10 @@
 # Security Guide
 
-Security considerations for Mob applications — from development to production.
+Security considerations for Dala applications — from development to production.
 
 ## Erlang Distribution Security
 
-Mob apps run real Erlang nodes that can accept remote connections via
+Dala apps run real Erlang nodes that can accept remote connections via
 `Node.connect/1`. This is powerful for development but dangerous if
 misconfigured in production.
 
@@ -13,7 +13,7 @@ misconfigured in production.
 If an attacker learns your distribution cookie, they can:
 
 - Connect to your app's Erlang node from anywhere on the network
-- Call any exported function, including `Mob.Diag` helpers
+- Call any exported function, including `Dala.Diag` helpers
 - Load and execute arbitrary code via `:code.load_binary/3`
 - Access sensitive data in application state
 
@@ -23,8 +23,8 @@ If an attacker learns your distribution cookie, they can:
 
 ```elixir
 # ❌ NEVER DO THIS
-Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
-Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :mob_secret)
+Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
+Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :dala_secret)
 ```
 
 **Generate strong cookies per app:**
@@ -37,12 +37,12 @@ Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :mob_secret)
 
 # In your app's on_start/0:
 def on_start do
-  cookie = Mob.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
-  Mob.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
+  cookie = Dala.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+  Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
 end
 
 # Set the env var at deploy time:
-MY_APP_DIST_COOKIE=9f3a... mix mob.deploy --device <udid>
+MY_APP_DIST_COOKIE=9f3a... mix dala.deploy --device <udid>
 ```
 
 **Rotate cookies periodically:**
@@ -62,22 +62,22 @@ Node.set_cookie(new_secure_cookie)
 - Use firewalls/VPC to restrict ports 9100 and 4369
 - Only allow trusted IPs to connect
 - Consider running without distribution in production apps that don't need it
-- Set `MOB_RELEASE=1` to disable distribution at the C layer
+- Set `dala_RELEASE=1` to disable distribution at the C layer
 
-### The `Mob.Diag` Module
+### The `Dala.Diag` Module
 
-`Mob.Diag` is shipped in every Mob app and provides introspection capabilities.
+`Dala.Diag` is shipped in every Dala app and provides introspection capabilities.
 If distribution credentials leak, it becomes a target for information disclosure.
 
 **Mitigation:**
 1. Use strong, unique cookies (see above)
-2. Strip `Mob.Diag` in release builds (code trimming / dead code elimination)
+2. Strip `Dala.Diag` in release builds (code trimming / dead code elimination)
 3. Monitor and alert on unexpected node connections
 4. Consider disabling distribution entirely for apps that don't need remote access
 
 ## Push Notifications
 
-Push notification tokens (`Mob.Notify.register_push/1`) must be transmitted
+Push notification tokens (`Dala.Notify.register_push/1`) must be transmitted
 securely to your server.
 
 **Best practices:**
@@ -85,11 +85,11 @@ securely to your server.
 - Validate tokens on the server side
 - Don't log raw tokens in plaintext
 - Rotate tokens periodically (re-register push)
-- Use the `mob_push` library which handles secure transmission
+- Use the `dala_push` library which handles secure transmission
 
 ## Biometric Authentication
 
-`Mob.Biometric.authenticate/2` delegates to platform APIs (Face ID, Touch ID,
+`Dala.Biometric.authenticate/2` delegates to platform APIs (Face ID, Touch ID,
 fingerprint). The result arrives asynchronously via `handle_info`.
 
 **Considerations:**
@@ -100,11 +100,11 @@ fingerprint). The result arrives asynchronously via `handle_info`.
 
 ## File System Security
 
-Mob apps use temporary paths for file pickers:
+Dala apps use temporary paths for file pickers:
 
 ```elixir
-# mob/lib/mob/files.ex
-%{path: "/tmp/mob_file_xxx.pdf", ...}
+# dala/lib/dala/files.ex
+%{path: "/tmp/dala_file_xxx.pdf", ...}
 ```
 
 **Recommendations:**
@@ -115,13 +115,13 @@ Mob apps use temporary paths for file pickers:
 
 ## Environment Variables
 
-Mob reads several environment variables at runtime:
+Dala reads several environment variables at runtime:
 
 | Variable | Purpose | Security Note |
 |----------|---------|---------------|
-| `MOB_RELEASE` | Disables distribution in release builds | Set to `1` for App Store builds |
-| `MOB_NODE_SUFFIX` | Makes node names unique per device | Set by launcher, not user-controllable |
-| `MOB_DATA_DIR` | Overrides default data directory | Ensure path is secure |
+| `dala_RELEASE` | Disables distribution in release builds | Set to `1` for App Store builds |
+| `dala_NODE_SUFFIX` | Makes node names unique per device | Set by launcher, not user-controllable |
+| `dala_DATA_DIR` | Overrides default data directory | Ensure path is secure |
 | `HOME` | Fallback for cookie file location | Sandboxed on iOS/Android |
 | `LIBMLX_ENABLE_JIT` | Enables MLX JIT (iOS) | Set to `false` on iOS devices (W^X policy) |
 
@@ -132,7 +132,7 @@ Mob reads several environment variables at runtime:
 
 ## Dependency Security
 
-Mob depends on several Hex packages. Audit them regularly:
+Dala depends on several Hex packages. Audit them regularly:
 
 ```bash
 # Check for known vulnerabilities
@@ -158,7 +158,7 @@ Add `mix hex.audit` to your CI pipeline.
 
 3. **Set it at deploy time**:
    ```bash
-   MY_APP_DIST_COOKIE=<your-cookie> mix mob.deploy --device <udid>
+   MY_APP_DIST_COOKIE=<your-cookie> mix dala.deploy --device <udid>
    ```
 
 4. **Verify no hardcoded cookies** in your codebase:
@@ -168,12 +168,12 @@ Add `mix hex.audit` to your CI pipeline.
 
 5. **Test with release mode** to ensure distribution is disabled:
    ```bash
-   MOB_RELEASE=1 mix mob.deploy --device <udid>
+   dala_RELEASE=1 mix dala.deploy --device <udid>
    ```
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability in Mob itself:
+If you discover a security vulnerability in Dala itself:
 
 - **Do not** open a public GitHub issue
 - Email the maintainers directly
@@ -182,14 +182,14 @@ If you discover a security vulnerability in Mob itself:
 
 ## Checklist
 
-Before shipping your Mob app:
+Before shipping your Dala app:
 
 - [ ] No hardcoded distribution cookies in source code
 - [ ] Strong random cookie set via environment variable
-- [ ] `MOB_RELEASE=1` set for App Store/Play Store builds
+- [ ] `dala_RELEASE=1` set for App Store/Play Store builds
 - [ ] Push notification tokens transmitted over HTTPS only
 - [ ] Sensitive files cleaned up after use
 - [ ] Dependencies audited with `mix hex.audit`
 - [ ] Distribution ports (9100, 4369) firewalled in production
 - [ ] Monitoring/alerting on unexpected node connections (if distribution enabled)
-- [ ] `Mob.Diag` considered for removal in production builds
+- [ ] `Dala.Diag` considered for removal in production builds

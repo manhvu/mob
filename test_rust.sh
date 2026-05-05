@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== Mob Rust Port Test Suite ===${NC}"
+echo -e "${GREEN}=== dala Rust Port Test Suite ===${NC}"
 echo ""
 
 # ============================================================================
@@ -61,7 +61,7 @@ echo ""
 echo -e "${YELLOW}[3/4] Testing Android BEAM launcher...${NC}"
 cd "$SCRIPT_DIR/android/jni/rust"
 
-echo "Running unit tests for mob_beam.rs..."
+echo "Running unit tests for dala_beam.rs..."
 cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_android_beam.log
 
 if grep -q "^test result: ok" /tmp/test_android_beam.log; then
@@ -78,7 +78,7 @@ echo ""
 echo -e "${YELLOW}[4/4] Testing iOS BEAM launcher...${NC}"
 cd "$SCRIPT_DIR/ios/rust"
 
-echo "Running unit tests for mob_beam_ios.rs..."
+echo "Running unit tests for dala_beam_ios.rs..."
 cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_ios_beam.log
 
 if grep -q "^test result: ok" /tmp/test_ios_beam.log; then
@@ -129,12 +129,12 @@ if [ "$1" == "--integration" ]; then
     echo -e "${YELLOW}=== Running integration tests ===${NC}"
 
     # Test exported symbols (Android)
-    ANDROID_LIB="$SCRIPT_DIR/android/jni/rust/target/aarch64-linux-android/release/libmob_beam.so"
+    ANDROID_LIB="$SCRIPT_DIR/android/jni/rust/target/aarch64-linux-android/release/libdala_beam.so"
     if [ -f "$ANDROID_LIB" ]; then
         echo "Checking Android exported symbols..."
-        nm -D "$ANDROID_LIB" | grep -q "mob_start_beam" && \
-            echo -e "${GREEN}✓ mob_start_beam exported${NC}" || \
-            echo -e "${RED}✗ mob_start_beam not exported${NC}"
+        nm -D "$ANDROID_LIB" | grep -q "dala_start_beam" && \
+            echo -e "${GREEN}✓ dala_start_beam exported${NC}" || \
+            echo -e "${RED}✗ dala_start_beam not exported${NC}"
         nm -D "$ANDROID_LIB" | grep -q "driver_tab" && \
             echo -e "${GREEN}✓ driver_tab exported${NC}" || \
             echo -e "${RED}✗ driver_tab not exported${NC}"
@@ -143,12 +143,12 @@ if [ "$1" == "--integration" ]; then
     fi
 
     # Test exported symbols (iOS)
-    IOS_LIB="$SCRIPT_DIR/ios/rust/target/aarch64-apple-ios/release/libmob_beam_ios.a"
+    IOS_LIB="$SCRIPT_DIR/ios/rust/target/aarch64-apple-ios/release/libdala_beam_ios.a"
     if [ -f "$IOS_LIB" ]; then
         echo "Checking iOS exported symbols..."
-        nm "$IOS_LIB" | grep -q "mob_start_beam" && \
-            echo -e "${GREEN}✓ mob_start_beam exported${NC}" || \
-            echo -e "${RED}✗ mob_start_beam not exported${NC}"
+        nm "$IOS_LIB" | grep -q "dala_start_beam" && \
+            echo -e "${GREEN}✓ dala_start_beam exported${NC}" || \
+            echo -e "${RED}✗ dala_start_beam not exported${NC}"
         nm "$IOS_LIB" | grep -q "driver_tab" && \
             echo -e "${GREEN}✓ driver_tab exported${NC}" || \
             echo -e "${RED}✗ driver_tab not exported${NC}"

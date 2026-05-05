@@ -1,4 +1,4 @@
-// driver_tab_ios.rs — Static NIF table with mob_nif added.
+// driver_tab_ios.rs — Static NIF table with dala_nif added.
 // Link BEFORE libbeam.a to override the built-in driver_tab.
 // Mirrors driver_tab_android.rs for iOS.
 
@@ -43,8 +43,8 @@ extern "C" {
     pub fn prim_socket_nif_init() -> *mut c_void;
     pub fn prim_net_nif_init() -> *mut c_void;
     pub fn asn1rt_nif_nif_init() -> *mut c_void;
-    pub fn mob_nif_nif_init() -> *mut c_void;
-    // exqlite sqlite3_nif is linked statically on device (pass -DMOB_STATIC_SQLITE_NIF
+    pub fn dala_nif_nif_init() -> *mut c_void;
+    // exqlite sqlite3_nif is linked statically on device (pass -DDALA_STATIC_SQLITE_NIF
     // when compiling this file in device builds). On simulator it loads dynamically
     // as a .so and must NOT appear in the static table.
 }
@@ -130,7 +130,7 @@ pub static mut erts_static_nif_tab: [ErtsStaticNif; 11] = [
         entry: ptr::null_mut(),
     },
     ErtsStaticNif {
-        nif_init: Some(mob_nif_nif_init),
+        nif_init: Some(dala_nif_nif_init),
         is_builtin: 0,
         nif_mod: THE_NON_VALUE,
         entry: ptr::null_mut(),
@@ -143,7 +143,7 @@ pub static mut erts_static_nif_tab: [ErtsStaticNif; 11] = [
     },
 ];
 
-// For device builds with MOB_STATIC_SQLITE_NIF, use this alternative table
+// For device builds with DALA_STATIC_SQLITE_NIF, use this alternative table
 // that includes sqlite3_nif_nif_init.
 #[cfg(feature = "static_sqlite_nif")]
 #[no_mangle]
@@ -203,7 +203,7 @@ pub static mut erts_static_nif_tab_device: [ErtsStaticNif; 12] = [
         entry: ptr::null_mut(),
     },
     ErtsStaticNif {
-        nif_init: Some(mob_nif_nif_init),
+        nif_init: Some(dala_nif_nif_init),
         is_builtin: 0,
         nif_mod: THE_NON_VALUE,
         entry: ptr::null_mut(),

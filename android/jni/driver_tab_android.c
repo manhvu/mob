@@ -1,4 +1,4 @@
-// driver_tab_android.c — Static NIF table with mob_nif added.
+// driver_tab_android.c — Static NIF table with dala_nif added.
 // Link BEFORE libbeam.a to override the built-in driver_tab.
 
 #include <stddef.h>
@@ -34,8 +34,8 @@ void *prim_socket_nif_init(void);
 void *prim_net_nif_init(void);
 void *asn1rt_nif_nif_init(void);
 
-// mob_nif.c's ERL_NIF_INIT(mob_nif,...) generates: mob_nif_nif_init
-void *mob_nif_nif_init(void);
+// dala_nif.c's ERL_NIF_INIT(dala_nif,...) generates: dala_nif_nif_init
+void *dala_nif_nif_init(void);
 
 ErtsStaticNif erts_static_nif_tab[] = {
     {prim_tty_nif_init,     0, THE_NON_VALUE, NULL},
@@ -47,6 +47,6 @@ ErtsStaticNif erts_static_nif_tab[] = {
     {prim_socket_nif_init,  0, THE_NON_VALUE, NULL},
     {prim_net_nif_init,     0, THE_NON_VALUE, NULL},
     {asn1rt_nif_nif_init,   1, THE_NON_VALUE, NULL},
-    {mob_nif_nif_init,      0, THE_NON_VALUE, NULL},
+    {dala_nif_nif_init,      0, THE_NON_VALUE, NULL},
     {NULL,                  0, THE_NON_VALUE, NULL}
 };

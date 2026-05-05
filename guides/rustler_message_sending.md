@@ -2,13 +2,13 @@
 
 ## Overview
 
-This document explains how to properly implement message sending from Rust NIFs to Erlang processes. This is needed for `mob_deliver_webview_eval_result` and similar functions that are called from ObjC/Java callbacks.
+This document explains how to properly implement message sending from Rust NIFs to Erlang processes. This is needed for `dala_deliver_webview_eval_result` and similar functions that are called from ObjC/Java callbacks.
 
 ## The Challenge
 
-Functions like `mob_deliver_webview_eval_result` are:
+Functions like `dala_deliver_webview_eval_result` are:
 1. Called from ObjC (iOS) or Java (Android) callbacks
-2. Need to send messages to Erlang processes (e.g., `:mob_screen`)
+2. Need to send messages to Erlang processes (e.g., `:dala_screen`)
 3. Don't have direct access to `Env` from the NIF context
 
 ## Solution: Use Cached Environment
@@ -38,11 +38,11 @@ Register `cache_env` in `rustler::init!` macro.
 
 ### 2. Reconstruct Env from Cached Pointer
 
-In `mob_deliver_webview_eval_result`:
+In `dala_deliver_webview_eval_result`:
 
 ```rust
 #[no_mangle]
-pub extern "C" fn mob_deliver_webview_eval_result(json_utf8: *const std::ffi::c_char) {
+pub extern "C" fn dala_deliver_webview_eval_result(json_utf8: *const std::ffi::c_char) {
     unsafe {
         if json_utf8.is_null() { return; }
         
@@ -63,9 +63,9 @@ pub extern "C" fn mob_deliver_webview_eval_result(json_utf8: *const std::ffi::c_
                 std::mem::transmute::<usize, *mut rustler::wrapper::env::c_erl_nif_env>(env_ptr)
             );
             
-            // Send message to :mob_screen process
+            // Send message to :dala_screen process
             // This requires proper process lookup
-            eprintln!("[Mob] WebView eval result: {}", json);
+            eprintln!("[Dala] WebView eval result: {}", json);
         }
     }
 }
@@ -81,7 +81,7 @@ The correct way to send messages from C code (which Rust can call) is to use Erl
 #include <erl_nif.h>
 
 // Get process ID by name
-ErlNifPid* pid = enif_whereis(env, "mob_screen");
+ErlNifPid* pid = enif_whereis(env, "dala_screen");
 
 // Send a tuple message
 ErlNifTerm* message = enif_make_tuple(env, 3,
@@ -106,10 +106,10 @@ extern "C" {
     // ... other functions
 }
 
-pub fn send_to_mob_screen(json: &str) {
+pub fn send_to_dala_screen(json: &str) {
     unsafe {
         let env = ...; // Get cached env
-        let pid = enif_whereis(env, "mob_screen\0".as_ptr() as *const c_char);
+        let pid = enif_whereis(env, "dala_screen\0".as_ptr() as *const c_char);
         if !pid.is_null() {
             // Create and send message
         }
@@ -149,19 +149,19 @@ fn send_message(env: &Env, pid: rustler::types::pid::Pid, json: &str) {
 2. **Short term**: Implement using Erlang C API FFI
 3. **Long term**: Create proper Rust bindings for Erlang C API
 
-## Current Status in Mob
+## Current Status in Dala
 
 - ✅ `CACHED_ENV` is implemented
 - ✅ `cache_env` NIF is implemented
-- ✅ `mob_deliver_webview_eval_result` logs results
+- ✅ `dala_deliver_webview_eval_result` logs results
 - ❌ Message sending is not implemented (stub)
 
 ## Next Steps
 
 1. Create FFI bindings to Erlang C API (`enif_whereis`, `enif_send`, etc.)
 2. Implement `send_to_process(pid, term)` function
-3. Update `mob_deliver_webview_eval_result` to actually send messages
-4. Test with a running Mob app
+3. Update `dala_deliver_webview_eval_result` to actually send messages
+4. Test with a running Dala app
 
 ## References
 

@@ -1,6 +1,6 @@
 # Getting Started
 
-Mob runs on iOS and Android. Pick your target — you don't need both.
+Dala runs on iOS and Android. Pick your target — you don't need both.
 
 → [iOS only](#ios-only)
 → [Android only](#android-only)
@@ -16,7 +16,7 @@ Mob runs on iOS and Android. Pick your target — you don't need both.
 - macOS
 - Xcode 15 or later (`xcode-select --install` for command-line tools)
 - Elixir 1.19 or later with Hex: `mix local.hex`
-- `mob_new` installed: `mix archive.install hex mob_new`
+- `dala_new` installed: `mix archive.install hex dala_new`
 
 That's enough to run on the **iOS Simulator**. For a **physical iPhone**, you also need:
 
@@ -28,21 +28,21 @@ That's enough to run on the **iOS Simulator**. For a **physical iPhone**, you al
 ### Create a project
 
 ```bash
-mix mob.new my_app --ios
+mix dala.new my_app --ios
 cd my_app
-mix mob.install
+mix dala.install
 ```
 
 `--ios` scopes the generator to iOS only — no `android/` directory is created
-and `mix mob.install` skips the Android OTP download (saves ~400 MB of cache).
+and `mix dala.install` skips the Android OTP download (saves ~400 MB of cache).
 Drop the flag if you want both platforms.
 
-`mix mob.install` downloads the pre-built OTP runtime for iOS and writes your `mob.exs`.
+`mix dala.install` downloads the pre-built OTP runtime for iOS and writes your `dala.exs`.
 
 ### Verify your environment
 
 ```bash
-mix mob.doctor
+mix dala.doctor
 ```
 
 Fix any failures before continuing. See [Troubleshooting](troubleshooting.md) if needed.
@@ -59,14 +59,14 @@ open -a Simulator
 Then deploy:
 
 ```bash
-mix mob.deploy --native --ios
+mix dala.deploy --native --ios
 ```
 
 This builds the `.app` bundle, installs it in the simulator, and pushes your BEAM files.
 Subsequent deploys without `--native` are faster — they push only changed `.beam` files:
 
 ```bash
-mix mob.deploy --ios
+mix dala.deploy --ios
 ```
 
 ### Run on a physical iPhone
@@ -101,27 +101,27 @@ Apple requires every app installed on a physical device to be signed with a
 provisioning profile tied to your developer account. Run:
 
 ```bash
-mix mob.provision
+mix dala.provision
 ```
 
 This generates a small Xcode project stub, uses it to register your bundle ID with
 Apple, and downloads a development provisioning profile — all from the command line.
 You won't need to build or launch anything in Xcode.
 
-> **If `mix mob.provision` fails:** open Xcode, select your phone from the device
+> **If `mix dala.provision` fails:** open Xcode, select your phone from the device
 > picker at the top, and wait for it to finish "Preparing device for development".
-> Then re-run `mix mob.provision`.
+> Then re-run `mix dala.provision`.
 
 #### Deploy
 
 ```bash
-mix mob.deploy --native --ios
+mix dala.deploy --native --ios
 ```
 
-Mob auto-detects the connected phone. The app will appear on your home screen.
+Dala auto-detects the connected phone. The app will appear on your home screen.
 
 If the profile expires (free accounts: every 7 days, paid Developer Program: 1 year),
-re-run `mix mob.provision` then deploy again.
+re-run `mix dala.provision` then deploy again.
 
 ---
 
@@ -130,7 +130,7 @@ re-run `mix mob.provision` then deploy again.
 ### What you need
 
 - Elixir 1.19 or later with Hex: `mix local.hex`
-- `mob_new` installed: `mix archive.install hex mob_new`
+- `dala_new` installed: `mix archive.install hex dala_new`
 - Java 17–21 (`brew install --cask temurin` on macOS)
 - Android Studio (includes the SDK and `adb`)
 
@@ -140,22 +140,22 @@ device, then connect via USB and accept the authorization prompt.
 ### Create a project
 
 ```bash
-mix mob.new my_app --android
+mix dala.new my_app --android
 cd my_app
-mix mob.install
+mix dala.install
 ```
 
 `--android` scopes the generator to Android only — no `ios/` directory is created
-and `mix mob.install` skips the iOS OTP download. Drop the flag if you want both
+and `mix dala.install` skips the iOS OTP download. Drop the flag if you want both
 platforms.
 
-`mix mob.install` downloads the pre-built OTP runtime for Android and writes your
-`mob.exs` and `android/local.properties`.
+`mix dala.install` downloads the pre-built OTP runtime for Android and writes your
+`dala.exs` and `android/local.properties`.
 
 ### Verify your environment
 
 ```bash
-mix mob.doctor
+mix dala.doctor
 ```
 
 Fix any failures before continuing. See [Troubleshooting](troubleshooting.md) if needed.
@@ -165,14 +165,14 @@ Fix any failures before continuing. See [Troubleshooting](troubleshooting.md) if
 Start an AVD from Android Studio → Device Manager, then:
 
 ```bash
-mix mob.deploy --native --android
+mix dala.deploy --native --android
 ```
 
 This builds the APK, installs it on the emulator, and pushes your BEAM files.
 Subsequent deploys without `--native` push only changed `.beam` files:
 
 ```bash
-mix mob.deploy --android
+mix dala.deploy --android
 ```
 
 ### Run on a physical Android device
@@ -211,11 +211,11 @@ If it shows `unauthorized`, check for a missed dialog on the phone screen.
 #### Deploy
 
 ```bash
-mix mob.deploy --native --android
+mix dala.deploy --native --android
 ```
 
-Mob detects connected devices automatically. If you have more than one, use
-`mix mob.devices` to find the serial ID and `--device <id>` to target it.
+Dala detects connected devices automatically. If you have more than one, use
+`mix dala.devices` to find the serial ID and `--device <id>` to target it.
 
 ---
 
@@ -229,31 +229,31 @@ device for both. Mix and match whatever you actually have:
 | Setup | What to do |
 |-------|-----------|
 | iOS Simulator + Android emulator | Nothing extra — just deploy |
-| Physical iPhone + Android emulator | Set up iPhone (trust + Developer Mode + `mix mob.provision`) |
+| Physical iPhone + Android emulator | Set up iPhone (trust + Developer Mode + `mix dala.provision`) |
 | iOS Simulator + physical Android | Set up Android (Developer Mode + USB debugging + File Transfer) |
-| Physical iPhone + physical Android | Set up both phones, then `mix mob.provision` for iOS |
+| Physical iPhone + physical Android | Set up both phones, then `mix dala.provision` for iOS |
 
 ### Create a project
 
 ```bash
-mix mob.new my_app
+mix dala.new my_app
 cd my_app
-mix mob.install
+mix dala.install
 ```
 
 ### Verify your environment
 
 ```bash
-mix mob.doctor
+mix dala.doctor
 ```
 
 ### Deploy to everything you have connected
 
 ```bash
-mix mob.deploy --native
+mix dala.deploy --native
 ```
 
-Without `--ios` or `--android`, Mob targets all connected simulators, emulators, and
+Without `--ios` or `--android`, Dala targets all connected simulators, emulators, and
 physical devices at once — whatever is available. On macOS it includes both platforms;
 on Linux/Windows it deploys Android only. You don't need to tell it what you have.
 
@@ -262,25 +262,25 @@ on Linux/Windows it deploys Android only. You don't need to tell it what you hav
 Before your first deploy to a physical iPhone, register your app with Apple:
 
 ```bash
-mix mob.provision
+mix dala.provision
 ```
 
-Then deploy normally — Mob auto-detects the phone alongside any running simulators
+Then deploy normally — Dala auto-detects the phone alongside any running simulators
 or emulators and pushes to all of them in one command:
 
 ```bash
-mix mob.deploy --native
+mix dala.deploy --native
 ```
 
 If you only want to target the phone and skip the simulators for a deploy:
 
 ```bash
-mix mob.deploy --native --ios
+mix dala.deploy --native --ios
 ```
 
 ### Targeting one device at a time
 
-Use `mix mob.devices` to see what's connected and their IDs, then `--device <id>` to
+Use `mix dala.devices` to see what's connected and their IDs, then `--device <id>` to
 target a specific one — useful when you have multiple physical devices or want to
 isolate a deploy while keeping others running.
 
@@ -288,7 +288,7 @@ isolate a deploy while keeping others running.
 
 ## LiveView projects
 
-Instead of writing screens in Elixir with the `~MOB` sigil, you can run a full
+Instead of writing screens in Elixir with the `~dala` sigil, you can run a full
 Phoenix LiveView app inside a native WebView. The native shell handles device
 APIs and distribution; your UI is a regular Phoenix web app.
 
@@ -298,9 +298,9 @@ The full sequence is below.
 
 ### Mixed apps are fine
 
-You don't have to pick one mode for the whole app. A native Mob project can
-host LiveView screens (run `mix mob.enable liveview` in an existing project),
-and a LiveView project can include native `Mob.Screen` modules alongside its
+You don't have to pick one mode for the whole app. A native Dala project can
+host LiveView screens (run `mix dala.enable liveview` in an existing project),
+and a LiveView project can include native `Dala.Screen` modules alongside its
 WebView screens. Use whichever fits each part of the app.
 
 One thing to be aware of: a mixed app has **two distinct forms of navigation**.
@@ -309,20 +309,20 @@ One thing to be aware of: a mixed app has **two distinct forms of navigation**.
     `<.link navigate={...}>` or `push_navigate(...)`. Lives entirely inside the
     LiveView WebSocket; the WebView's URL changes but the native nav stack
     doesn't.
-  * **Native navigation** — `Mob.Nav.push/2`, `pop/1`, tab bars, drawers.
+  * **Native navigation** — `Dala.Nav.push/2`, `pop/1`, tab bars, drawers.
     Lives in the native nav controller; the WebView is just one screen on
     that stack.
 
 The two stacks don't talk to each other (by default but you control both sides so if you _really_ want to you could make that happen). A Phoenix route change inside a
-WebView doesn't push a native screen, and a `Mob.Nav.push` doesn't navigate
+WebView doesn't push a native screen, and a `Dala.Nav.push` doesn't navigate
 the WebView. Plan crossings explicitly: a tap inside the LiveView that should
-push a native screen sends a `mob_message` event up to the hosting
-`Mob.Screen`, which calls `Mob.Nav.push/2`; a native back-button in a parent
+push a native screen sends a `dala_message` event up to the hosting
+`Dala.Screen`, which calls `Dala.Nav.push/2`; a native back-button in a parent
 screen pops the WebView screen as a whole, not the route inside it.
 
 ### Extra prerequisite
 
-You need the `phx_new` archive in addition to `mob_new`:
+You need the `phx_new` archive in addition to `dala_new`:
 
 ```bash
 mix archive.install hex phx_new
@@ -330,30 +330,30 @@ mix archive.install hex phx_new
 
 ### Create a LiveView project
 
-Pass `--liveview` to `mix mob.new`:
+Pass `--liveview` to `mix dala.new`:
 
 ```bash
-mix mob.new my_app --liveview
+mix dala.new my_app --liveview
 cd my_app
 ```
 
 `--liveview` combines with `--ios` or `--android` if you want a single-platform
-LiveView project — for example `mix mob.new my_app --liveview --ios` skips
+LiveView project — for example `mix dala.new my_app --liveview --ios` skips
 Android scaffolding entirely.
 
 This calls `mix phx.new` under the hood, then patches the generated project:
-adds the Mob bridge hook to `app.js`, inserts the `mob-bridge` element in
-`root.html.heex`, adds `Mob.App` to the supervision tree, and writes a
-`mob.exs` with `liveview_port: 4000`.
+adds the Dala bridge hook to `app.js`, inserts the `dala-bridge` element in
+`root.html.heex`, adds `Dala.App` to the supervision tree, and writes a
+`dala.exs` with `liveview_port: 4000`.
 
 ### 1. Configure local paths
 
 Unlike a native project, the LiveView template doesn't auto-fill machine-
 specific paths. Open these two files and set the values for your machine.
 
-**`mob.exs`** — set both keys:
+**`dala.exs`** — set both keys:
 
-  * `mob_dir`    — local path to the mob library (or `deps/mob` if vendored)
+  * `dala_dir`    — local path to the dala library (or `deps/dala` if vendored)
   * `elixir_lib` — your Elixir lib dir, e.g.
     `~/.local/share/mise/installs/elixir/1.19.5-otp-28/lib`
 
@@ -366,7 +366,7 @@ sdk.dir=/Users/you/Library/Android/sdk
 ### 2. Run first-time setup
 
 ```bash
-mix mob.install
+mix dala.install
 ```
 
 Caches the OTP runtimes, generates a placeholder app icon, and finalises the
@@ -398,7 +398,7 @@ the server (`Ctrl-C`).
 ### 5. Deploy to device
 
 ```bash
-mix mob.deploy --native
+mix dala.deploy --native
 ```
 
 The native app starts your Phoenix server at `http://127.0.0.1:4000/` and
@@ -410,12 +410,12 @@ After the app launches, open the WebView in a remote inspector (Safari Web
 Inspector for iOS, `chrome://inspect` for Android) and run:
 
 ```js
-window.mob.send({some: 'event'})
+window.dala.send({some: 'event'})
 ```
 
 The call should route through Phoenix's `pushEvent` — visible as a LiveView
 event on the server side — **not** through `window.postMessage`. That
-confirms the Mob ↔ LiveView bridge is wired correctly.
+confirms the Dala ↔ LiveView bridge is wired correctly.
 
 ### Day-to-day development
 
@@ -423,8 +423,8 @@ The workflow is the same as a native project — push changed BEAMs, restart,
 or watch for file changes:
 
 ```bash
-mix mob.deploy    # push BEAMs + restart (Phoenix server restarts inside the app)
-mix mob.watch     # auto-push on file save
+mix dala.deploy    # push BEAMs + restart (Phoenix server restarts inside the app)
+mix dala.watch     # auto-push on file save
 ```
 
 Phoenix code changes (templates, LiveViews) are picked up automatically when
@@ -434,17 +434,17 @@ assets, not the dev pipeline.
 
 ### Adding LiveView to an existing native project
 
-If you already have a Mob project (created without `--liveview`) and want to
+If you already have a Dala project (created without `--liveview`) and want to
 turn it into a LiveView app, run:
 
 ```bash
-mix mob.enable liveview
+mix dala.enable liveview
 ```
 
-This is the same patcher that `mix mob.new --liveview` runs for new projects:
-generates `lib/<app>/mob_screen.ex`, injects `MobHook` into `assets/js/app.js`,
-inserts the hidden `<div id="mob-bridge">` into `root.html.heex`, sets
-`liveview_port` in `mob.exs`, and adds the Android `networkSecurityConfig`
+This is the same patcher that `mix dala.new --liveview` runs for new projects:
+generates `lib/<app>/dala_screen.ex`, injects `DalaHook` into `assets/js/app.js`,
+inserts the hidden `<div id="dala-bridge">` into `root.html.heex`, sets
+`liveview_port` in `dala.exs`, and adds the Android `networkSecurityConfig`
 that lets the WebView reach `127.0.0.1`. See [LiveView Mode](liveview.md) for
 the full architecture explanation.
 
@@ -457,7 +457,7 @@ These commands work the same regardless of platform.
 ### Connect a live IEx session
 
 ```bash
-mix mob.connect
+mix dala.connect
 ```
 
 Tunnels Erlang distribution and drops you into an IEx session connected to the running
@@ -467,7 +467,7 @@ BEAM on the device. You can inspect state, call functions, and push code live.
 Node.list()
 #=> [:"my_app_ios@127.0.0.1"]
 
-Mob.Test.assigns(:"my_app_ios@127.0.0.1")
+Dala.Test.assigns(:"my_app_ios@127.0.0.1")
 #=> %{count: 0, safe_area: %{top: 62.0, ...}}
 ```
 
@@ -476,7 +476,7 @@ Mob.Test.assigns(:"my_app_ios@127.0.0.1")
 Edit a module, then push the new bytecode without restarting:
 
 ```bash
-mix mob.push
+mix dala.push
 ```
 
 Changed `.beam` files are loaded directly into the running BEAM via RPC — no restart,
@@ -485,11 +485,11 @@ no state loss. The screen updates immediately.
 ### Auto-push on save
 
 ```bash
-mix mob.watch
+mix dala.watch
 ```
 
-Watches for file changes and runs `mob.push` automatically. Combine with
-`mix mob.connect` to keep an IEx session open alongside.
+Watches for file changes and runs `dala.push` automatically. Combine with
+`mix dala.connect` to keep an IEx session open alongside.
 
 ---
 
@@ -497,61 +497,61 @@ Watches for file changes and runs `mob.push` automatically. Combine with
 
 | Command | Restarts? | Requires dist? | What it does |
 |---------|:---------:|:--------------:|---|
-| `mix mob.deploy --native` | Yes | No | Build native binary + install + push BEAMs |
-| `mix mob.deploy` | Yes | No | Push BEAMs + restart (no native rebuild) |
-| `mix mob.push` | No | **Yes** | Hot-push changed BEAMs via RPC |
-| `mix mob.watch` | No | **Yes** | `mob.push` on every file save |
+| `mix dala.deploy --native` | Yes | No | Build native binary + install + push BEAMs |
+| `mix dala.deploy` | Yes | No | Push BEAMs + restart (no native rebuild) |
+| `mix dala.push` | No | **Yes** | Hot-push changed BEAMs via RPC |
+| `mix dala.watch` | No | **Yes** | `dala.push` on every file save |
 | `nl(MyApp.Screen)` in IEx | No | **Yes** | Hot-push a single module |
 
-**Requires dist** means Erlang distribution must be active. Run `mix mob.connect` first,
-or use the dashboard (`mix mob.server`) which sets it up automatically.
+**Requires dist** means Erlang distribution must be active. Run `mix dala.connect` first,
+or use the dashboard (`mix dala.server`) which sets it up automatically.
 
 ### Which command should I use?
 
-- **First time, or after changing Swift/Kotlin/C?** → `mix mob.deploy --native`
-- **Changed Elixir, want a clean restart?** → `mix mob.deploy`
-- **Changed Elixir, want to keep app state?** → `mix mob.push`
-- **Want changes pushed automatically while editing?** → `mix mob.watch`
+- **First time, or after changing Swift/Kotlin/C?** → `mix dala.deploy --native`
+- **Changed Elixir, want a clean restart?** → `mix dala.deploy`
+- **Changed Elixir, want to keep app state?** → `mix dala.push`
+- **Want changes pushed automatically while editing?** → `mix dala.watch`
 
 ---
 
 ## Toolchain managers
 
-Mob is **tested against [mise](https://mise.jdx.dev/)** for managing Elixir
+Dala is **tested against [mise](https://mise.jdx.dev/)** for managing Elixir
 and Erlang versions. The repos ship a `.tool-versions` file that mise reads
 automatically.
 
 **asdf** uses the same `.tool-versions` format and should work without
 changes — install Elixir/Erlang the asdf way and you're done. We don't
-actively test it, but no Mob code touches mise or asdf directly; everything
+actively test it, but no Dala code touches mise or asdf directly; everything
 works off whatever `mix`, `elixir`, `iex`, and `erl` resolve to on your PATH.
 
-**Nix users** need to set a few env vars yourself, since mob_dev's auto-
+**Nix users** need to set a few env vars yourself, since dala_dev's auto-
 detection assumes mise/asdf-style on-disk layouts (e.g. `~/.local/share/mise/
 installs/elixir/...`). Set them in your shell, `direnv`, or `shell.nix`
-**before running `mix mob.install`** — the install step reads them and
-bakes the resolved values into `mob.exs` and `android/local.properties`.
+**before running `mix dala.install`** — the install step reads them and
+bakes the resolved values into `dala.exs` and `android/local.properties`.
 Setting them later still works (build.sh and Gradle re-read the env at
 deploy time), but you'll need to edit those config files by hand.
 
 | Env var | Read by | When to set |
 |---|---|---|
-| `MOB_ELIXIR_LIB` | `mob.install` (writes into `mob.exs`); iOS `build.sh` | before `mob.install` |
-| `MOB_DIR` | `mix mob.new --local` (path resolution); iOS `build.sh` | before `mob.new` (only if using `--local`) |
-| `MOB_DEV_DIR` | `mix mob.new --local` (path resolution) | before `mob.new` (only if using `--local`) |
-| `MOB_CACHE_DIR` | OTP downloader at install + any `--native` deploy | before `mob.install` |
-| `MOB_SIM_RUNTIME_DIR` | iOS `build.sh` (writer) and `mob_beam.m` (reader) | before first `mob.deploy --native` |
-| `ANDROID_HOME` | `mob.install` (auto-detected, written to `local.properties`); Gradle | before `mob.install` |
-| `JAVA_HOME` | Gradle | before `mob.deploy --native` |
+| `dala_ELIXIR_LIB` | `dala.install` (writes into `dala.exs`); iOS `build.sh` | before `dala.install` |
+| `dala_DIR` | `mix dala.new --local` (path resolution); iOS `build.sh` | before `dala.new` (only if using `--local`) |
+| `dala_DEV_DIR` | `mix dala.new --local` (path resolution) | before `dala.new` (only if using `--local`) |
+| `dala_CACHE_DIR` | OTP downloader at install + any `--native` deploy | before `dala.install` |
+| `dala_SIM_RUNTIME_DIR` | iOS `build.sh` (writer) and `dala_beam.m` (reader) | before first `dala.deploy --native` |
+| `ANDROID_HOME` | `dala.install` (auto-detected, written to `local.properties`); Gradle | before `dala.install` |
+| `JAVA_HOME` | Gradle | before `dala.deploy --native` |
 
 Each var has a default if you don't set it; the table column says where
 each *would* land:
 
-  * `MOB_ELIXIR_LIB` — computed from the running BEAM (mise/asdf path)
-  * `MOB_DIR` / `MOB_DEV_DIR` — resolves from `mob.exs` or `deps/mob`,
-    or sibling discovery (`./mob_dev` then `../mob_dev`)
-  * `MOB_CACHE_DIR` — `~/.mob/cache/`
-  * `MOB_SIM_RUNTIME_DIR` — `~/.mob/runtime/ios-sim/`
+  * `dala_ELIXIR_LIB` — computed from the running BEAM (mise/asdf path)
+  * `dala_DIR` / `dala_DEV_DIR` — resolves from `dala.exs` or `deps/dala`,
+    or sibling discovery (`./dala_dev` then `../dala_dev`)
+  * `dala_CACHE_DIR` — `~/.dala/cache/`
+  * `dala_SIM_RUNTIME_DIR` — `~/.dala/runtime/ios-sim/`
   * `ANDROID_HOME` — read from `android/local.properties` `sdk.dir`
 
 Quick recipe for a Nix user with Elixir from
@@ -559,23 +559,23 @@ Quick recipe for a Nix user with Elixir from
 `shell.nix` so it loads on `cd`:
 
 ```sh
-export MOB_ELIXIR_LIB="$(elixir -e 'IO.puts(Path.dirname(to_string(:code.lib_dir(:elixir))))')"
-export MOB_CACHE_DIR="$HOME/.mob/cache"           # or somewhere your Nix gc-roots manage
-export MOB_SIM_RUNTIME_DIR="$HOME/.mob/runtime/ios-sim"
+export dala_ELIXIR_LIB="$(elixir -e 'IO.puts(Path.dirname(to_string(:code.lib_dir(:elixir))))')"
+export dala_CACHE_DIR="$HOME/.dala/cache"           # or somewhere your Nix gc-roots manage
+export dala_SIM_RUNTIME_DIR="$HOME/.dala/runtime/ios-sim"
 export ANDROID_HOME="$HOME/Android/Sdk"           # wherever your nixpkgs AndroidSdk lives
 ```
 
 Then run the normal flow:
 
 ```sh
-mix mob.new my_app --ios
+mix dala.new my_app --ios
 cd my_app
-mix mob.install      # picks up the env vars, bakes them into mob.exs / local.properties
-mix mob.deploy --native
+mix dala.install      # picks up the env vars, bakes them into dala.exs / local.properties
+mix dala.deploy --native
 ```
 
-`mix mob.cache` and `mix mob.cache --clear` know about both `MOB_CACHE_DIR`
-and `MOB_SIM_RUNTIME_DIR` overrides — if you point them at a project-local
+`mix dala.cache` and `mix dala.cache --clear` know about both `dala_CACHE_DIR`
+and `dala_SIM_RUNTIME_DIR` overrides — if you point them at a project-local
 or sandbox-friendly path, that's also what cache listings and `--clear` will
 target.
 
@@ -583,38 +583,38 @@ target.
 
 ## Caches and disk usage
 
-`mix mob.deploy` populates a few machine-wide locations outside your project tree:
+`mix dala.deploy` populates a few machine-wide locations outside your project tree:
 
-- **`~/.mob/cache/`** — pre-built OTP runtimes for iOS sim, iOS device, and
-  Android (one per ABI). Reused across every Mob project. ~200–400 MB each.
-  Override with `MOB_CACHE_DIR`.
-- **`~/.mob/runtime/ios-sim/`** — the OTP root that the running iOS simulator
-  app reads from at startup (mob_new ≥ 0.1.20). One per machine, not per
-  project — last project deployed wins. Override with `MOB_SIM_RUNTIME_DIR`.
-  Older projects use `/tmp/otp-ios-sim` instead, which `mob.cache` still lists.
+- **`~/.dala/cache/`** — pre-built OTP runtimes for iOS sim, iOS device, and
+  Android (one per ABI). Reused across every Dala project. ~200–400 MB each.
+  Override with `dala_CACHE_DIR`.
+- **`~/.dala/runtime/ios-sim/`** — the OTP root that the running iOS simulator
+  app reads from at startup (dala_new ≥ 0.1.20). One per machine, not per
+  project — last project deployed wins. Override with `dala_SIM_RUNTIME_DIR`.
+  Older projects use `/tmp/otp-ios-sim` instead, which `dala.cache` still lists.
 - **`~/Library/Caches/elixir_make/`** (macOS) or `~/.cache/elixir_make/`
   (Linux) — pre-built NIF tarballs that `exqlite` and other NIF deps download
-  instead of recompiling from source. Owned by `elixir_make`, not Mob.
+  instead of recompiling from source. Owned by `elixir_make`, not Dala.
 
 To inspect or clear them:
 
 ```bash
-mix mob.cache                              # show paths + sizes (read-only)
-mix mob.cache --include-transitive         # also show elixir_make's cache
-mix mob.cache --clear                      # delete Mob's caches (with prompt)
-mix mob.cache --clear --include-transitive # delete ours + elixir_make's
+mix dala.cache                              # show paths + sizes (read-only)
+mix dala.cache --include-transitive         # also show elixir_make's cache
+mix dala.cache --clear                      # delete Dala's caches (with prompt)
+mix dala.cache --clear --include-transitive # delete ours + elixir_make's
 ```
 
-To relocate Mob-owned paths (sandbox-friendly for Nix or CI environments):
+To relocate Dala-owned paths (sandbox-friendly for Nix or CI environments):
 
 ```bash
-export MOB_CACHE_DIR=/path/to/cache         # OTP runtime cache
-export MOB_SIM_RUNTIME_DIR=/path/to/runtime # iOS simulator runtime
+export dala_CACHE_DIR=/path/to/cache         # OTP runtime cache
+export dala_SIM_RUNTIME_DIR=/path/to/runtime # iOS simulator runtime
 ```
 
-`mob.cache` deliberately does not touch `~/.hex`, `~/.mix`, `~/.gradle`, or
-Xcode's `DerivedData` — those are shared with non-Mob projects and clearing
-them via Mob would silently break unrelated work.
+`dala.cache` deliberately does not touch `~/.hex`, `~/.mix`, `~/.gradle`, or
+Xcode's `DerivedData` — those are shared with non-Dala projects and clearing
+them via Dala would silently break unrelated work.
 
 ---
 
@@ -622,14 +622,14 @@ them via Mob would silently break unrelated work.
 
 ```elixir
 defmodule MyApp.HomeScreen do
-  use Mob.Screen
+  use Dala.Screen
 
   def mount(_params, _session, socket) do
-    {:ok, Mob.Socket.assign(socket, :count, 0)}
+    {:ok, Dala.Socket.assign(socket, :count, 0)}
   end
 
   def render(assigns) do
-    ~MOB"""
+    ~dala"""
     <Column padding={24} gap={16}>
       <Text text={"Count: #{assigns.count}"} text_size={:xl} />
       <Button text="Tap me" on_tap={tap(:increment)} />
@@ -638,14 +638,14 @@ defmodule MyApp.HomeScreen do
   end
 
   def handle_info({:tap, :increment}, socket) do
-    {:noreply, Mob.Socket.assign(socket, :count, socket.assigns.count + 1)}
+    {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
 end
 ```
 
-`mount/3` initialises assigns. `render/1` returns the component tree via the `~MOB`
+`mount/3` initialises assigns. `render/1` returns the component tree via the `~dala`
 sigil. `handle_info/2` updates state in response to user events. After each update,
 the framework calls `render/1` again and pushes the diff to the native layer.
 
@@ -657,8 +657,8 @@ the framework calls `render/1` again and pushes the diff to the native layer.
 - [Components](components.md) — full component reference
 - [Navigation](navigation.md) — stack, tab bar, drawer, push/pop
 - [Theming](theming.md) — color tokens, named themes, runtime switching
-- [Data & Persistence](data.md) — `Mob.State` for preferences, Ecto + SQLite for structured data
+- [Data & Persistence](data.md) — `Dala.State` for preferences, Ecto + SQLite for structured data
 - [Device Capabilities](device_capabilities.md) — camera, location, haptics, notifications
-- [LiveView Mode](liveview.md) — full Phoenix LiveView app inside a native WebView (the two-bridge architecture, `mix mob.enable liveview`)
+- [LiveView Mode](liveview.md) — full Phoenix LiveView app inside a native WebView (the two-bridge architecture, `mix dala.enable liveview`)
 - [Testing](testing.md) — unit tests and live device inspection
 - [Troubleshooting](troubleshooting.md) — if something isn't working, start here

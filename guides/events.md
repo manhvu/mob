@@ -1,11 +1,11 @@
-# Events in Mob — User Guide
+# Events in Dala — User Guide
 
 Comprehensive guide to receiving events from widgets, gestures, and the
 device. For the underlying design, see [`event_model.md`](event_model.md).
 
 ## TL;DR
 
-Every event in Mob — taps, text changes, gestures, scroll, device lifecycle —
+Every event in Dala — taps, text changes, gestures, scroll, device lifecycle —
 arrives in your handler as one of two shapes:
 
 ```elixir
@@ -15,13 +15,13 @@ arrives in your handler as one of two shapes:
 {:focus, tag}  {:blur, tag}  {:submit, tag}
 
 # Canonical envelope (recommended for new code):
-{:mob_event, %Mob.Event.Address{}, event_atom, payload}
+{:dala_event, %Dala.Event.Address{}, event_atom, payload}
 ```
 
 Either path delivers the same logical event; the canonical envelope just
 includes more context (screen, component path, render generation).
 
-`Mob.Event.Bridge` converts legacy → canonical so screens can opt into the
+`Dala.Event.Bridge` converts legacy → canonical so screens can opt into the
 new shape one at a time.
 
 ## Quick reference
@@ -163,14 +163,14 @@ text ends up in `value` correctly. Only opt in when partial input matters.
 
 ```elixir
 # Subscribe in mount/2 (or anywhere — process is monitored, auto-cleaned):
-Mob.Device.subscribe()                  # default: :app, :display, :audio, :memory
-Mob.Device.subscribe(:all)              # all categories
-Mob.Device.subscribe([:thermal, :power])
+Dala.Device.subscribe()                  # default: :app, :display, :audio, :memory
+Dala.Device.subscribe(:all)              # all categories
+Dala.Device.subscribe([:thermal, :power])
 
 # Receive events:
-def handle_info({:mob_device, :did_enter_background}, socket), do: ...
-def handle_info({:mob_device, :thermal_state_changed, :serious}, socket), do: ...
-def handle_info({:mob_device, :battery_level_changed, pct}, socket), do: ...
+def handle_info({:dala_device, :did_enter_background}, socket), do: ...
+def handle_info({:dala_device, :thermal_state_changed, :serious}, socket), do: ...
+def handle_info({:dala_device, :battery_level_changed, pct}, socket), do: ...
 ```
 
 See [`event_model.md`](event_model.md) for the full event vocabulary.
@@ -256,12 +256,12 @@ payload. The `tag` identifies the source widget.
 
 ## The canonical envelope
 
-For new code, prefer the canonical envelope. Use `Mob.Event.Bridge`:
+For new code, prefer the canonical envelope. Use `Dala.Event.Bridge`:
 
 ```elixir
 def handle_info(msg, socket) do
-  case Mob.Event.Bridge.legacy_to_canonical(msg, __MODULE__) do
-    {:ok, {:mob_event, addr, event, payload}} ->
+  case Dala.Event.Bridge.legacy_to_canonical(msg, __MODULE__) do
+    {:ok, {:dala_event, addr, event, payload}} ->
       handle_canonical(addr, event, payload, socket)
 
     :passthrough ->
@@ -305,11 +305,11 @@ you put in `on_tap: {pid, ...}`.)
 ## Stateful components own their subtree's events
 
 If you write a reusable component (e.g., a date picker, an autocomplete,
-a chart), declare it as `Mob.Event.Component`:
+a chart), declare it as `Dala.Event.Component`:
 
 ```elixir
 defmodule MyApp.Form do
-  use Mob.Event.Component
+  use Dala.Event.Component
 
   def mount(props, state), do: {:ok, Map.put(state, :email, "")}
 
@@ -332,26 +332,26 @@ Widget events inside the component default to landing here, not the screen.
 The screen sees only `:form_submitted` — clean encapsulation, regardless of
 how many widgets the component contains internally.
 
-## Debugging — `Mob.Event.Trace`
+## Debugging — `Dala.Event.Trace`
 
 Live-watch every event in IEx:
 
 ```elixir
-Mob.Event.Trace.start()
-Mob.Event.Trace.subscribe()             # all events
+Dala.Event.Trace.start()
+Dala.Event.Trace.subscribe()             # all events
 # or with a filter:
-Mob.Event.Trace.subscribe(fn addr -> addr.widget == :scroll end)
+Dala.Event.Trace.subscribe(fn addr -> addr.widget == :scroll end)
 
 # Now in your IEx session:
 flush()
-# {:mob_trace, %Address{widget: :scroll, id: :feed},
+# {:dala_trace, %Address{widget: :scroll, id: :feed},
 #               :scroll, %{y: 240.0, dy: 8.0, phase: :dragging, seq: 12}}
 # ...
 
-Mob.Event.Trace.unsubscribe()
+Dala.Event.Trace.unsubscribe()
 ```
 
-When no tracers are registered, `Mob.Event.dispatch/4` does one ETS lookup
+When no tracers are registered, `Dala.Event.dispatch/4` does one ETS lookup
 (~50 ns) and returns. Zero impact on production performance.
 
 ## Performance notes
@@ -372,11 +372,11 @@ When no tracers are registered, `Mob.Event.dispatch/4` does one ETS lookup
 
 The framework still uses `register_tap` (returning integer handles) under
 the hood. The visible API has not changed: continue to write
-`on_tap: {pid, tag}`. As you migrate screens to use `Mob.Event.Bridge`
+`on_tap: {pid, tag}`. As you migrate screens to use `Dala.Event.Bridge`
 or stateful components, the legacy shapes keep working — both arrive at
 the same handler.
 
-When/if `Mob.List` is migrated to a stateful component, its row-tap shape
+When/if `Dala.List` is migrated to a stateful component, its row-tap shape
 (`{:tap, {:list, id, :select, idx}}`) will change to a canonical envelope
 emitted from the list's pid. The bridge already handles this conversion
 transparently for screens that opt in.

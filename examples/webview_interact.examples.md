@@ -1,10 +1,10 @@
 # WebView Interact API Example
 
-This example demonstrates how to use the `Mob.WebView.interact/2` API to programmatically control WebView content.
+This example demonstrates how to use the `Dala.WebView.interact/2` API to programmatically control WebView content.
 
 ## Prerequisites
 
-- Mob project set up with `mix mob.new`
+- Dala project set up with `mix dala.new`
 - iOS simulator or Android device/emulator running
 - Node.js installed (for the example local server)
 
@@ -59,24 +59,24 @@ This example demonstrates how to use the `Mob.WebView.interact/2` API to program
     </div>
     
     <script>
-        // Set up mob bridge
-        if (!window.mob) {
-            window.mob = {
+        // Set up dala bridge
+        if (!window.dala) {
+            window.dala = {
                 send: function(data) {
-                    window.webkit.messageHandlers.mob.postMessage(JSON.stringify(data));
+                    window.webkit.messageHandlers.dala.postMessage(JSON.stringify(data));
                 },
                 onMessage: function(handler) {
-                    if (!window._mobHandlers) window._mobHandlers = [];
-                    window._mobHandlers.push(handler);
+                    if (!window._dalaHandlers) window._dalaHandlers = [];
+                    window._dalaHandlers.push(handler);
                     return function() {
-                        window._mobHandlers = window._mobHandlers.filter(h => h !== handler);
+                        window._dalaHandlers = window._dalaHandlers.filter(h => h !== handler);
                     };
                 },
                 _dispatch: function(json) {
                     try {
                         var data = JSON.parse(json);
-                        if (window._mobHandlers) {
-                            window._mobHandlers.forEach(h => h(data));
+                        if (window._dalaHandlers) {
+                            window._dalaHandlers.forEach(h => h(data));
                         }
                     } catch(e) {}
                 }
@@ -93,7 +93,7 @@ This example demonstrates how to use the `Mob.WebView.interact/2` API to program
                 <p>Email: ${email}</p>`;
             
             // Send to Elixir
-            window.mob.send({
+            window.dala.send({
                 type: 'form_submit',
                 name: name,
                 email: email
@@ -101,7 +101,7 @@ This example demonstrates how to use the `Mob.WebView.interact/2` API to program
         }
         
         // Listen for messages from Elixir
-        window.mob.onMessage(function(data) {
+        window.dala.onMessage(function(data) {
             console.log('Received from Elixir:', data);
             const result = document.getElementById('result');
             result.innerHTML += `<p><strong>From Elixir:</strong> ${JSON.stringify(data)}</p>`;
@@ -111,14 +111,14 @@ This example demonstrates how to use the `Mob.WebView.interact/2` API to program
 </html>
 ```
 
-### 2. Create the Mob screen (`lib/my_app/webview_screen.ex`):
+### 2. Create the Dala screen (`lib/my_app/webview_screen.ex`):
 
 ```elixir
 defmodule MyApp.WebViewScreen do
-  use Mob.Screen
+  use Dala.Screen
 
   def mount(_params, _session, socket) do
-    {:ok, Mob.Socket.assign(socket, :status, "ready")}
+    {:ok, Dala.Socket.assign(socket, :status, "ready")}
   end
 
   def render(assigns) do
@@ -128,7 +128,7 @@ defmodule MyApp.WebViewScreen do
       children: [
         %{type: :text, props: %{text: "WebView Interact Example", text_size: :xl, font_weight: :bold},
         %{type: :text, props: %{text: "Status: #{assigns.status}", text_color: :secondary},
-        Mob.UI.webview(
+        Dala.UI.webview(
           url: "http://127.0.0.1:4000/index.html",
           allow: ["http://127.0.0.1:4000"],
           width: 400,
@@ -145,39 +145,39 @@ defmodule MyApp.WebViewScreen do
 
   def handle_event("tap", %{"tag" => "tap_submit"}, socket) do
     # Tap the submit button in WebView
-    Mob.WebView.interact(socket, {:tap, ".container > button"})
+    Dala.WebView.interact(socket, {:tap, ".container > button"})
     {:noreply, socket}
   end
 
   def handle_event("tap", %{"tag" => "type_name"}, socket) do
     # Type into the name field
-    Mob.WebView.interact(socket, {:type, "#name", "John Doe"})
+    Dala.WebView.interact(socket, {:type, "#name", "John Doe"})
     {:noreply, socket}
   end
 
   def handle_event("tap", %{"tag" => "clear_fields"}, socket) do
     # Clear both fields
-    Mob.WebView.interact(socket, {:clear, "#name"})
-    Mob.WebView.interact(socket, {:clear, "#email"})
+    Dala.WebView.interact(socket, {:clear, "#name"})
+    Dala.WebView.interact(socket, {:clear, "#email"})
     {:noreply, socket}
   end
 
   def handle_event("tap", %{"tag" => "eval_js"}, socket) do
     # Evaluate JavaScript
-    Mob.WebView.eval_js(socket, "document.title")
+    Dala.WebView.eval_js(socket, "document.title")
     {:noreply, socket}
   end
 
   def handle_info({:webview, :message, data}, socket) do
-    {:noreply, Mob.Socket.assign(socket, :webview_message, inspect(data))}
+    {:noreply, Dala.Socket.assign(socket, :webview_message, inspect(data))}
   end
 
   def handle_info({:webview, :eval_result, result}, socket) do
-    {:noreply, Mob.Socket.assign(socket, :webview_message, "JS Result: #{inspect(result)}")}
+    {:noreply, Dala.Socket.assign(socket, :webview_message, "JS Result: #{inspect(result)}")}
   end
 
   def handle_info({:webview, :interact_result, data}, socket) do
-    {:noreply, Mob.Socket.assign(socket, :webview_message, "Interact: #{inspect(data)}")}
+    {:noreply, Dala.Socket.assign(socket, :webview_message, "Interact: #{inspect(data)}")}
   end
 end
 ```
@@ -193,7 +193,7 @@ python3 -m http.server 4000
 
 ```elixir
 defmodule MyApp do
-  use Mob.App
+  use Dala.App
 
   def navigation(_platform) do
     stack(:home, root: MyApp.WebViewScreen)
@@ -204,26 +204,26 @@ end
 ### 5. Deploy and test:
 
 ```bash
-mix mob.deploy --native
-mix mob.connect
+mix dala.deploy --native
+mix dala.connect
 ```
 
-### 6. Test the interact API using Mob.Test:
+### 6. Test the interact API using Dala.Test:
 
 ```elixir
 node = :"my_app_ios@127.0.0.1"
 
 # Tap the submit button
-Mob.Test.webview_tap(node, ".container > button")
+Dala.Test.webview_tap(node, ".container > button")
 
 # Type into name field
-Mob.Test.webview_type(node, "#name", "John Doe")
+Dala.Test.webview_type(node, "#name", "John Doe")
 
 # Clear fields
-Mob.Test.webview_clear(node, "#email")
+Dala.Test.webview_clear(node, "#email")
 
 # Evaluate JavaScript
-Mob.Test.webview_eval(node, "document.title")
+Dala.Test.webview_eval(node, "document.title")
 ```
 
 ## Testing the API
@@ -232,7 +232,7 @@ You can also test the API programmatically:
 
 ```elixir
 # In IEx after connecting to the node
-alias Mob.Test, as: T
+alias Dala.Test, as: T
 
 # Navigate to a new URL
 T.webview_navigate(node, "http://127.0.0.1:4000/other-page.html")
@@ -258,7 +258,7 @@ T.webview_screenshot(node)
 
 ## Next Steps
 
-- Implement full `mob_deliver_webview_eval_result` in Rust to properly send messages to Elixir
+- Implement full `dala_deliver_webview_eval_result` in Rust to properly send messages to Elixir
 - Complete Android WebView JNI implementation
 - Add screenshot capture for both platforms
 - Add more interact actions (scroll, wait, etc.)

@@ -1,12 +1,12 @@
 # Styling & Native Rendering
 
-This page maps every Mob component and style prop to its native counterpart on iOS (SwiftUI) and Android (Jetpack Compose). Use it when you need to understand platform behaviour, look up what constraints apply, or reach for a platform-specific override.
+This page maps every Dala component and style prop to its native counterpart on iOS (SwiftUI) and Android (Jetpack Compose). Use it when you need to understand platform behaviour, look up what constraints apply, or reach for a platform-specific override.
 
-Mob does not wrap a web renderer — you are writing directly to SwiftUI and Compose. That means native look-and-feel, native performance, and native constraints.
+Dala does not wrap a web renderer — you are writing directly to SwiftUI and Compose. That means native look-and-feel, native performance, and native constraints.
 
 ## Component → native widget
 
-| Mob type | iOS (SwiftUI) | Android (Compose) |
+| Dala type | iOS (SwiftUI) | Android (Compose) |
 |---|---|---|
 | `:column` | `VStack(alignment: .leading, spacing: 0)` | `Column` |
 | `:row` | `HStack(spacing: 0)` | `Row` |
@@ -69,17 +69,17 @@ Android font reference: [Typography (Compose)](https://developer.android.com/dev
 
 ### line_height difference
 
-SwiftUI's `.lineSpacing` adds *extra space between lines*, not total line height. Mob converts the multiplier to extra spacing as `(multiplier - 1.0) × font_size`, matching Compose's `lineHeight` behaviour as closely as possible. For very tight values (multiplier < 1.0) results will differ between platforms — test on both.
+SwiftUI's `.lineSpacing` adds *extra space between lines*, not total line height. Dala converts the multiplier to extra spacing as `(multiplier - 1.0) × font_size`, matching Compose's `lineHeight` behaviour as closely as possible. For very tight values (multiplier < 1.0) results will differ between platforms — test on both.
 
 ### Custom fonts
 
-Drop `.ttf` / `.otf` files into `priv/fonts/` in your Mix project. `mix mob.deploy --native` copies them into the correct platform directories and patches `Info.plist` for iOS. Reference them by PostScript name:
+Drop `.ttf` / `.otf` files into `priv/fonts/` in your Mix project. `mix dala.deploy --native` copies them into the correct platform directories and patches `Info.plist` for iOS. Reference them by PostScript name:
 
 ```elixir
 %{type: :text, props: %{text: "Hello", font: "Inter-Regular", text_size: :base}, children: []}
 ```
 
-iOS requires the PostScript name (visible in Font Book → ⌘I). Android derives the resource name automatically from the filename (`Inter-Regular.ttf` → `inter_regular`), but Mob normalises the name before sending it to the NIF so you can use the same string on both platforms.
+iOS requires the PostScript name (visible in Font Book → ⌘I). Android derives the resource name automatically from the filename (`Inter-Regular.ttf` → `inter_regular`), but Dala normalises the name before sending it to the NIF so you can use the same string on both platforms.
 
 ---
 
@@ -95,7 +95,7 @@ iOS requires the PostScript name (visible in Font Book → ⌘I). Android derive
 
 Color values are resolved in this order:
 
-1. **Semantic theme token** (`:primary`, `:surface`, `:on_surface`, etc.) — resolved via the active `Mob.Theme`
+1. **Semantic theme token** (`:primary`, `:surface`, `:on_surface`, etc.) — resolved via the active `Dala.Theme`
 2. **Palette atom** (`:blue_500`, `:gray_200`, etc.) — resolved from the built-in palette
 3. **Raw ARGB integer** (`0xFFFF5733`) — used as-is
 4. **Unknown atom** — serialised as a string; the native side treats it as a no-op color

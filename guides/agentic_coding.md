@@ -1,13 +1,13 @@
-# Agentic coding with Mob
+# Agentic coding with Dala
 
 AI coding assistants work best when they can close the loop themselves: make a change,
 verify it worked, decide what to do next. This guide explains how to give an agent the
-full context it needs to work effectively on a Mob app — and why the default approach
+full context it needs to work effectively on a Dala app — and why the default approach
 most agents reach for will give you worse results.
 
 ## The context problem
 
-An LLM working on a mobile app normally has two options for inspecting the running app:
+An LLM working on a dalaile app normally has two options for inspecting the running app:
 
 1. **Screenshots** — `xcrun simctl io booted screenshot` or `adb exec-out screencap`
 2. **Accessibility trees** — `xcrun simctl ui` or `adb shell uiautomator dump`
@@ -17,7 +17,7 @@ the agent roughly what's on screen; an accessibility dump tells it roughly what 
 exist. Neither tells it what state the BEAM is in, what data is driving the render, or
 what the navigation stack looks like.
 
-Mob apps are different. The UI is driven by a GenServer running on an Erlang node — and
+Dala apps are different. The UI is driven by a GenServer running on an Erlang node — and
 that node is reachable from your dev machine over Erlang distribution. You can query
 exact state, not infer it from pixels.
 
@@ -26,7 +26,7 @@ exact state, not infer it from pixels.
 ## Priming the agent
 
 Before the MCP tools and tunnels, give the agent the mental model of the
-project. Each Mob repo has an `AGENTS.md` at its root — a five-minute
+project. Each Dala repo has an `AGENTS.md` at its root — a five-minute
 orientation covering what's where, how to drive a running app, and the
 pre-empt-failure rules that come from this team's hard-earned lessons. The
 file is the standard cross-tool entry point (Cursor, Codex, Aider all read
@@ -34,18 +34,18 @@ it; Claude Code reads it via the `CLAUDE.md` reference).
 
 Point your agent at the relevant `AGENTS.md` for the repo it's working in:
 
-- **[`mob/AGENTS.md`](https://github.com/GenericJam/mob/blob/main/AGENTS.md)** —
-  runtime library. The "what is Mob", three-repo topology, and the full
-  "driving apps from your session" reference (Mob.Test, MCP fallbacks,
+- **[`dala/AGENTS.md`](https://github.com/GenericJam/dala/blob/main/AGENTS.md)** —
+  runtime library. The "what is Dala", three-repo topology, and the full
+  "driving apps from your session" reference (Dala.Test, MCP fallbacks,
   round-trip workflow).
-- **[`mob_dev/AGENTS.md`](https://github.com/GenericJam/mob_dev/blob/main/AGENTS.md)** —
+- **[`dala_dev/AGENTS.md`](https://github.com/GenericJam/dala_dev/blob/main/AGENTS.md)** —
   build/deploy/devices toolkit. TDD policy and the public-but-undocumented
   testing seams.
-- **[`mob_new/AGENTS.md`](https://github.com/GenericJam/mob_new/blob/main/AGENTS.md)** —
+- **[`dala_new/AGENTS.md`](https://github.com/GenericJam/dala_new/blob/main/AGENTS.md)** —
   project generator. Template gotchas and the LiveView phoenix-owned-files
   blocklist.
 
-For multi-repo work, prime with all three. The root `mob/AGENTS.md` is the
+For multi-repo work, prime with all three. The root `dala/AGENTS.md` is the
 "system view" — the other two link back to it for cross-cutting context.
 
 The files are deliberately short (≤ 200 lines) so agents read them in full
@@ -121,16 +121,16 @@ available to you"* — it should enumerate both server namespaces.
 Before an agent can inspect the running app, tunnels must be established:
 
 ```bash
-mix mob.connect --no-iex
+mix dala.connect --no-iex
 ```
 
 This sets up the adb/simctl tunnels and prints node names, then exits — leaving the
 distribution network open. Keep this running in a terminal while you're working with
-an agent. Re-run it after a device restart or if `mix mob.push` loses contact.
+an agent. Re-run it after a device restart or if `mix dala.push` loses contact.
 
 Node names:
-- iOS simulator:     `mob_demo_ios@127.0.0.1`
-- Android emulator:  `mob_demo_android@127.0.0.1`
+- iOS simulator:     `dala_demo_ios@127.0.0.1`
+- Android emulator:  `dala_demo_android@127.0.0.1`
 
 ## The three-layer inspection stack
 
@@ -138,33 +138,33 @@ Use these in order. Only go deeper if the layer above doesn't answer your questi
 
 ### Layer 1 — Erlang distribution (always try this first)
 
-`Mob.Test` gives the agent exact knowledge of what's happening inside the running app.
+`Dala.Test` gives the agent exact knowledge of what's happening inside the running app.
 No image parsing, no heuristics, no guessing.
 
 ```elixir
-node = :"mob_demo_ios@127.0.0.1"
+node = :"dala_demo_ios@127.0.0.1"
 
-Mob.Test.screen(node)
-#=> MobDemo.CounterScreen
+Dala.Test.screen(node)
+#=> dalaDemo.CounterScreen
 
-Mob.Test.assigns(node)
+Dala.Test.assigns(node)
 #=> %{count: 3, safe_area: %{top: 62.0, bottom: 34.0, left: 0.0, right: 0.0}}
 
-Mob.Test.find(node, "Increment")
+Dala.Test.find(node, "Increment")
 #=> [{[0, 1], %{"type" => "button", "on_tap_tag" => "increment"}}]
 
-Mob.Test.tap(node, :increment)
+Dala.Test.tap(node, :increment)
 #=> :ok
 
-Mob.Test.inspect(node)
-#=> %{screen: MobDemo.CounterScreen, assigns: %{count: 4}, nav_history: [], tree: ...}
+Dala.Test.inspect(node)
+#=> %{screen: dalaDemo.CounterScreen, assigns: %{count: 4}, nav_history: [], tree: ...}
 ```
 
-This is available via `iex -S mix` (after `mix mob.connect` has set up the tunnels)
+This is available via `iex -S mix` (after `mix dala.connect` has set up the tunnels)
 or directly from an agent that can run shell commands, using:
 
 ```bash
-iex -S mix --eval 'IO.inspect Mob.Test.assigns(:"mob_demo_ios@127.0.0.1")'
+iex -S mix --eval 'IO.inspect Dala.Test.assigns(:"dala_demo_ios@127.0.0.1")'
 ```
 
 ### Layer 2 — MCP platform tools (for rendering and layout)
@@ -207,11 +207,11 @@ or a specific low-level query has no higher-level equivalent.
 
 ```
 1. Edit Elixir source
-2. mix mob.push                      ← push changed BEAMs (no restart needed)
-3. Mob.Test.screen(node)             ← confirm which screen is active
-4. Mob.Test.assigns(node)            ← confirm data state is what you expect
-5. Mob.Test.tap(node, :some_tag)     ← drive an interaction
-6. Mob.Test.assigns(node)            ← confirm state updated
+2. mix dala.push                      ← push changed BEAMs (no restart needed)
+3. Dala.Test.screen(node)             ← confirm which screen is active
+4. Dala.Test.assigns(node)            ← confirm data state is what you expect
+5. Dala.Test.tap(node, :some_tag)     ← drive an interaction
+6. Dala.Test.assigns(node)            ← confirm state updated
 7. mcp__ios-simulator__screenshot    ← visual check only if layout matters
 8. repeat from 1
 ```
@@ -220,8 +220,8 @@ For changes that touch native code (NIFs, Swift, Kotlin):
 
 ```
 1. Edit source
-2. mix mob.deploy --native           ← full rebuild + install + restart
-3. mix mob.connect --no-iex          ← re-establish tunnels after restart
+2. mix dala.deploy --native           ← full rebuild + install + restart
+3. mix dala.connect --no-iex          ← re-establish tunnels after restart
 4. continue with loop above
 ```
 
@@ -237,29 +237,29 @@ You need to redirect this explicitly. Put something like the following in your p
 ```markdown
 ## Inspecting the running app
 
-This is a Mob app. The running app is an Erlang/OTP node. Do NOT use xcrun simctl
+This is a Dala app. The running app is an Erlang/OTP node. Do NOT use xcrun simctl
 screenshots or adb screencap as your primary inspection method.
 
 Instead:
-1. Run `mix mob.connect --no-iex` to establish distribution tunnels (if not already running)
-2. Use `Mob.Test` from IEx to query exact state:
-   - `Mob.Test.screen(node)` — what screen is active?
-   - `Mob.Test.assigns(node)` — what is the live data?
-   - `Mob.Test.tap(node, :tag)` — drive a tap by tag atom
-   - `Mob.Test.find(node, "text")` — locate a widget by visible text
+1. Run `mix dala.connect --no-iex` to establish distribution tunnels (if not already running)
+2. Use `Dala.Test` from IEx to query exact state:
+   - `Dala.Test.screen(node)` — what screen is active?
+   - `Dala.Test.assigns(node)` — what is the live data?
+   - `Dala.Test.tap(node, :tag)` — drive a tap by tag atom
+   - `Dala.Test.find(node, "text")` — locate a widget by visible text
 3. Only reach for `mcp__ios-simulator__screenshot` or `mcp__adb__dump_image` when
    you need to verify rendering or layout — not to check app state.
 
 Node names:
-- iOS simulator:    mob_demo_ios@127.0.0.1
-- Android emulator: mob_demo_android@127.0.0.1
+- iOS simulator:    dala_demo_ios@127.0.0.1
+- Android emulator: dala_demo_android@127.0.0.1
 ```
 
-Replace `mob_demo` with your actual app name.
+Replace `dala_demo` with your actual app name.
 
-## Why Mob.Test beats screenshots for state inspection
+## Why Dala.Test beats screenshots for state inspection
 
-| | Mob.Test | Screenshot |
+| | Dala.Test | Screenshot |
 |---|---|---|
 | Screen module | Exact atom | OCR guess |
 | Assigns | Full Elixir map | Not available |
@@ -284,7 +284,7 @@ xcrun simctl io booted screenshot /tmp/after.png
 # "The screenshots look the same, the counter didn't change"
 ```
 
-The Mob approach:
+The Dala approach:
 
 ```bash
 # Check what state the app is actually in
@@ -292,20 +292,20 @@ iex -S mix
 ```
 
 ```elixir
-node = :"mob_demo_ios@127.0.0.1"
+node = :"dala_demo_ios@127.0.0.1"
 
 # Before
-Mob.Test.assigns(node)
+Dala.Test.assigns(node)
 #=> %{count: 0}
 
-Mob.Test.tap(node, :increment)
+Dala.Test.tap(node, :increment)
 
 # After — immediate, exact
-Mob.Test.assigns(node)
+Dala.Test.assigns(node)
 #=> %{count: 1}
 
 # If it's still 0, the handle_event clause isn't matching — check the tag name
-Mob.Test.find(node, "Increment")
+Dala.Test.find(node, "Increment")
 #=> [{[0, 1], %{"type" => "button", "on_tap_tag" => "inc"}}]
 # Ah — the tag is :inc, not :increment
 ```
@@ -319,11 +319,11 @@ Tags come from `on_tap: {self(), :tag_atom}` in the render tree. To see all widg
 and their tags on the current screen, use the full snapshot:
 
 ```elixir
-node = :"mob_demo_ios@127.0.0.1"
-Mob.Test.inspect(node)
+node = :"dala_demo_ios@127.0.0.1"
+Dala.Test.inspect(node)
 # %{screen: ..., assigns: ..., tree: %{"type" => "column", "children" => [...]}}
 ```
 
 Or just read the screen's `render/1` function — every interactive widget has a tag
 in its props. The tag atom in `on_tap: {self(), :my_tag}` is what you pass to
-`Mob.Test.tap(node, :my_tag)`.
+`Dala.Test.tap(node, :my_tag)`.
