@@ -30,7 +30,7 @@ defmodule Dala.Diag do
      and 4369 access to trusted machines only.
 
   5. **Strip in production** — consider removing or disabling this module
-     in release builds by setting `dala_RELEASE=1` or using code trimming.
+     in release builds by setting `DALA_RELEASE=1` or using code trimming.
 
   6. **Monitor connections** — log and alert on unexpected `Node.connect`
      attempts in production.

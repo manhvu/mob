@@ -108,8 +108,8 @@ $(SRCROOT)/ios/Frameworks
 
 To enable specific features, add to **Build Settings** → **Other C Flags**:
 ```
--Ddala_BUNDLE_OTP
--Ddala_RELEASE
+-DDALA_BUNDLE_OTP
+-DDALA_RELEASE
 ```
 
 Or modify `dala/ios/rust/Cargo.toml`:

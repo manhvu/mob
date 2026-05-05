@@ -119,7 +119,7 @@ defmodule Dala.Dist do
     cond do
       release_mode?() ->
         # App Store / TestFlight build: distribution is disabled at the C
-        # layer (dala_beam.m drops -name/-setcookie when dala_RELEASE is
+        # layer (dala_beam.m drops -name/-setcookie when DALA_RELEASE is
         # defined). Skip Node.start so calling apps don't have to special-case
         # release vs dev — same call site, no-ops in release.
         :ok
@@ -147,7 +147,7 @@ defmodule Dala.Dist do
   end
 
   @doc false
-  def release_mode?, do: System.get_env("dala_RELEASE") == "1"
+  def release_mode?, do: System.get_env("DALA_RELEASE") == "1"
 
   @doc false
   @spec apply_suffix(node(), String.t() | nil) :: node()

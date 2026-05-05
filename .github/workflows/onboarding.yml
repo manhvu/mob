@@ -211,8 +211,8 @@ jobs:
         timeout-minutes: 45
         env:
           MIX_ENV: test
-          dala_TEST_IOS_SLOT: ${{ matrix.ios }}
-          dala_TEST_ANDROID_SLOT: ${{ matrix.android }}
+          DALA_TEST_IOS_SLOT: ${{ matrix.ios }}
+          DALA_TEST_ANDROID_SLOT: ${{ matrix.android }}
 
       - name: Upload failure logs and workspace
         if: failure()

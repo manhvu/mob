@@ -269,6 +269,54 @@ Full guide: `guides/ios_ml_support.md`
 - **Don't add features beyond what was requested.** A bug fix doesn't need
   surrounding cleanup; a one-shot doesn't need a helper.
 
+## Hex package contents
+
+The `package` function in `mix.exs` defines what goes into the Hex tarball.
+Currently: `lib/ native/ priv/ android/ ios/ assets/ mix.exs mix.lock README.md LICENSE`.
+
+### What's included
+
+| Directory | Purpose |
+|-----------|--------|
+| `lib/` | Elixir source code |
+| `native/dala_nif/` | Rust NIF source (built by Rustler during `mix compile`) |
+| `native/dala_beam/` | Rust BEAM integration source (EPMD, driver tabs) |
+| `android/jni/` | Android NDK C bridge + Rust source for BEAM |
+| `ios/` | iOS native files (.m, .h, .swift) + Rust source for BEAM |
+| `priv/tags/` | Platform tags for `Dala.Native` |
+| `assets/` | Logo and visual assets |
+
+### What's explicitly excluded (via `.gitignore` + disk cleanup)
+
+| Pattern | Why |
+|---------|----|
+| `**/target/` | Rust build artifacts (58MB+ in `android/jni/rust/target/`) |
+| `priv/native/*.so`, `*.dylib` | Pre-compiled NIFs — built during `mix compile` |
+
+### Key gotcha
+
+`mix hex.build` packages **files on disk**, not just git-tracked files.
+Even `git rm --cached` won't help if the files still exist on disk —
+they'll be included in the tarball. Always delete build artifacts from
+ disk before building:
+
+```bash
+rm -rf android/jni/rust/target/ ios/rust/target/
+rm -f priv/native/*.so
+```
+
+The `.gitignore` patterns prevent accidental re-commit, but the immediate
+build is about what's on disk.
+
+### Package size check
+
+```bash
+mix hex.build 2>&1 | tail -5  # should be under 16MB compressed
+ls -lh dala-*.tar              # typical size: ~385KB
+```
+
+---
+
 ## Keep this file up to date
 
 The next agent's first decision will be informed by this file. Stale guidance

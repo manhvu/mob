@@ -87,16 +87,16 @@ non-trivial piece; everything else is small fixes.
 **Goal**: zero references to private UIKit selectors in App Store builds.
 
 **Scope decision (2026-05-01)**: dropped the planned separate
-`dala_APP_STORE` flag — `dala_RELEASE` is only set by the release
+`dala_APP_STORE` flag — `DALA_RELEASE` is only set by the release
 script, dev mode never sets it, so reusing it for test-harness gating
 is correct. There's no use case for "release build with test harness"
 or "dev build without test harness".
 
-- [x] Wrap test-harness section in `dala/ios/dala_nif.m` with `#if !dala_RELEASE`
+- [x] Wrap test-harness section in `dala/ios/dala_nif.m` with `#if !DALA_RELEASE`
       (block from `nsstring_to_term` helpers through end of `nif_swipe_xy`)
 - [x] Wrap the test-harness entries in the `nif_funcs[]` table with
-      `#if !dala_RELEASE`
-- [x] **Add `-Ddala_RELEASE` to dala_nif.m's compile command** in
+      `#if !DALA_RELEASE`
+- [x] **Add `-DDALA_RELEASE` to dala_nif.m's compile command** in
       `dala_dev/lib/dala_dev/release.ex` (was only being defined for
       dala_beam.m — discovered when first verification still showed
       private selectors in the binary)
@@ -171,7 +171,7 @@ binary with everything statically linked, bundles only `.beam` files.
       `test/dala_dev/release_script_test.exs`, 23 assertions):
   - [x] Strip-from-bundle: `.so`, `.a`, priv/bin executables, erts/bin
         executables, unused OTP libs (megaco, runtime_tools, etc.)
-  - [x] Test-harness compile-out: `-Ddala_RELEASE` lands on both
+  - [x] Test-harness compile-out: `-DDALA_RELEASE` lands on both
         dala_nif.m AND dala_beam.m compile commands
   - [x] Info.plist defensive keys: `MinimumOSVersion`, `DTPlatformName`,
         full DT* set, `UIDeviceFamily`, `CFBundleSupportedPlatforms`
@@ -241,7 +241,7 @@ Capture non-obvious calls made *during* the work here, with date + reason.
   via wholesale `rsync` — Apple rejects the bundled copies. Fix moves
   to workstream 4 (strip-from-bundle), no cross-build infra needed.
 - **2026-05-01 — Dropped `dala_APP_STORE` flag.** Plan called for a new
-  flag separate from `dala_RELEASE`, but `dala_RELEASE` is only set by
+  flag separate from `DALA_RELEASE`, but `DALA_RELEASE` is only set by
   the release script; dev mode never sets it. Reusing the existing flag
   for test-harness gating is correct — there's no use case for "release
   build with test harness" or "dev build without test harness". One

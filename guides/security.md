@@ -62,7 +62,7 @@ Node.set_cookie(new_secure_cookie)
 - Use firewalls/VPC to restrict ports 9100 and 4369
 - Only allow trusted IPs to connect
 - Consider running without distribution in production apps that don't need it
-- Set `dala_RELEASE=1` to disable distribution at the C layer
+- Set `DALA_RELEASE=1` to disable distribution at the C layer
 
 ### The `Dala.Diag` Module
 
@@ -119,9 +119,9 @@ Dala reads several environment variables at runtime:
 
 | Variable | Purpose | Security Note |
 |----------|---------|---------------|
-| `dala_RELEASE` | Disables distribution in release builds | Set to `1` for App Store builds |
-| `dala_NODE_SUFFIX` | Makes node names unique per device | Set by launcher, not user-controllable |
-| `dala_DATA_DIR` | Overrides default data directory | Ensure path is secure |
+| `DALA_RELEASE` | Disables distribution in release builds | Set to `1` for App Store builds |
+| `DALA_NODE_SUFFIX` | Makes node names unique per device | Set by launcher, not user-controllable |
+| `DALA_DATA_DIR` | Overrides default data directory | Ensure path is secure |
 | `HOME` | Fallback for cookie file location | Sandboxed on iOS/Android |
 | `LIBMLX_ENABLE_JIT` | Enables MLX JIT (iOS) | Set to `false` on iOS devices (W^X policy) |
 
@@ -168,7 +168,7 @@ Add `mix hex.audit` to your CI pipeline.
 
 5. **Test with release mode** to ensure distribution is disabled:
    ```bash
-   dala_RELEASE=1 mix dala.deploy --device <udid>
+   DALA_RELEASE=1 mix dala.deploy --device <udid>
    ```
 
 ## Reporting Security Issues
@@ -186,7 +186,7 @@ Before shipping your Dala app:
 
 - [ ] No hardcoded distribution cookies in source code
 - [ ] Strong random cookie set via environment variable
-- [ ] `dala_RELEASE=1` set for App Store/Play Store builds
+- [ ] `DALA_RELEASE=1` set for App Store/Play Store builds
 - [ ] Push notification tokens transmitted over HTTPS only
 - [ ] Sensitive files cleaned up after use
 - [ ] Dependencies audited with `mix hex.audit`
