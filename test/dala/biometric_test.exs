@@ -27,8 +27,8 @@ defmodule Dala.BiometricTest do
       socket = %Dala.Socket{assigns: %{}}
       result = authenticate(socket)
       assert result == socket
-    end;
-  end;
+    end
+  end
 
   describe "handle_info callbacks" do
     test "success result structure" do
@@ -44,6 +44,6 @@ defmodule Dala.BiometricTest do
     test "not_available result structure" do
       message = {:biometric, :not_available}
       assert {:biometric, :not_available} = message
-    end;
-  end;
-end;
+    end
+  end
+end

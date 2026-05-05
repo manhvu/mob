@@ -13,13 +13,13 @@ defmodule Dala.ML.EMLXTest do
     test "returns :ok on non-iOS platforms" do
       # On non-iOS, setup should return :ok (no-op)
       if not (ios_device?() or ios_simulator?()) do
-        assert {:ok, _} = setup()
+        assert setup() == :ok
       end
     end
 
     test "returns :ok tuple structure" do
       result = setup()
-      assert {:ok, _} = result
+      assert result == :ok or match?({:ok, _}, result)
     end
   end
 

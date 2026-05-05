@@ -10,7 +10,7 @@ defmodule Dala.ListTest do
     test "expands list items into children" do
       list = %{
         type: :list,
-        props: %{},
+        props: %{id: :my_list, items: [1, 2, 3]},
         items: [1, 2, 3],
         item: fn i ->
           %{
@@ -30,7 +30,7 @@ defmodule Dala.ListTest do
     test "handles empty list" do
       list = %{
         type: :list,
-        props: %{},
+        props: %{id: :empty_list, items: []},
         items: [],
         item: fn _ ->
           %{type: :text, props: %{}, children: []}
@@ -47,7 +47,7 @@ defmodule Dala.ListTest do
     test "uses custom renderers" do
       list = %{
         type: :list,
-        props: %{},
+        props: %{id: :custom_list, items: ["A", "B"]},
         items: ["A", "B"],
         item: fn item ->
           %{

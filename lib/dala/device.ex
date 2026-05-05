@@ -165,7 +165,7 @@ defmodule Dala.Device do
         :ok
 
       {:error, reason} ->
-        Logger.warning("Dala.Device: NIF dispatcher not set: #{inspect(reason)}")
+        Logger.warn("Dala.Device: NIF dispatcher not set: #{inspect(reason)}")
     end
 
     {:ok, %{subscribers: %{}, monitors: %{}}}

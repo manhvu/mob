@@ -27,7 +27,7 @@ defmodule Dala.Settings do
   end
 
   @spec set(Dala.Socket.t(), String.t(), any()) :: Dala.Socket.t()
-  def set(socket, key, value) when is_binary(key) do
+  def set(socket, key, _value) when is_binary(key) do
     socket
   end
 

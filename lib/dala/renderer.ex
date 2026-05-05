@@ -254,7 +254,7 @@ defmodule Dala.Renderer do
   animation. Defaults to `:none` (instant swap).
   """
   @spec render(map(), atom(), module() | atom(), atom()) :: {:ok, :json_tree} | {:error, term()}
-  def render(tree, platform, nif \\ @default_nif, transition \\ :none) do
+  def render(tree, platform, nif \\ @default_nif, _transition \\ :none) do
     theme = Theme.current()
 
     ctx = %{
@@ -265,7 +265,6 @@ defmodule Dala.Renderer do
     }
 
     nif.clear_taps()
-    nif.set_transition(transition)
 
     json =
       tree
@@ -289,6 +288,7 @@ defmodule Dala.Renderer do
       type_scale: theme.type_scale
     }
 
+    nif.clear_taps()
     nif.set_transition(transition)
 
     {prepared, taps} = prepare_with_taps(tree, nif, platform, ctx)

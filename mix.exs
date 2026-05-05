@@ -9,8 +9,8 @@ defmodule Dala.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      description: "BEAM-on-device dalaile framework for Elixir",
-      source_url: "https://github.com/manhvu/mob",
+      description: "Fork from Mob framework, a mobile framework for Elixir",
+      source_url: "https://github.com/manhvu/dala",
       homepage_url: "https://hexdocs.pm/dala",
       package: package(),
       docs: docs(),
@@ -29,8 +29,8 @@ defmodule Dala.MixProject do
     [
       main: "readme",
       logo: "assets/logo/logo_full_color.png",
-      source_url: "https://github.com/manhvu/mob",
-      source_url_pattern: "https://github.com/manhvu/mob/blob/main/%{path}#L%{line}",
+      source_url: "https://github.com/manhvu/dala",
+      source_url_pattern: "https://github.com/manhvu/dala/blob/main/%{path}#L%{line}",
       extras: [
         "README.md": [title: "Dala"],
         "guides/why_beam.md": [title: "Why the BEAM?"],

@@ -33,7 +33,7 @@ defmodule Dala.ML.Example do
   Image classification using a quantized dalaileNet model.
   """
   def image_classify(image_tensor, _model_path \\ "dalailenet_v2_quantized") do
-    input =
+    _input =
       image_tensor
       |> Nx.reshape({224, 224, 3})
       |> Nx.divide(255.0)
@@ -56,7 +56,7 @@ defmodule Dala.ML.Example do
   Simplified YOLO-like object detection.
   """
   def yolo_detect(image_tensor, _model_path \\ "yolo_nano_quantized") do
-    input =
+    _input =
       image_tensor
       |> Nx.reshape({416, 416, 3})
       |> Nx.divide(255.0)

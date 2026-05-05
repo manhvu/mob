@@ -27,7 +27,7 @@ defmodule Dala.CameraTest do
       socket = %Dala.Socket{assigns: %{}}
       result = capture_photo(socket)
       assert result == socket
-    end;
+    end
   end;
 
   describe "capture_video/2" do
@@ -41,7 +41,7 @@ defmodule Dala.CameraTest do
       socket = %Dala.Socket{assigns: %{}}
       result = capture_video(socket, max_seconds: 60)
       assert result == socket
-    end;
+    end
   end;
 
   describe "handle_info callbacks" do
@@ -62,6 +62,6 @@ defmodule Dala.CameraTest do
     test "cancelled result structure" do
       message = {:camera, :cancelled}
       assert {:camera, :cancelled} = message
-    end;
-  end;
-end;
+    end
+  end
+end

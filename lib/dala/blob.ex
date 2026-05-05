@@ -19,23 +19,13 @@ defmodule Dala.Blob do
       {:ok, path} = Dala.Blob.to_file(blob_ref, "/tmp/blob.bin")
   """
 
-  @table :dala_blob_table
-
-  defp ensure_table do
-    if :ets.whereis(@table) == :undefined do
-      :ets.new(@table, [:set, :public, :named_table])
-    end
-
-    @table
-  end
-
   @spec create(binary(), String.t()) :: atom()
   def create(data, type \\ "application/octet-stream") when is_binary(data) and is_binary(type) do
     :"blob_stub_#{System.unique_integer([:positive])}"
   end
 
   @spec slice(atom(), non_neg_integer(), non_neg_integer()) :: atom()
-  def slice(blob_ref, start, end_pos) when is_atom(blob_ref) do
+  def slice(blob_ref, _start, _end_pos) when is_atom(blob_ref) do
     :"blob_stub_#{System.unique_integer([:positive])}"
   end
 

@@ -16,7 +16,7 @@ defmodule Dala.ML.Nx do
   def init_for_ios do
     cond do
       emlx_available?() ->
-        Dala.ML.EMLX.setup_for_ios()
+        Dala.ML.EMLX.setup()
         :emlx
 
       true ->
@@ -91,7 +91,7 @@ defmodule Dala.ML.Nx do
   @doc """
   Runs inference with a model using the best available backend.
   """
-  def inference(model, input_data) do
+  def inference(_model, input_data) do
     backend = default_backend()
     input_tensor = tensor(input_data, backend: backend)
     # Axon.predict(model, params, input_tensor)

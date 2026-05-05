@@ -17,22 +17,22 @@ defmodule Dala.Native do
   def platform, do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Log a message"
-  def log(msg), do: :erlang.nif_error(:nif_not_loaded)
+  def log(_msg), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Log a message with a level"
-  def log_level(level, msg), do: :erlang.nif_error(:nif_not_loaded)
+  def log_level(_level, _msg), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Set transition type for next root change"
-  def set_transition(transition), do: :erlang.nif_error(:nif_not_loaded)
+  def set_transition(_transition), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Set the root UI tree from JSON"
-  def set_root(json), do: :erlang.nif_error(:nif_not_loaded)
+  def set_root(_json), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Batch register tap handlers (replaces clear_taps + individual register_tap)"
-  def set_taps(taps), do: :erlang.nif_error(:nif_not_loaded)
+  def set_taps(_taps), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Register a tap handler, returns handle"
-  def register_tap(pid), do: :erlang.nif_error(:nif_not_loaded)
+  def register_tap(_pid), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc "Clear all tap handlers"
   def clear_taps, do: :erlang.nif_error(:nif_not_loaded)
