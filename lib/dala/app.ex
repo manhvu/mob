@@ -170,4 +170,29 @@ defmodule Dala.App do
   def drawer(branches) when is_list(branches) do
     %{type: :drawer, branches: branches}
   end
+
+  @doc """
+  Declare a screen module for use in navigation.
+
+  This is a convenience function that can be used in `navigation/1` to
+  register screens. The screen module must implement `Dala.Screen` behaviour.
+
+  Example:
+      def navigation(_) do
+        screens([
+          MyApp.HomeScreen,
+          MyApp.SettingsScreen
+        ])
+        stack(:home, root: MyApp.HomeScreen)
+      end
+  """
+  @spec screens([module()]) :: :ok
+  def screens(screen_modules) when is_list(screen_modules) do
+    Enum.each(screen_modules, fn mod ->
+      unless Code.ensure_loaded?(mod) and function_exported?(mod, :render, 1) do
+        raise ArgumentError, "#{inspect(mod)} is not a valid Dala.Screen module"
+      end
+    end)
+    :ok
+  end
 end

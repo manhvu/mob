@@ -1,66 +1,38 @@
 defmodule Dala.Screen do
   @moduledoc """
-  The behaviour and process wrapper for a Dala screen.
-
-  A screen is a supervised GenServer. Its state is a `Dala.Socket`. Lifecycle
-  callbacks (`mount`, `render`, `handle_event`, `handle_info`, `terminate`) map
-  directly to the GenServer lifecycle.
+  Screen behaviour and Spark DSL entry point.
 
   ## Usage
 
       defmodule MyApp.CounterScreen do
         use Dala.Screen
 
-        def mount(_params, _session, socket) do
-          {:ok, Dala.Socket.assign(socket, :count, 0)}
+        screen "counter" do
+          column do
+            text text: "Count: @count"
+            button text: "Increment", on_tap: :increment
+          end
         end
 
-        def render(assigns) do
-          %{
-            type: :column,
-            props: %{},
-            children: [
-              %{type: :text, props: %{text: "Count: \#{assigns.count}"}, children: []}
-            ]
-          }
-        end
-
-        def handle_event("increment", _params, socket) do
-          {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
+        def handle_event(:increment, _params, socket) do
+          {:ok, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
         end
       end
 
   ## Starting a screen
 
-      {:ok, pid} = Dala.Screen.start_link(MyApp.CounterScreen, %{})
+      Dala.Screen.start_root(MyApp.CounterScreen, %{})
 
   ## Dispatching events
 
-      :ok = Dala.Screen.dispatch(pid, "increment", %{})
+      Dala.Screen.dispatch(pid, "increment", %{})
   """
 
-  @type socket :: Dala.Socket.t()
+  # Set up Spark DSL - makes Dala.Screen a Spark extension module
+  use Spark.Dsl.Extension, extensions: [Dala.Spark.Dsl]
 
-  @callback mount(params :: map(), session :: map(), socket :: socket()) ::
-              {:ok, socket()} | {:error, term()}
-
-  @callback render(assigns :: map()) :: map()
-
-  @callback handle_event(event :: String.t(), params :: map(), socket :: socket()) ::
-              {:noreply, socket()} | {:reply, map(), socket()}
-
-  @callback handle_info(message :: term(), socket :: socket()) ::
-              {:noreply, socket()}
-
-  @callback terminate(reason :: term(), socket :: socket()) :: term()
-
-  @optional_callbacks [handle_event: 3, handle_info: 2, terminate: 2]
-
+  # The __using__ macro now just needs to call `use Dala.Screen`
   defmacro __using__(_opts) do
-    # 1. Set up Spark DSL at module level (outside quote so it affects the caller)
-    use Spark.Dsl.Extension, extensions: [Dala.Spark.Dsl]
-
-    # 2. Inject default implementations inside quote
     quote do
       @behaviour Dala.Screen
       import Dala.Sigil
@@ -138,7 +110,7 @@ defmodule Dala.Screen do
   Return the current socket state of a running screen.
   Intended for testing and debugging — not for production app logic.
   """
-  @spec get_socket(pid()) :: socket()
+  @spec get_socket(pid()) :: any()
   def get_socket(pid) do
     GenServer.call(pid, :get_socket)
   end

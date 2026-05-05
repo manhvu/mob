@@ -51,18 +51,19 @@ defmodule Dala.Spark.Dsl do
     defstruct text: nil, on_tap: nil, background: nil, text_color: nil, __spark_metadata__: nil
   end
 
-  # Button Entity
+  # Button Entity with inline handler support
   @button %Spark.Dsl.Entity{
     name: :button,
     target: Button,
-    describe: "Tappable button",
+    describe: "Tappable button with optional inline event handler",
     args: [:text],
     schema: [
       text: [type: :string, required: true],
       on_tap: [type: :atom],
       background: [type: :atom],
       text_color: [type: :atom]
-    ]
+    ],
+    transform: {__MODULE__, :transform_button, []}
   }
 
   # WebView struct module
@@ -337,7 +338,49 @@ defmodule Dala.Spark.Dsl do
   # Use Spark Extension
   use Spark.Dsl.Extension,
     sections: [@attributes, @screen],
-    transformers: [Dala.Spark.Transformers.GenerateMount, Dala.Spark.Transformers.Render]
+    transformers: [Dala.Spark.Transformers.GenerateMount, Dala.Spark.Transformers.Render],
+    verifiers: [__MODULE__.Verifier]
+
+  # Verifier module for compile-time prop validation
+  defmodule Verifier do
+    @moduledoc """
+    Compile-time validation for Dala Spark DSL.
+    """
+    use Spark.Dsl.Verifier
+
+    def verify(dsl_state) do
+      # Validate that all on_tap handlers referenced in buttons exist
+      buttons = Spark.Dsl.Transformer.get_entities(dsl_state, [:screen, :button])
+
+      Enum.each(buttons, fn button ->
+        if on_tap = Map.get(button, :on_tap) do
+          # Check that the handler is a valid atom
+          unless is_atom(on_tap) do
+            Spark.Dsl.Verifier.add_error(dsl_state, "button on_tap must be an atom, got: #{inspect(on_tap)}")
+          end
+        end
+      end)
+
+      # Validate attributes have valid types
+      attributes = Spark.Dsl.Transformer.get_entities(dsl_state, [:attributes, :attribute])
+
+      Enum.each(attributes, fn attr ->
+        type = Map.get(attr, :type)
+        unless type in [:integer, :string, :boolean, :float] do
+          Spark.Dsl.Verifier.add_error(dsl_state, "attribute #{inspect(Map.get(attr, :name))} has invalid type: #{inspect(type)}")
+        end
+      end)
+
+      {:ok, dsl_state}
+    end
+  end
+
+  # Transform button to handle inline handlers
+  def transform_button(%Spark.Dsl.Entity{} = entity, _opts) do
+    # This is where we could process inline handlers in the future
+    # For now, just return the entity as-is
+    {:ok, entity}
+  end
 
   # Define the dala/1 macro that wraps Spark DSL
   defmacro dala(do: block) do

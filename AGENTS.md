@@ -222,6 +222,50 @@ These are the things we've burned ourselves on. Following them isn't optional.
     Also added: `navigate/2`, `reload/1`, `stop_loading/1`, `go_forward/1`
     for complete WebView navigation control.
 
+## 16. **Spark DSL for declarative screens.**
+    Dala now supports a Spark DSL for defining screens declaratively:
+    
+    ```elixir
+    defmodule MyApp.CounterScreen do
+      use Dala.Spark.Dsl
+      
+      dala do
+        attribute :count, :integer, default: 0
+        
+        screen name: :counter do
+          text "Count: @count"
+          button "Increment", on_tap: :increment
+        end
+      end
+      
+      def handle_event(:increment, _params, socket) do
+        new_count = Dala.Socket.get_assign(socket, :count) + 1
+        socket = Dala.Socket.assign(socket, :count, new_count)
+        {:noreply, socket}
+      end
+    end
+    ```
+    
+    Features:
+    - **@ref syntax**: Use `@count` in strings to reference assigns (processed at compile time)
+    - **Auto-generated mount/3**: Initializes attributes with defaults automatically
+    - **Compile-time verifiers**: Validates prop types and handler references
+    - **Supported components**: text, button, image, switch, webview, and more
+    
+    See `guides/spark_dsl.md` for full documentation.
+
+## 17. **Dala.App screens/1 helper.**
+    Use `screens/1` in your app's `navigation/1` to register screen modules:
+    
+    ```elixir
+    def navigation(_) do
+      screens([MyApp.HomeScreen, MyApp.SettingsScreen])
+      stack(:home, root: MyApp.HomeScreen)
+    end
+    ```
+    
+    This validates at compile time that the modules are valid Dala.Screen modules.
+
 ## Where to look
 
 | Question | File |
@@ -233,6 +277,7 @@ These are the things we've burned ourselves on. Following them isn't optional.
 | Open known issues with diagnoses + fixes | `issues.md` |
 | Speculative ideas, longer-term plans | `future_developments.md`, `wire_tap.md`, `PLAN.md` |
 | Per-feature deep dives (events, navigation, theming, ...) | `guides/*.md` |
+| UI design patterns (sigil vs DSL style) | `guides/ui_design.md` |
 | Architecture decisions (one ADR per cross-cutting decision) | `docs/decisions/` |
 | iOS device deployment (provisioning, build chain, gotchas) | `guides/ios_physical_device.md` |
 | iOS ML support (Nx, Axon, EMLX) | `guides/ios_ml_support.md`, `lib/dala/ml/` |

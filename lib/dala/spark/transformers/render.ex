@@ -77,14 +77,28 @@ defmodule Dala.Spark.Transformers.Render do
   end
 
   @doc """
-  Process a string value, replacing @ref with assigns.access.
+  Process a value, replacing @ref with assigns.access.
 
+  Handles strings, atoms, lists, and maps recursively.
   Example: "Count: @count" becomes: "Count: " <> assigns.count
   """
   def process_at_refs(value) when is_binary(value) do
     Regex.replace(~r/@(\w+)/, value, fn _, key ->
       "\#{assigns.#{key}}"
     end)
+  end
+
+  def process_at_refs(value) when is_list(value) do
+    Enum.map(value, &process_at_refs/1)
+  end
+
+  def process_at_refs(value) when is_map(value) do
+    Map.new(value, fn {k, v} -> {process_at_refs(k), process_at_refs(v)} end)
+  end
+
+  def process_at_refs(value) when is_atom(value) do
+    # Handle atoms that might be @ref patterns (though less common)
+    value
   end
 
   def process_at_refs(value), do: value
