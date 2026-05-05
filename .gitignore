@@ -35,5 +35,10 @@ user_issues.md
 
 # Rust binary artifacts
 /target/
+**/target/
 .cargo
 .expert
+
+# Pre-compiled NIFs - built during mix compile
+priv/native/*.so
+priv/native/*.dylib
