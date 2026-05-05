@@ -1,10 +1,6 @@
 use rustler::{Env, NifResult, Term};
 use std::sync::Mutex;
 
-lazy_static::lazy_static! {
-    static ref CACHED_ENV: Mutex<Option<usize>> = Mutex::new(None);
-}
-
 // Platform detection
 #[cfg(target_os = "android")]
 mod android;
@@ -13,6 +9,9 @@ mod common;
 mod ios;
 
 use common::*;
+
+// Removed unsafe CACHED_ENV - Env cannot be safely cached across NIF calls
+// Each NIF call receives a fresh Env with proper lifetime
 
 // ============================================================================
 // Helpers
@@ -36,20 +35,21 @@ fn term_or_error<'a>(env: Env<'a>, opt: Option<Term<'a>>) -> NifResult<Term<'a>>
 }
 
 // Cache the Erlang environment for use by ObjC callbacks
+// Note: This is a simplified stub - proper implementation would need
+// to handle Env lifetime correctly
 #[rustler::nif]
 fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
-    let env_ptr = env.as_c_arg() as usize;
-    let mut cached = CACHED_ENV.lock().unwrap();
-    *cached = Some(env_ptr);
+    // Env cannot be safely cached as usize - lifetime is tied to NIF call
+    // This function is kept as a stub for API compatibility
     ok(env)
 }
 
 // Deliver webview eval result to Elixir
 // This is called from ObjC when JS evaluation completes
 //
-// TODO: Properly send message to :mob_screen process:
-// 1. Get the :mob_screen pid using erlang:whereis/1 or similar
-// 2. Use rustler::env::env_send() to send the tuple
+// Proper implementation:
+// 1. The :mob_screen pid should be stored when the webview is created
+// 2. Use erlang:send() or similar to send the result
 // 3. Message format: {:webview, :eval_result, json_binary}
 #[no_mangle]
 pub extern "C" fn mob_deliver_webview_eval_result(json_utf8: *const std::ffi::c_char) {
@@ -69,13 +69,8 @@ pub extern "C" fn mob_deliver_webview_eval_result(json_utf8: *const std::ffi::c_
         // For now, just log the result
         eprintln!("[Mob] WebView eval result: {}", json);
 
-        // TODO: Send to :mob_screen process
-        // let env = ...; // Need to get Env from cached pointer
-        // let webview_atom = ...;
-        // let eval_result_atom = ...;
-        // let json_term = ...;
-        // let message = (webview_atom, eval_result_atom, json_term);
-        // rustler::env::env_send(&env, pid, message);
+        // TODO: Implement proper message sending to :mob_screen
+        // This requires storing the :mob_screen pid somewhere accessible
     }
 }
 

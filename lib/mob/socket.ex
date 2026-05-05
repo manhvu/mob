@@ -54,7 +54,8 @@ defmodule Mob.Socket do
         root_view: nil,
         view_tree: %{},
         nav_stack: [],
-        nav_action: nil
+        nav_action: nil,
+        changed: MapSet.new()
       }
     }
   end

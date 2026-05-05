@@ -207,6 +207,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Children
 @property (nonatomic, strong, nonnull) NSMutableArray<MobNode*>* children;
 
+// Unique identifier for SwiftUI ForEach stability
+@property (nonatomic, copy, nonnull) NSString* nodeId;
+
 /// Create a MobNode tree from a parsed JSON dictionary (Elixir map → NSDictionary).
 /// Returns nil if the dictionary is malformed.
 + (nullable instancetype)fromDictionary:(nonnull NSDictionary*)dict;

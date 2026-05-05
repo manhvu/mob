@@ -26,6 +26,7 @@ if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libmob_beam_ios.a" ];
     echo "✓ Copied device library"
 else
     echo "✗ Device library not found"
+    exit 1
 fi
 
 # Copy simulator libraries
@@ -39,6 +40,7 @@ if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios-sim/release/libmob_beam_ios.a
     echo "✓ Created universal simulator library"
 else
     echo "✗ Simulator libraries not found"
+    exit 1
 fi
 
 # Copy driver table library
@@ -46,6 +48,9 @@ if [ -f "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libdriver_tab_ios.a" 
     cp "$SCRIPT_DIR/rust/target/aarch64-apple-ios/release/libdriver_tab_ios.a" \
        "$SCRIPT_DIR/Frameworks/libdriver_tab_ios_device.a"
     echo "✓ Copied driver table device library"
+else
+    echo "✗ Driver table device library not found"
+    exit 1
 fi
 
 echo ""

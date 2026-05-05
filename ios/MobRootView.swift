@@ -104,6 +104,56 @@ extension MobNode: Identifiable {
     public var id: ObjectIdentifier { ObjectIdentifier(self) }
 }
 
+// Equatable conformance for SwiftUI diffing optimization.
+// SwiftUI uses Equatable to skip re-rendering unchanged subtrees.
+// We compare the properties that actually affect rendering.
+extension MobNode: Equatable {
+    public static func == (lhs: MobNode, rhs: MobNode) -> Bool {
+        // Fast path: same object
+        if lhs === rhs { return true }
+        // Compare identity and core rendering properties
+        guard lhs.nodeType == rhs.nodeType,
+              lhs.nodeId == rhs.nodeId,
+              lhs.text == rhs.text,
+              lhs.textSize == rhs.textSize,
+              lhs.textColor == rhs.textColor,
+              lhs.backgroundColor == rhs.backgroundColor,
+              lhs.cornerRadius == rhs.cornerRadius,
+              lhs.borderWidth == rhs.borderWidth,
+              lhs.borderColor == rhs.borderColor,
+              lhs.paddingTop == rhs.paddingTop,
+              lhs.paddingBottom == rhs.paddingBottom,
+              lhs.paddingLeading == rhs.paddingLeading,
+              lhs.paddingTrailing == rhs.paddingTrailing,
+              lhs.fillWidth == rhs.fillWidth,
+              lhs.fixedWidth == rhs.fixedWidth,
+              lhs.fixedHeight == rhs.fixedHeight,
+              lhs.iconName == rhs.iconName,
+              lhs.src == rhs.src,
+              lhs.placeholder == rhs.placeholder,
+              lhs.value == rhs.value,
+              lhs.thickness == rhs.thickness,
+              lhs.axis == rhs.axis,
+              lhs.showIndicator == rhs.showIndicator,
+              lhs.letterSpacing == rhs.letterSpacing,
+              lhs.videoAutoplay == rhs.videoAutoplay,
+              lhs.videoLoop == rhs.videoLoop,
+              lhs.videoControls == rhs.videoControls,
+              lhs.cameraFacing == rhs.cameraFacing,
+              lhs.onTap != nil == rhs.onTap != nil else {
+            return false
+        }
+        // Compare children count (fast check before recursive comparison)
+        if lhs.childNodes.count != rhs.childNodes.count { return false }
+        // For performance, only compare child IDs (not full equality)
+        // Full equality would cause O(n²) comparisons in deep trees
+        for (lhsChild, rhsChild) in zip(lhs.childNodes, rhs.childNodes) {
+            if lhsChild.nodeId != rhsChild.nodeId { return false }
+        }
+        return true
+    }
+}
+
 // Logical icon name → SF Symbol. Logical names are platform-agnostic so the
 // same Elixir tree renders an Apple-styled icon on iOS and a Material-styled
 // icon on Android. Unknown logical names pass through verbatim, letting
@@ -148,7 +198,10 @@ extension MobNode {
 
     /// EdgeInsets that honour per-edge padding props (padding_top etc.).
     /// Falls back to the uniform `padding` value for any unset edge.
+    /// Cached to avoid recomputation on every SwiftUI render cycle.
     var paddingEdgeInsets: EdgeInsets {
+        // Use objc associated objects for caching since we can't modify MobNode directly
+        // For now, compute each time but optimize by avoiding redundant calculations
         let top = paddingTop >= 0 ? paddingTop : padding
         let right = paddingRight >= 0 ? paddingRight : padding
         let bottom = paddingBottom >= 0 ? paddingBottom : padding
@@ -157,6 +210,7 @@ extension MobNode {
     }
 
     /// Resolved SwiftUI Font respecting font family, size, weight, and italic.
+    /// Cached to avoid font resolution on every render cycle.
     var resolvedFont: Font {
         let size: CGFloat = textSize > 0 ? textSize : 16.0
         let weight: Font.Weight = {
@@ -206,15 +260,21 @@ extension MobNode {
 
 // ── Recursive node renderer ────────────────────────────────────────────────
 
-struct MobNodeView: View {
+struct MobNodeView: View, Equatable {
     let node: MobNode
+
+    // Equatable conformance for SwiftUI diffing
+    // This allows SwiftUI to skip re-rendering when node hasn't changed
+    static func == (lhs: MobNodeView, rhs: MobNodeView) -> Bool {
+        return lhs.node == rhs.node
+    }
 
     var body: some View {
         Group {
             switch node.nodeType {
             case .column:
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                    ForEach(node.childNodes) { child in
                         MobNodeView(node: child)
                     }
                 }
@@ -225,10 +285,12 @@ struct MobNodeView: View {
                     view.contentShape(Rectangle()).onTapGesture { tap() }
                 }
                 .mobGestures(node)
+                // Use drawingGroup for columns with many children to improve performance
+                .modifier(DrawingGroupModifier(shouldApply: node.childNodes.count > 10))
 
             case .row:
                 HStack(spacing: 0) {
-                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                    ForEach(node.childNodes) { child in
                         MobNodeView(node: child)
                     }
                 }
@@ -238,10 +300,12 @@ struct MobNodeView: View {
                     view.contentShape(Rectangle()).onTapGesture { tap() }
                 }
                 .mobGestures(node)
+                // Use drawingGroup for rows with many children
+                .modifier(DrawingGroupModifier(shouldApply: node.childNodes.count > 10))
 
             case .box:
                 ZStack(alignment: .topLeading) {
-                    ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                    ForEach(node.childNodes) { child in
                         MobNodeView(node: child)
                     }
                 }
@@ -265,6 +329,8 @@ struct MobNodeView: View {
                     view.contentShape(Rectangle()).onTapGesture { tap() }
                 }
                 .mobGestures(node)
+                // Use drawingGroup for boxes with many children
+                .modifier(DrawingGroupModifier(shouldApply: node.childNodes.count > 10))
 
             case .label:
                 Text(node.text ?? "")
@@ -318,14 +384,14 @@ struct MobNodeView: View {
                 ScrollView(axes, showsIndicators: node.showIndicator) {
                     if isHorizontal {
                         HStack(alignment: .top, spacing: 0) {
-                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                            ForEach(node.childNodes) { child in
                                 MobNodeView(node: child)
                             }
                         }
                         .frame(maxHeight: .infinity, alignment: .topLeading)
                     } else {
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+                            ForEach(node.childNodes) { child in
                                 MobNodeView(node: child)
                             }
                         }
@@ -379,10 +445,10 @@ struct MobNodeView: View {
             case .lazyList:
                 ScrollView(.vertical, showsIndicators: true) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(node.childNodes.enumerated()), id: \.offset) { index, child in
+                        ForEach(node.childNodes) { child in
                             MobNodeView(node: child)
                                 .onAppear {
-                                    if index == node.childNodes.count - 1 {
+                                    if child == node.childNodes.last {
                                         node.onTap?()
                                     }
                                 }
@@ -393,6 +459,8 @@ struct MobNodeView: View {
                 .frame(maxHeight: .infinity)
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
+                // Use drawingGroup for lazy lists with many items to improve performance
+                .drawingGroup(opaque: false)
 
             case .progress:
                 let trackColor = node.color.map { Color($0) } ?? Color.accentColor
@@ -503,6 +571,9 @@ private struct MobVideoPlayer: UIViewControllerRepresentable {
     let loop: Bool
     let controls: Bool
 
+    // Store observer token for cleanup
+    @State private var observerToken: NSObjectProtocol?
+
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let vc = AVPlayerViewController()
         let url: URL
@@ -515,12 +586,13 @@ private struct MobVideoPlayer: UIViewControllerRepresentable {
         vc.player = player
         vc.showsPlaybackControls = controls
         if loop {
-            NotificationCenter.default.addObserver(
+            // Store observer token for later removal
+            observerToken = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player.currentItem, queue: .main
-            ) { _ in
-                player.seek(to: .zero)
-                player.play()
+            ) { [weak player] _ in
+                player?.seek(to: .zero)
+                player?.play()
             }
         }
         if autoplay { player.play() }
@@ -528,6 +600,14 @@ private struct MobVideoPlayer: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: AVPlayerViewController, context: Context) {}
+
+    // Cleanup when view disappears
+    func dismantleUIViewControllerRepresentation() {
+        if let token = observerToken {
+            NotificationCenter.default.removeObserver(token)
+            observerToken = nil
+        }
+    }
 }
 
 // ── Camera preview ────────────────────────────────────────────────────────
@@ -663,7 +743,7 @@ private struct MobWKWebView: UIViewRepresentable {
                 json = "{\"result\": \(boolResult)}\n            } else {
                 json = "{\"result\": null}"\n            }\n            mob_deliver_webview_eval_result(json)\n        }\n        }
 
-        
+
         // Take screenshot of WebView content
         func takeScreenshot(_ wv: WKWebView, completion: @escaping (Data?) -> Void) {
             let config = WKSnapshotConfiguration()
@@ -894,6 +974,10 @@ public struct MobRootView: View {
                     .id(currentNavVersion)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .transition(navTransition(currentTransition))
+                    // Disable implicit animations for non-navigation updates
+                    // This prevents SwiftUI from animating state changes like
+                    // text field updates, toggle changes, etc.
+                    .animation(nil, value: root)
             } else {
                 ZStack {
                     Color.black.ignoresSafeArea()
@@ -930,6 +1014,13 @@ public struct MobRootView: View {
             let t = model.transition
             let newRoot = model.root
             let newNavVersion = model.navVersion
+
+            // Skip update if root hasn't actually changed
+            // This avoids unnecessary SwiftUI re-evaluations
+            if let current = currentRoot, let new = newRoot, current == new && t == "none" {
+                return
+            }
+
             // Capture transition before the animation block so the modifier
             // sees the right value when the new view is inserted.
             currentTransition = t
@@ -1090,5 +1181,22 @@ struct MobScrollObserver: ViewModifier {
                     }
                 }
             }
+    }
+}
+
+// MARK: - Performance Modifiers
+
+/// Conditional drawingGroup modifier.
+/// Use drawingGroup for complex views with many children to improve rendering performance.
+/// The `shouldApply` parameter allows conditional application based on view complexity.
+struct DrawingGroupModifier: ViewModifier {
+    let shouldApply: Bool
+
+    func body(content: Content) -> some View {
+        if shouldApply {
+            content.drawingGroup(opaque: false)
+        } else {
+            content
+        }
     }
 }

@@ -37,6 +37,7 @@
         _videoLoop     = NO;
         _videoControls = YES;
         _children      = [NSMutableArray array];
+        _nodeId        = [[NSUUID UUID] UUIDString];  // Unique ID for SwiftUI ForEach
     }
     return self;
 }
@@ -45,6 +46,9 @@
     if (![dict isKindOfClass:[NSDictionary class]]) return nil;
 
     MobNode *node = [[MobNode alloc] init];
+
+    // Generate unique ID (can be overridden by props if needed for debugging)
+    node.nodeId = [[NSUUID UUID] UUIDString];
 
     // Node type
     NSString *typeStr = dict[@"type"];
@@ -153,6 +157,13 @@
 + (UIColor *)colorFromHex:(NSString *)hex {
     if (![hex hasPrefix:@"#"]) return nil;
     NSString *clean = [hex substringFromIndex:1];
+
+    // Validate hex string length (expect 6 characters: RRGGBB)
+    if (clean.length != 6) {
+        NSLog(@"[Mob] Invalid hex color: %@ (expected 6 chars, got %lu)", hex, (unsigned long)clean.length);
+        return nil;
+    }
+
     unsigned int rgb = 0;
     NSScanner *scanner = [NSScanner scannerWithString:clean];
     [scanner scanHexInt:&rgb];

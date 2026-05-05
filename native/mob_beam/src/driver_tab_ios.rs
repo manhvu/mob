@@ -41,10 +41,15 @@ extern "C" {
     pub fn prim_socket_nif_init() -> *mut c_void;
     pub fn prim_net_nif_init() -> *mut c_void;
     pub fn asn1rt_nif_nif_init() -> *mut c_void;
-    pub fn mob_nif_nif_init() -> *mut c_void;
+    pub fn sqlite3_nif_nif_init() -> *mut c_void;
     // exqlite sqlite3_nif is linked statically on device
     #[cfg(feature = "mob_static_sqlite_nif")]
     pub fn sqlite3_nif_nif_init() -> *mut c_void;
+}
+
+// External NIF init functions - declared in lib.rs
+extern "C" {
+    pub fn mob_nif_nif_init() -> *mut c_void;
 }
 
 // Driver table

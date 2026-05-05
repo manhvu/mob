@@ -5,50 +5,64 @@ mod driver_tab_android;
 mod driver_tab_ios;
 mod header;
 
-use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{JNIEnv as JNISysEnv, JavaVM};
-use jni::{JNIEnv, NativeMethod};
-use lazy_static::lazy_static;
+use jni::objects::{JClass, JObject, JString};
+use jni::sys::JNIEnv as JNISysEnv;
+use jni::{JNIEnv, JavaVM, NativeMethod};
+use log::info;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+
+// ── Helper: Android logging ───────────────────────────────
+
+fn android_log(fmt: &str, args: &str) {
+    #[cfg(target_os = "android")]
+    {
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_min_level(log::Level::Info)
+                .with_tag("MobBeam"),
+        );
+        log::info!("{}{}", fmt, args);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        println!("[MobBeam] {}{}", fmt, args);
+    }
+}
+
+// Overload for multiple arguments using format!
+#[allow(unused_macros)]
+macro_rules! android_log {
+    ($fmt:expr) => {
+        android_log($fmt, "");
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        android_log(&format!($fmt, $($arg)*), "");
+    };
+}
+
+// JNI JavaVM from jni crate is already Send + Sync, but we need to store
+// the inner pointer for FFI calls. Use OnceLock with the jni::JavaVM type.
+// The jni::JavaVM wraps the raw pointer safely.
 
 // ERTS version
 const ERTS_VSN: &str = "erts-16.3";
 
 // Global state
-lazy_static! {
-    static ref G_JVM: Mutex<Option<*mut JavaVM>> = Mutex::new(None);
-    static ref G_ACTIVITY: Mutex<Option<JObject<'static>>> = Mutex::new(None);
-    static ref S_NATIVE_LIB_DIR: Mutex<String> = Mutex::new(String::new());
-    static ref S_FILES_DIR: Mutex<String> = Mutex::new(String::new());
-}
+// Use Mutex<Option<JavaVM>> - JavaVM from jni crate implements Send + Sync
+static JVM: Mutex<Option<JavaVM>> = Mutex::new(None);
+static ACTIVITY: Mutex<Option<JObject<'static>>> = Mutex::new(None);
+static NATIVE_LIB_DIR: Mutex<String> = Mutex::new(String::new());
+static FILES_DIR: Mutex<String> = Mutex::new(String::new());
 
 // External function from mob_nif crate
 extern "C" {
     pub fn mob_nif_nif_init() -> *mut c_void;
 }
 
-// ── JNI utility functions ─────────────────────────────────────────────────
-
-unsafe fn get_env_from_jvm(jvm: *mut JavaVM) -> Option<*mut JNIEnv> {
-    let mut env: *mut JNIEnv = ptr::null_mut();
-    let jvm = &*jvm;
-    let get_env = (*jvm).GetEnv.unwrap();
-    match get_env(jvm, &mut env as *mut *mut JNIEnv, jni::sys::JNI_VERSION_1_6) {
-        jni::sys::JNI_OK => Some(env),
-        _ => {
-            let attach = (*jvm).AttachCurrentThread.unwrap();
-            match attach(jvm, &mut env as *mut *mut JNIEnv, ptr::null_mut()) {
-                jni::sys::JNI_OK => Some(env),
-                _ => None,
-            }
-        }
-    }
-}
-
-// ── mob_ui_cache_class ──────────────────────────────────────────────────
+// ── JNI utility functions ──────────────────────────────────────────────────
 
 #[no_mangle]
 pub extern "C" fn Java_com_example_mob_MobBridge_nativeUiCacheClass(
@@ -74,9 +88,10 @@ pub extern "C" fn Java_com_example_mob_MobBridge_nativeInitBridge(
     let jvm = unsafe {
         let mut vm: *mut JavaVM = ptr::null_mut();
         if env.get_java_vm().is_ok() {
-            // Store JVM pointer
-            let vm_ptr = Box::into_raw(Box::new(env.get_java_vm().unwrap()));
-            // This is simplified - in reality need proper JVM pointer handling
+            // Store JVM in Mutex (thread-safe)
+            let jvm = env.get_java_vm().unwrap();
+            let mut guard = JVM.lock().unwrap();
+            *guard = Some(jvm);
         }
     };
 
@@ -115,7 +130,7 @@ pub extern "C" fn Java_com_example_mob_MobBridge_nativeInitBridge(
     let native_lib_dir = dir.to_string_lossy().to_string();
 
     {
-        let mut s = S_NATIVE_LIB_DIR.lock().unwrap();
+        let mut s = NATIVE_LIB_DIR.lock().unwrap();
         *s = native_lib_dir.clone();
     }
 
@@ -144,7 +159,7 @@ pub extern "C" fn Java_com_example_mob_MobBridge_nativeInitBridge(
     let files_dir = files_path.to_string_lossy().to_string();
 
     {
-        let mut s = S_FILES_DIR.lock().unwrap();
+        let mut s = FILES_DIR.lock().unwrap();
         *s = files_dir.clone();
     }
 
@@ -175,8 +190,9 @@ fn start_beam(app_module: &str) {
 
     set_startup_phase("Setting up BEAM environment…");
 
-    let files_dir = S_FILES_DIR.lock().unwrap().clone();
-    let native_lib_dir = S_NATIVE_LIB_DIR.lock().unwrap().clone();
+    // Get values from Mutex
+    let files_dir = FILES_DIR.lock().unwrap().clone();
+    let native_lib_dir = NATIVE_LIB_DIR.lock().unwrap().clone();
 
     // Build paths
     let otp_root = format!("{}/otp", files_dir);
@@ -304,50 +320,7 @@ fn start_beam(app_module: &str) {
     // erl_start(args.len() as c_int, args.as_ptr() as *mut *mut c_char);
 }
 
-// ── Cold-start race condition fix ───────────────────────────────────────
-
-fn wait_for_window_focus() {
-    let jvm_guard = G_JVM.lock().unwrap();
-    if let Some(jvm) = *jvm_guard {
-        // Would need proper implementation with JNI calls
-        // Poll Activity.hasWindowFocus() every 50ms for up to 3 seconds
-    }
-}
-
-// ── Helper: Android logging ─────────────────────────────────────
-
-fn android_log(fmt: &str, args: &str) {
-    #[cfg(target_os = "android")]
-    {
-        android_logger::init_once(
-            android_logger::Config::default()
-                .with_min_level(log::Level::Info)
-                .with_tag("MobBeam"),
-        );
-        log::info!("{}{}", fmt, args);
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        println!("[MobBeam] {}{}", fmt, args);
-    }
-}
-
-// Overload for multiple arguments using format!
-#[allow(unused_macros)]
-macro_rules! android_log {
-    ($fmt:expr) => {
-        android_log($fmt, "");
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        android_log(&format!($fmt, $($arg)*), "");
-    };
-}
-
-fn set_startup_phase(_phase: &str) {
-    // Would call MobBridge.setStartupPhase via JNI
-}
-
-// ── Event sender stubs (to be implemented) ───────────────────────────────
+// ── mob_start_beam ──────────────────────────────────────────────
 
 #[no_mangle]
 pub extern "C" fn mob_send_tap(_handle: c_int) {

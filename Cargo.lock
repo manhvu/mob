@@ -183,6 +183,7 @@ dependencies = [
  "jni",
  "jni-sys 0.4.1",
  "lazy_static",
+ "log",
 ]
 
 [[package]]

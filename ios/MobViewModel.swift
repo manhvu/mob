@@ -25,19 +25,38 @@ import SwiftUI
     /// Non-nil when a fatal startup error has occurred; the error screen stalls here.
     @Published public var startupError: String? = nil
 
+    /// Throttle interval for setRoot calls (milliseconds)
+    /// Prevents rapid-fire updates from overwhelming SwiftUI
+    private var lastSetRootTime: TimeInterval = 0
+    private let minSetRootInterval: TimeInterval = 0.016  // ~60fps
+
     @objc public func setRoot(_ node: MobNode?, transition: String) {
         DispatchQueue.main.async {
-            // Lightweight check: if node type and child count match, skip rebuild
-            if let new = node, let old = self.root,
-                new.nodeType == old.nodeType,
-                new.children.count == old.children.count
-            {
-                // Quick bail: same structure, just update in place
-                // (SwiftUI will diff the view tree automatically)
-                self.root = new
+            // Throttle: skip updates that come too quickly (< 16ms apart)
+            // This prevents rapid-fire BEAM updates from overwhelming SwiftUI
+            let now = CACurrentMediaTime()
+            let elapsed = now - self.lastSetRootTime
+            if elapsed < self.minSetRootInterval && transition == "none" {
+                // For non-navigation updates, throttle aggressively
+                return
+            }
+            self.lastSetRootTime = now
+
+            // Skip if root node is equal (same content, different object)
+            // This prevents unnecessary SwiftUI re-renders when BEAM sends
+            // the same tree again (e.g., during hot code reload with no changes)
+            if let newRoot = node, let currentRoot = self.root, newRoot == currentRoot {
+                // Still increment rootVersion so any pending BEAM expectations
+                // (like Mob.Test.screen/1) can complete, but don't trigger
+                // SwiftUI update
+                if transition != "none" {
+                    self.transition = transition
+                    self.navVersion += 1
+                }
                 self.rootVersion += 1
                 return
             }
+
             self.transition = transition
             self.root = node
             self.rootVersion += 1

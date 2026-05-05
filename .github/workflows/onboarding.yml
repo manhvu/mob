@@ -4,24 +4,24 @@ on:
   push:
     branches: [main]
     paths:
-      - 'lib/**'
-      - 'priv/templates/**'
-      - 'test/onboarding/**'
-      - '.github/workflows/onboarding.yml'
+      - "lib/**"
+      - "priv/templates/**"
+      - "test/onboarding/**"
+      - ".github/workflows/onboarding.yml"
   pull_request:
     paths:
-      - 'lib/**'
-      - 'priv/templates/**'
-      - 'test/onboarding/**'
+      - "lib/**"
+      - "priv/templates/**"
+      - "test/onboarding/**"
   schedule:
     # Nightly at 06:00 UTC — catches regressions from upstream changes
-    - cron: '0 6 * * *'
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       scope:
-        description: 'Test scope (generator | pre_device | all)'
+        description: "Test scope (generator | pre_device | all)"
         required: false
-        default: 'generator'
+        default: "generator"
 
 concurrency:
   group: onboarding-${{ github.ref }}
@@ -63,7 +63,7 @@ jobs:
             otp: "28"
             priority: standard
 
-    runs-on: macos-15  # Apple Silicon; required for arm64 Android images
+    runs-on: macos-15 # Apple Silicon; required for arm64 Android images
 
     steps:
       - uses: actions/checkout@v4
@@ -86,9 +86,9 @@ jobs:
       # ── mise setup (Runs B, C) ─────────────────────────────────────────────
       - name: Install mise
         if: matrix.env == 'mise'
-        run: |
-          curl https://mise.run | sh
-          echo "$HOME/.local/share/mise/shims" >> $GITHUB_PATH
+        uses: jdx/mise-action@v2
+        with:
+          version: latest
 
       - name: Configure mise versions
         if: matrix.env == 'mise'
@@ -157,7 +157,7 @@ jobs:
   # ── Full device tests: iOS + Android simulators/emulators ────────────────────
   with-devices:
     name: "With devices (${{ matrix.ios }} + ${{ matrix.android }})"
-    needs: pre-device   # Only run after the fast gate passes
+    needs: pre-device # Only run after the fast gate passes
     if: |
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' && github.event.inputs.scope == 'all' ||
@@ -183,12 +183,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install mise + Elixir 1.19
-        run: |
-          curl https://mise.run | sh
-          echo "$HOME/.local/share/mise/shims" >> $GITHUB_PATH
-          mise use --global elixir@1.19
-          mise use --global erlang@28
-          mise install
+        uses: jdx/mise-action@v2
+        with:
+          version: latest
 
       - name: Install Hex + mob archive
         run: mix local.hex --force

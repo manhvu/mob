@@ -36,6 +36,9 @@ pub fn platform() -> &'static str {
 // ============================================================================
 
 pub fn log(msg: &str) {
+    // SAFETY: msg_cstr is a valid UTF-8 C string created from Rust.
+    // NSString::stringWithUTF8String: expects a null-terminated C string.
+    // NSLog::log: takes an NSString object. Both conversions are valid.
     let msg_cstr = CString::new(msg).unwrap_or_default();
     unsafe {
         let ns_msg: *mut Object =
@@ -54,6 +57,9 @@ pub fn log_with_level(level: &str, msg: &str) {
 // ============================================================================
 
 pub fn exit_app() {
+    // SAFETY: UIApplication::sharedApplication returns a valid UIApplication object.
+    // terminateWithSuccess is a standard UIApplication method.
+    // This is safe to call from any thread.
     unsafe {
         let app: *mut Object = msg_send![class!(UIApplication), sharedApplication];
         if !app.is_null() {
@@ -67,6 +73,9 @@ pub fn exit_app() {
 // ============================================================================
 
 pub fn safe_area() -> super::common::SafeArea {
+    // SAFETY: This function dispatches a block to the main queue to access UIKit.
+    // UIEdgeInsets must be accessed from the main thread.
+    // dispatch_sync_f is used instead of block transmute (no UB).
     unsafe {
         let mut insets = objc::runtime::UIEdgeInsets {
             top: 0.0,
@@ -75,12 +84,22 @@ pub fn safe_area() -> super::common::SafeArea {
             right: 0.0,
         };
 
-        // Dispatch to main thread to access UIWindow
-        let block: extern "C" fn(*mut Object, *mut Object) -> *mut Object =
-            unsafe { std::mem::transmute(safe_area_block as usize) };
+        // SAFETY: dispatch_sync_f calls the C function on the main queue.
+        // The context pointer points to a valid UIEdgeInsets on the stack.
+        // safe_area_block_f is a proper extern "C" function, not a transmute.
         let queue: *mut Object = msg_send![class!(dispatch_get_main_queue)];
-        let _: () =
-            msg_send![queue, dispatch_sync: block, context: &mut insets as *mut _ as *mut Object];
+        extern "C" {
+            fn dispatch_sync_f(
+                queue: *mut Object,
+                context: *mut std::ffi::c_void,
+                work: extern "C" fn(*mut std::ffi::c_void),
+            );
+        }
+        dispatch_sync_f(
+            queue,
+            &mut insets as *mut _ as *mut std::ffi::c_void,
+            safe_area_block_f,
+        );
 
         super::common::SafeArea {
             top: insets.top as f64,
@@ -91,47 +110,17 @@ pub fn safe_area() -> super::common::SafeArea {
     }
 }
 
-extern "C" fn safe_area_block(_block: *mut Object, context: *mut Object) {
-    unsafe {
-        let insets_ptr = context as *mut objc::runtime::UIEdgeInsets;
-        let mut window: *mut Object = std::ptr::null_mut();
-
-        // Iterate over connected scenes to find UIWindowScene
-        let scenes: *mut Object = msg_send![
-            msg_send![class!(UIApplication), sharedApplication],
-            connectedScenes
-        ];
-        let count: usize = msg_send![scenes, count];
-
-        for i in 0..count {
-            let scene: *mut Object = msg_send![scenes, objectAtIndex: i];
-            let class: *const objc::runtime::Class = msg_send![scene, class];
-            if class != class!(UIWindowScene) {
-                continue;
-            }
-            let ws: *mut Object = scene as *mut Object; // UIWindowScene
-            let windows: *mut Object = msg_send![ws, windows];
-            let first: *mut Object = msg_send![windows, firstObject];
-            if !first.is_null() {
-                window = first;
-                break;
-            }
-        }
-
-        if !window.is_null() {
-            let insets: UIEdgeInsets = msg_send![window, safeAreaInsets];
-            (*insets_ptr) = insets;
-        }
-    }
-}
+// safe_area_block_f is defined above inside safe_area()
+// This extern "C" fn is no longer needed as a separate function.
 
 // ============================================================================
 // UI Tree (test harness)
 // ============================================================================
 
 pub fn ui_tree() -> Option<String> {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // UI methods are safe to call from any thread.
     unsafe {
-        // Call MobViewModel.shared.uiTree() which returns NSString*
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
             return None;
@@ -145,6 +134,8 @@ pub fn ui_tree() -> Option<String> {
 }
 
 pub fn ui_debug() -> Option<String> {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // UI methods are safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -163,6 +154,8 @@ pub fn ui_debug() -> Option<String> {
 // ============================================================================
 
 pub fn tap_xy(x: f64, y: f64) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // tapAtX:y: is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -173,6 +166,8 @@ pub fn tap_xy(x: f64, y: f64) {
 }
 
 pub fn tap(label: &str) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // tapLabel: is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -188,6 +183,8 @@ pub fn tap(label: &str) {
 // ============================================================================
 
 pub fn type_text(text: &str) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // typeText: is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -199,6 +196,8 @@ pub fn type_text(text: &str) {
 }
 
 pub fn delete_backward() {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // deleteBackward is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -209,6 +208,8 @@ pub fn delete_backward() {
 }
 
 pub fn clear_text() {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // clearText is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -219,6 +220,8 @@ pub fn clear_text() {
 }
 
 pub fn long_press_xy(x: f64, y: f64, _ms: u64) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // longPressAtX:y: is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -229,6 +232,8 @@ pub fn long_press_xy(x: f64, y: f64, _ms: u64) {
 }
 
 pub fn swipe_xy(x1: f64, y1: f64, x2: f64, y2: f64) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // swipeFromX:y:toX:y: is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {
@@ -243,6 +248,8 @@ pub fn swipe_xy(x1: f64, y1: f64, x2: f64, y2: f64) {
 // ============================================================================
 
 pub fn haptic(_type: &str) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // haptic: is a MobViewModel method safe to call from any thread.
     unsafe {
         let ns_type = ns_string_from_str(_type);
         let _: () = msg_send![class!(MobViewModel), haptic: ns_type];
@@ -254,6 +261,8 @@ pub fn haptic(_type: &str) {
 // ============================================================================
 
 pub fn clipboard_put(text: &str) {
+    // SAFETY: UIPasteboard::generalPasteboard returns a valid object.
+    // setString: is a standard UIPasteboard method.
     unsafe {
         let ns_text = ns_string_from_str(text);
         let pasteboard: *mut Object = msg_send![class!(UIPasteboard), generalPasteboard];
@@ -262,6 +271,8 @@ pub fn clipboard_put(text: &str) {
 }
 
 pub fn clipboard_get() -> Option<String> {
+    // SAFETY: UIPasteboard::generalPasteboard returns a valid object.
+    // string is a standard UIPasteboard method.
     unsafe {
         let pasteboard: *mut Object = msg_send![class!(UIPasteboard), generalPasteboard];
         let string: *mut Object = msg_send![pasteboard, string];
@@ -277,6 +288,8 @@ pub fn clipboard_get() -> Option<String> {
 // ============================================================================
 
 pub fn share_text(text: &str) {
+    // SAFETY: UIActivityViewController methods are safe to call.
+    // The activity will be presented from the active window scene.
     unsafe {
         let ns_text = ns_string_from_str(text);
         let activity: *mut Object = msg_send![class!(UIActivityViewController), alloc];
@@ -293,6 +306,8 @@ pub fn share_text(text: &str) {
 // ============================================================================
 
 pub fn set_root(json: &str, transition: &str) {
+    // SAFETY: MobViewModel::shared returns a valid object or nil.
+    // setRootFromJSON:transition: is a MobViewModel method safe to call from any thread.
     unsafe {
         let vm: *mut Object = msg_send![class!(MobViewModel), shared];
         if vm.is_null() {

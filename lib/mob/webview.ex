@@ -1,11 +1,13 @@
 defmodule Mob.WebView do
-  @moduledoc """
+  @moduledoc """"
   Bidirectional JS bridge for the native WebView component.
+
+  ## Overview:
 
   Use `Mob.UI.webview/1` to embed the component, then call these functions
   from `handle_info` to communicate with the page.
 
-  JS side — inject `window.mob` is injected automatically by the native layer:
+  ## JS Side (injected automatically):
 
       // Send a message to Elixir
       window.mob.send({ event: "clicked", id: 42 })
@@ -13,7 +15,7 @@ defmodule Mob.WebView do
       // Receive a message from Elixir
       window.mob.onMessage(function(data) { console.log(data) })
 
-  Elixir side:
+  ## Elixir Side:
 
       def handle_info({:webview, :message, %{"event" => "clicked", "id" => id}}, socket) do
         {:noreply, socket}
@@ -24,25 +26,25 @@ defmodule Mob.WebView do
         {:noreply, socket}
       end
 
-  ## Interact API
+  ## Navigation Functions:
 
-  Similar to `Mob.Test`, `Mob.WebView.interact/2` provides a high-level API
-  for driving WebView content from Elixir. This is useful for automation,
-  testing, or programmatic control of WebView content:
+  - `navigate/2` - Navigate to URL
+  - `reload/1` - Reload current page
+  - `stop_loading/1` - Stop loading
+  - `go_forward/1` - Go forward in history
 
-      # Tap an element by selector
-      Mob.WebView.interact(socket, {:tap, ".submit-button"})
+  ## Interact Actions:
 
-      # Type text into an input
-      Mob.WebView.interact(socket, {:type, "#search", "query text"})
+  - `{:tap, selector}` - Tap an element
+  - `{:type, selector, text}` - Type text
+  - `{:clear, selector}` - Clear input
+  - `{:eval, js_code}` - Evaluate JavaScript
+  - `{:scroll, selector, dx, dy}` - Scroll element
+  - `{:wait, selector, timeout_ms}` - Wait for element
 
-      # Evaluate JS and get result via handle_info
-      Mob.WebView.interact(socket, {:eval, "document.title"})
-
-  Results arrive as:
-
-      handle_info({:webview, :eval_result, %{"result" => ...}}, socket)
-      handle_info({:webview, :interact_result, %{"action" => ..., "success" => ...}}, socket)
+  Results arrive via:
+  - `{:webview, :eval_result, json}` - JS eval result
+  - `{:webview, :interact_result, %{"action" => ..., "success" => ...}}`
   """
 
   @doc """

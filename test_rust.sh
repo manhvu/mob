@@ -21,7 +21,7 @@ cd "$SCRIPT_DIR/android/jni/rust"
 
 if [ -f "Cargo.toml" ]; then
     echo "Running unit tests for driver_tab_android.rs..."
-    cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_android_driver.log || true
+    cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_android_driver.log
 
     if grep -q "^test result: ok" /tmp/test_android_driver.log; then
         echo -e "${GREEN}✓ Android driver table tests passed${NC}"
@@ -42,7 +42,7 @@ cd "$SCRIPT_DIR/ios/rust"
 
 if [ -f "Cargo.toml" ]; then
     echo "Running unit tests for driver_tab_ios.rs..."
-    cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_ios_driver.log || true
+    cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_ios_driver.log
 
     if grep -q "^test result: ok" /tmp/test_ios_driver.log; then
         echo -e "${GREEN}✓ iOS driver table tests passed${NC}"
@@ -62,7 +62,7 @@ echo -e "${YELLOW}[3/4] Testing Android BEAM launcher...${NC}"
 cd "$SCRIPT_DIR/android/jni/rust"
 
 echo "Running unit tests for mob_beam.rs..."
-cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_android_beam.log || true
+cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_android_beam.log
 
 if grep -q "^test result: ok" /tmp/test_android_beam.log; then
     echo -e "${GREEN}✓ Android BEAM launcher tests passed${NC}"
@@ -79,7 +79,7 @@ echo -e "${YELLOW}[4/4] Testing iOS BEAM launcher...${NC}"
 cd "$SCRIPT_DIR/ios/rust"
 
 echo "Running unit tests for mob_beam_ios.rs..."
-cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_ios_beam.log || true
+cargo test --lib -- --nocapture 2>&1 | tee /tmp/test_ios_beam.log
 
 if grep -q "^test result: ok" /tmp/test_ios_beam.log; then
     echo -e "${GREEN}✓ iOS BEAM launcher tests passed${NC}"
@@ -110,11 +110,11 @@ if [ "$1" == "--build" ]; then
 
     echo "Building Android targets..."
     cd "$SCRIPT_DIR/android/jni/rust"
-    ./build_android.sh 2>&1 | tee /tmp/build_android.log || true
+    ./build_android.sh 2>&1 | tee /tmp/build_android.log
 
     echo "Building iOS targets..."
     cd "$SCRIPT_DIR/ios/rust"
-    ./build_ios.sh 2>&1 | tee /tmp/build_ios.log || true
+    ./build_ios.sh 2>&1 | tee /tmp/build_ios.log
 
     echo ""
     echo "Build logs:"

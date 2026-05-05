@@ -7,7 +7,11 @@ use std::io::Write;
 use std::os::raw::c_int;
 use std::path::PathBuf;
 use std::ptr;
+use std::sync::Mutex;
 use std::time::Duration;
+
+// Mutex to protect std::env::set_var (not thread-safe)
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 const ERTS_VSN: &str = "erts-16.3";
 const OTP_RELEASE: &str = "29";
@@ -198,7 +202,7 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
     mob_write_diag(
         &docs_dir,
         "mob_diag_b_otp_root.txt",
-        otp_root.to_str().unwrap(),
+        otp_root.to_str().expect("Failed to convert OTP root to string")
     );
     logi!(
         "otp_root={} erts={} release={}",
@@ -207,17 +211,20 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
         OTP_RELEASE
     );
 
-    // Set environment variables
-    std::env::set_var("BINDIR", bindir.to_str().unwrap());
-    std::env::set_var("ROOTDIR", otp_root.to_str().unwrap());
-    std::env::set_var("PROGNAME", "erl");
-    std::env::set_var("EMU", "beam");
-    std::env::set_var("HOME", "/tmp");
-    std::env::set_var("MOB_DATA_DIR", &docs_dir);
+    // Set environment variables (protected by mutex)
+    {
+        let _lock = ENV_MUTEX.lock().expect("Rust error");
+        std::env::set_var("BINDIR", &bindir);
+        std::env::set_var("ROOTDIR", &otp_root);
+        std::env::set_var("PROGNAME", "erl");
+        std::env::set_var("EMU", "beam");
+        std::env::set_var("HOME", "/tmp");
+        std::env::set_var("MOB_DATA_DIR", &docs_dir);
 
-    let crash_dump = PathBuf::from(&docs_dir).join("mob_erl_crash.dump");
-    std::env::set_var("ERL_CRASH_DUMP", crash_dump.to_str().unwrap());
-    std::env::set_var("ERL_CRASH_DUMP_SECONDS", "30");
+        let crash_dump = PathBuf::from(&docs_dir).join("mob_erl_crash.dump");
+        std::env::set_var("ERL_CRASH_DUMP", crash_dump.to_str().expect("Failed to convert crash dump path to string"))
+        std::env::set_var("ERL_CRASH_DUMP_SECONDS", "30");
+    }
 
     // Distribution port
     let dist_port = std::env::var("MOB_DIST_PORT").unwrap_or_else(|_| "9101".to_string());
@@ -274,7 +281,7 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
             mob_write_diag(
                 &docs_dir,
                 "mob_diag_beams_dir.txt",
-                docs_beams.to_str().unwrap(),
+                docs_beams.to_str().expect("Rust error"),
             );
             docs_beams
         } else {
@@ -283,7 +290,7 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
     };
 
     // Set MOB_BEAMS_DIR for Ecto migrations
-    std::env::set_var("MOB_BEAMS_DIR", beams_dir.to_str().unwrap());
+    std::env::set_var("MOB_BEAMS_DIR", beams_dir.to_str().expect("Rust error"));
 
     // BEAM tuning flags
     let default_flags: &[&str] = &[
@@ -304,48 +311,48 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
 
     // Build argv for erl_start
     let mut args: Vec<CString> = Vec::new();
-    args.push(CString::new("beam").unwrap());
+    args.push(CString::new("beam").expect("Failed to create CString"));
 
     // Add flags
     if !runtime_flags.is_empty() {
         for flag in &runtime_flags {
-            args.push(CString::new(flag.as_str()).unwrap());
+            args.push(CString::new(flag.as_str()).expect("Failed to create flag CString"));
         }
     } else {
         for flag in default_flags {
-            args.push(CString::new(*flag).unwrap());
+            args.push(CString::new(*flag).expect("Failed to create default flag CString"));
         }
     }
 
     // Memory cap for device
     #[cfg(feature = "mob_bundle_otp")]
     {
-        args.push(CString::new("-MIscs").unwrap());
-        args.push(CString::new("10").unwrap());
+        args.push(CString::new("-MIscs").expect("Failed to create CString"));
+        args.push(CString::new("10").expect("Failed to create CString"));
     }
 
-    args.push(CString::new("--").unwrap());
-    args.push(CString::new("-root").unwrap());
-    args.push(CString::new(otp_root.to_str().unwrap()).unwrap());
-    args.push(CString::new("-bindir").unwrap());
-    args.push(CString::new(bindir.to_str().unwrap()).unwrap());
-    args.push(CString::new("-progname").unwrap());
-    args.push(CString::new("erl").unwrap());
-    args.push(CString::new("--").unwrap());
+    args.push(CString::new("--").expect("Failed to create CString"));
+    args.push(CString::new("-root").expect("Failed to create CString"));
+    args.push(CString::new(&otp_root).expect("Failed to create OTP root CString"));
+    args.push(CString::new("-bindir").expect("Failed to create CString"));
+    args.push(CString::new(&bindir).expect("Failed to create bindir CString"));
+    args.push(CString::new("-progname").expect("Failed to create CString"));
+    args.push(CString::new("erl").expect("Failed to create CString"));
+    args.push(CString::new("--").expect("Failed to create CString"));
 
     // Distribution flags (not for MOB_RELEASE)
     #[cfg(not(feature = "mob_release"))]
     {
-        args.push(CString::new("-name").unwrap());
-        args.push(CString::new(node_name).unwrap());
-        args.push(CString::new("-setcookie").unwrap());
-        args.push(CString::new("mob_secret").unwrap());
-        args.push(CString::new("-kernel").unwrap());
-        args.push(CString::new("inet_dist_listen_min").unwrap());
-        args.push(CString::new(&dist_port).unwrap());
-        args.push(CString::new("-kernel").unwrap());
-        args.push(CString::new("inet_dist_listen_max").unwrap());
-        args.push(CString::new(&dist_port).unwrap());
+        args.push(CString::new("-name").expect("Failed to create CString"));
+        args.push(CString::new(&node_name).expect("Failed to create node name CString"));
+        args.push(CString::new("-setcookie").expect("Failed to create CString"));
+        args.push(CString::new("mob_secret").expect("Failed to create CString"));
+        args.push(CString::new("-kernel").expect("Failed to create CString"));
+        args.push(CString::new("inet_dist_listen_min").expect("Failed to create CString"));
+        args.push(CString::new(&dist_port).expect("Failed to create dist port CString"));
+        args.push(CString::new("-kernel").expect("Failed to create CString"));
+        args.push(CString::new("inet_dist_listen_max").expect("Failed to create CString"));
+        args.push(CString::new(&dist_port).expect("Failed to create dist port CString"));
     }
 
     #[cfg(feature = "mob_release")]
@@ -353,23 +360,31 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
         std::env::set_var("MOB_RELEASE", "1");
     }
 
-    args.push(CString::new("-noshell").unwrap());
-    args.push(CString::new("-noinput").unwrap());
-    args.push(CString::new("-boot").unwrap());
-    args.push(CString::new(boot_path.to_str().unwrap()).unwrap());
-    args.push(CString::new("-pa").unwrap());
-    args.push(CString::new(elixir_dir.to_str().unwrap()).unwrap());
-    args.push(CString::new("-pa").unwrap());
-    args.push(CString::new(logger_dir.to_str().unwrap()).unwrap());
-    args.push(CString::new("-pa").unwrap());
-    args.push(CString::new(beams_dir.to_str().unwrap()).unwrap());
-    args.push(CString::new("-eval").unwrap());
-    args.push(CString::new(&eval_expr).unwrap());
-    args.push(CString::new("").unwrap()); // NULL terminator
+    args.push(CString::new("-noshell").expect("Rust error"));
+    args.push(CString::new("-noinput").expect("Rust error"));
+    args.push(CString::new("-boot").expect("Rust error"));
+    args.push(CString::new(boot_path.to_str().expect("Rust error")).expect("Rust error"));
+    args.push(CString::new("-pa").expect("Rust error"));
+    args.push(CString::new(elixir_dir.to_str().expect("Rust error")).expect("Rust error"));
+    args.push(CString::new("-pa").expect("Rust error"));
+    args.push(CString::new(logger_dir.to_str().expect("Rust error")).expect("Rust error"));
+    args.push(CString::new("-pa").expect("Rust error"));
+    args.push(CString::new(beams_dir.to_str().expect("Rust error")).expect("Rust error"));
+    args.push(CString::new("-eval").expect("Rust error"));
+    args.push(CString::new(&eval_expr).expect("Rust error"));
+    // Properly NULL-terminate argv for erl_start
+    args.push(CString::new("").expect("Rust error")); // placeholder, will be replaced with null ptr
 
     logi!("starting BEAM module={} argc={}", module, args.len());
+
+    // Convert to argv with proper NULL terminator
+    let mut argv: Vec<*mut c_char> = args.iter().map(|s| s.as_ptr() as *mut c_char).collect();
+    // Replace the last element (empty string placeholder) with actual NULL terminator
+    if let Some(last) = argv.last_mut() {
+        *last = ptr::null_mut();
+    }
     unsafe {
-        let phase = CString::new("Starting BEAM…").unwrap();
+        let phase = CString::new("Starting BEAM…").expect("Rust error");
         mob_set_startup_phase(phase.as_ptr());
     }
 
@@ -388,7 +403,7 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
     #[cfg(all(feature = "mob_bundle_otp", not(feature = "mob_release")))]
     {
         std::thread::spawn(|| {
-            let args = [CString::new("epmd").unwrap()];
+            let args = [CString::new("epmd").expect("Rust error")];
             let mut argv: Vec<*mut c_char> =
                 args.iter().map(|s| s.as_ptr() as *mut c_char).collect();
             argv.push(ptr::null_mut());
@@ -413,7 +428,7 @@ pub extern "C" fn mob_start_beam(app_module: *const c_char) {
     mob_write_diag(&docs_dir, "mob_diag_e_erl_exited.txt", "erl_start returned");
     unsafe {
         let error =
-            CString::new("BEAM exited unexpectedly — check Documents/mob_erl_crash.dump").unwrap();
+            CString::new("BEAM exited unexpectedly — check Documents/mob_erl_crash.dump").expect("Rust error");
         mob_set_startup_error(error.as_ptr());
     }
     logi!("mob_start_beam: erl_start returned (unexpected)");

@@ -1,11 +1,31 @@
 defmodule Mob.ML.ConfigHelper do
-  @moduledoc """
+  @moduledoc """"
   Helper to configure EMLX dependencies and settings for Mob iOS apps.
 
-  Use this module to generate the correct configuration for your app's mix.exs.
+  ## Usage:
+
+      # In your app's mix.exs:
+      defp deps do
+        [\{:mob, github: "elixir-nx/mob"},
+         \{:nx, github: "elixir-nx/nx"},
+         \{:axon, "~> 0.6"},
+         \{:emlx, github: "elixir-nx/emlx", branch: "main"}
+        # Optional: for model loading/serialization
+        \{:axon_onnx, "~> 0.4", optional: true}
+      end
+
+  ## Quantized Models:
+
+      # Download pre-trained quantized models:
+      # - MobileNetV2: https://huggingface.co/onnx/models/tree/main/vision/classification/mobilenet/model/unknown/1
+      # - YOLO Nano: https://github.com/ultralytics/yolov5/releases
+
+      # Configure in your app:
+      config = Mob.ML.ConfigHelper.quantized_model_config()
+      # => %{models: [...], note: "Download from HuggingFace..."}
   """
 
-  @doc """
+  @doc """"
   Returns the recommended deps for EMLX on iOS.
 
   Add these to your app's mix.exs deps/0 function.
@@ -20,10 +40,16 @@ defmodule Mob.ML.ConfigHelper do
     ]
   end
 
-  @doc """
+  @doc """"
   Returns quantized model configuration for iOS.
 
-  Use this to configure pre-trained quantized models.
+  ## Available Models:
+
+  - **MobileNetV2 Quantized**: 224x224, 1000 classes, int8, 14MB
+  - **YOLO Nano Quantized**: 416x416, [batch, grid, grid, 3*(5+classes)], int4, 6MB
+
+  ## Download:
+  Pre-trained models are available from HuggingFace or TensorFlow Hub.
   """
   def quantized_model_config do
     %{

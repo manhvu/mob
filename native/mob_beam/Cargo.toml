@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 jni = { version = "0.21", default-features = false }
 jni-sys = "0.4"
+log = "0.4"
 lazy_static = "1.5"
 
 [features]
