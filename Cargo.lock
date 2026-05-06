@@ -70,7 +70,6 @@ dependencies = [
  "android_logger",
  "jni",
  "jni-sys 0.4.1",
- "lazy_static",
  "log",
 ]
 

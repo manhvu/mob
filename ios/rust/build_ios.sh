@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUST_DIR="$SCRIPT_DIR/rust"
+RUST_DIR="$SCRIPT_DIR"
 
 # iOS targets
 TARGETS=(

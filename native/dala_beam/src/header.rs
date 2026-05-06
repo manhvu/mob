@@ -2,8 +2,6 @@
 // Equivalent to dala_beam.h in Rust
 // This module declares the public Rust functions that mirror the C API
 
-use jni::objects::{JObject, JString};
-use jni::JNIEnv;
 use std::os::raw::{c_char, c_int, c_void};
 
 // ── JNI functions (called from Java/Kotlin) ─────────────────────────────
@@ -11,7 +9,7 @@ use std::os::raw::{c_char, c_int, c_void};
 // Call from JNI_OnLoad (main thread).
 // bridge_class: e.g. "com/myapp/DalaBridge"
 #[no_mangle]
-pub extern "C" fn dala_ui_cache_class(env: *mut JNIEnv, bridge_class: *const c_char) {
+pub extern "C" fn dala_ui_cache_class(_env: *mut c_void, _bridge_class: *const c_char) {
     // Stub - would call _dala_ui_cache_class_impl from dala_nif
 }
 
@@ -199,88 +197,82 @@ pub extern "C" fn dala_handle_back() {
 // ── Device capability delivery functions ─────────────────────────────────
 
 #[no_mangle]
-pub extern "C" fn dala_deliver_atom2(pid: i64, a1: *const c_char, a2: *const c_char) {
+pub extern "C" fn dala_deliver_atom2(_pid: i64, _a1: *const c_char, _a2: *const c_char) {
     // Stub
 }
 
 #[no_mangle]
 pub extern "C" fn dala_deliver_atom3(
-    pid: i64,
-    a1: *const c_char,
-    a2: *const c_char,
-    a3: *const c_char,
+    _pid: i64,
+    _a1: *const c_char,
+    _a2: *const c_char,
+    _a3: *const c_char,
 ) {
     // Stub
 }
 
 #[no_mangle]
-pub extern "C" fn dala_deliver_location(pid: i64, lat: f64, lon: f64, acc: f64, alt: f64) {
+pub extern "C" fn dala_deliver_location(_pid: i64, _lat: f64, _lon: f64, _acc: f64, _alt: f64) {
     // Stub
 }
 
 #[no_mangle]
 pub extern "C" fn dala_deliver_motion(
-    pid: i64,
-    ax: f64,
-    ay: f64,
-    az: f64,
-    gx: f64,
-    gy: f64,
-    gz: f64,
-    ts: i64,
+    _pid: i64,
+    _ax: f64,
+    _ay: f64,
+    _az: f64,
+    _gx: f64,
+    _gy: f64,
+    _gz: f64,
+    _ts: i64,
 ) {
     // Stub
 }
 
 #[no_mangle]
 pub extern "C" fn dala_deliver_file_result(
-    pid: i64,
-    event: *const c_char,
-    sub: *const c_char,
-    json_items: *const c_char,
+    _pid: i64,
+    _event: *const c_char,
+    _sub: *const c_char,
+    _json_items: *const c_char,
 ) {
     // Stub
 }
 
 #[no_mangle]
-pub extern "C" fn dala_deliver_push_token(pid: i64, token: *const c_char) {
+pub extern "C" fn dala_deliver_push_token(_pid: i64, _token: *const c_char) {
     // Stub
 }
 
 #[no_mangle]
-pub extern "C" fn dala_deliver_notification(pid: i64, json: *const c_char) {
+pub extern "C" fn dala_deliver_notification(_pid: i64, _json: *const c_char) {
     // Stub
 }
 
 #[no_mangle]
-pub extern "C" fn dala_set_launch_notification(json: *const c_char) {
+pub extern "C" fn dala_set_launch_notification(_json: *const c_char) {
     // Stub
 }
 
 // Deliver {:alert, action_atom} to the registered :dala_screen process.
 #[no_mangle]
-pub extern "C" fn dala_deliver_alert_action(action: *const c_char) {
+pub extern "C" fn dala_deliver_alert_action(_action: *const c_char) {
     // Stub
 }
 
 // Deliver {:component_event, event, payload_json} to a native view component process.
 #[no_mangle]
 pub extern "C" fn dala_send_component_event(
-    handle: c_int,
-    event: *const c_char,
-    payload_json: *const c_char,
+    _handle: c_int,
+    _event: *const c_char,
+    _payload_json: *const c_char,
 ) {
     // Stub
 }
 
 // Deliver {:dala_device, :color_scheme_changed, :light | :dark}
 #[no_mangle]
-pub extern "C" fn dala_send_color_scheme_changed(scheme: *const c_char) {
+pub extern "C" fn dala_send_color_scheme_changed(_scheme: *const c_char) {
     // Stub
-}
-
-// Global JVM pointer - defined in lib.rs
-extern "C" {
-    pub static mut g_jvm: *mut c_void;
-    pub static mut g_activity: *mut c_void;
 }

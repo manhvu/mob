@@ -5,11 +5,9 @@ mod driver_tab_android;
 mod driver_tab_ios;
 mod header;
 
-use jni::objects::{JClass, JObject, JString};
-use jni::sys::JNIEnv as JNISysEnv;
-use jni::{JNIEnv, JavaVM, NativeMethod};
-use log::info;
-use std::ffi::{CStr, CString};
+use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use jni::{JNIEnv, JavaVM};
+use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
 use std::sync::{Mutex, OnceLock};
@@ -43,23 +41,26 @@ macro_rules! android_log {
     };
 }
 
-// JNI JavaVM from jni crate is already Send + Sync, but we need to store
-// the inner pointer for FFI calls. Use OnceLock with the jni::JavaVM type.
-// The jni::JavaVM wraps the raw pointer safely.
-
 // ERTS version
 const ERTS_VSN: &str = "erts-16.3";
 
-// Global state
-// Use Mutex<Option<JavaVM>> - JavaVM from jni crate implements Send + Sync
-static JVM: Mutex<Option<JavaVM>> = Mutex::new(None);
-static ACTIVITY: Mutex<Option<JObject<'static>>> = Mutex::new(None);
+// Global state - use GlobalRef for JNI objects that need to outlive the JNI call
+static JVM: OnceLock<JavaVM> = OnceLock::new();
+static ACTIVITY: Mutex<Option<GlobalRef>> = Mutex::new(None);
 static NATIVE_LIB_DIR: Mutex<String> = Mutex::new(String::new());
 static FILES_DIR: Mutex<String> = Mutex::new(String::new());
 
 // External function from dala_nif crate
 extern "C" {
     pub fn dala_nif_nif_init() -> *mut c_void;
+}
+
+// External BEAM entry point
+extern "C" {
+    /// ERTS entry point - starts the BEAM VM
+    /// argc: number of arguments
+    /// argv: array of C string pointers
+    pub fn erl_start(argc: c_int, argv: *mut *mut c_char);
 }
 
 // ── JNI utility functions ──────────────────────────────────────────────────
@@ -80,53 +81,47 @@ pub extern "C" fn Java_com_example_dala_DalaBridge_nativeUiCacheClass(
 
 #[no_mangle]
 pub extern "C" fn Java_com_example_dala_DalaBridge_nativeInitBridge(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     activity: JObject,
 ) {
-    // Cache the activity as global ref
-    let jvm = unsafe {
-        let mut vm: *mut JavaVM = ptr::null_mut();
-        if env.get_java_vm().is_ok() {
-            // Store JVM in Mutex (thread-safe)
-            let jvm = env.get_java_vm().unwrap();
-            let mut guard = JVM.lock().unwrap();
-            *guard = Some(jvm);
-        }
+    // Cache the JavaVM
+    if let Ok(jvm) = env.get_java_vm() {
+        let _ = JVM.set(jvm);
+    }
+
+    // Cache the activity as a global reference for later use
+    if let Ok(global_ref) = env.new_global_ref(&activity) {
+        let mut guard = ACTIVITY.lock().unwrap();
+        *guard = Some(global_ref);
+    }
+
+    // Get nativeLibraryDir via ApplicationInfo.nativeLibraryDir
+    let app_info = match env.call_method(
+        &activity,
+        "getApplicationInfo",
+        "()Landroid/content/pm/ApplicationInfo;",
+        &[],
+    ) {
+        Ok(result) => match result.l() {
+            Ok(obj) => obj,
+            Err(_) => return,
+        },
+        Err(_) => return,
     };
 
-    // Get nativeLibraryDir
-    let ctx_cls = env.find_class("android/content/Context").unwrap();
-    let get_app_info = env
-        .get_method_id(
-            &ctx_cls,
-            "getApplicationInfo",
-            "()Landroid/content/pm/ApplicationInfo;",
-        )
-        .unwrap();
-    let app_info = env
-        .call_method(
-            &activity,
-            "getApplicationInfo",
-            "()Landroid/content/pm/ApplicationInfo;",
-            &[],
-        )
-        .unwrap()
-        .l()
-        .unwrap();
-
-    let app_info_cls = env
-        .find_class("android/content/pm/ApplicationInfo")
-        .unwrap();
-    let fid = env
-        .get_field_id(&app_info_cls, "nativeLibraryDir", "Ljava/lang/String;")
-        .unwrap();
-    let jdir = env
-        .get_field(&app_info, "nativeLibraryDir", "Ljava/lang/String;")
-        .unwrap()
-        .l()
-        .unwrap();
-    let dir = env.get_string(jdir.into()).unwrap();
+    let jdir = match env.get_field(&app_info, "nativeLibraryDir", "Ljava/lang/String;") {
+        Ok(result) => match result.l() {
+            Ok(obj) => obj,
+            Err(_) => return,
+        },
+        Err(_) => return,
+    };
+    let jdir_str = JString::from(jdir);
+    let dir = match env.get_string(&jdir_str) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
     let native_lib_dir = dir.to_string_lossy().to_string();
 
     {
@@ -136,26 +131,28 @@ pub extern "C" fn Java_com_example_dala_DalaBridge_nativeInitBridge(
 
     android_log!("dala_init_bridge: native lib dir = {}", native_lib_dir);
 
-    // Get filesDir
-    let get_files_dir = env
-        .get_method_id(&ctx_cls, "getFilesDir", "()Ljava/io/File;")
-        .unwrap();
-    let files_dir_obj = env
-        .call_method(&activity, "getFilesDir", "()Ljava/io/File;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
+    // Get filesDir via Context.getFilesDir()
+    let files_dir_obj = match env.call_method(&activity, "getFilesDir", "()Ljava/io/File;", &[]) {
+        Ok(result) => match result.l() {
+            Ok(obj) => obj,
+            Err(_) => return,
+        },
+        Err(_) => return,
+    };
 
-    let file_cls = env.find_class("java/io/File").unwrap();
-    let get_path = env
-        .get_method_id(&file_cls, "getPath", "()Ljava/lang/String;")
-        .unwrap();
-    let jfiles_path = env
-        .call_method(&files_dir_obj, "getPath", "()Ljava/lang/String;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
-    let files_path = env.get_string(jfiles_path.into()).unwrap();
+    let jfiles_path = match env.call_method(&files_dir_obj, "getPath", "()Ljava/lang/String;", &[])
+    {
+        Ok(result) => match result.l() {
+            Ok(obj) => obj,
+            Err(_) => return,
+        },
+        Err(_) => return,
+    };
+    let jfiles_str = JString::from(jfiles_path);
+    let files_path = match env.get_string(&jfiles_str) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
     let files_dir = files_path.to_string_lossy().to_string();
 
     {
@@ -170,14 +167,88 @@ pub extern "C" fn Java_com_example_dala_DalaBridge_nativeInitBridge(
 
 #[no_mangle]
 pub extern "C" fn Java_com_example_dala_DalaBridge_nativeStartBeam(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     app_module: JString,
 ) {
-    let module = env.get_string(app_module.into()).unwrap();
+    let module = match env.get_string(&app_module) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
     let app_module_str = module.to_string_lossy().to_string();
 
     start_beam(&app_module_str);
+}
+
+/// Set the startup phase message shown to the user during BEAM initialization.
+/// This calls back to Java to update the UI.
+fn set_startup_phase(phase: &str) {
+    let jvm = match JVM.get() {
+        Some(jvm) => jvm,
+        None => return,
+    };
+
+    let mut env = match jvm.attach_current_thread() {
+        Ok(env) => env,
+        Err(_) => return,
+    };
+
+    // Call DalaBridge.setStartupPhase(String)
+    let class = match env.find_class("com/example/dala/DalaBridge") {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let phase_str = match env.new_string(phase) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    let _ = env.call_static_method(
+        class,
+        "setStartupPhase",
+        "(Ljava/lang/String;)V",
+        &[JValue::Object(&phase_str)],
+    );
+}
+
+/// Wait for the Activity to have window focus before starting BEAM.
+/// This fixes a cold-start race condition where BEAM starts before the UI is ready.
+fn wait_for_window_focus() {
+    let jvm = match JVM.get() {
+        Some(jvm) => jvm,
+        None => return,
+    };
+
+    let mut env = match jvm.attach_current_thread() {
+        Ok(env) => env,
+        Err(_) => return,
+    };
+
+    let activity_guard = ACTIVITY.lock().unwrap();
+    let activity = match activity_guard.as_ref() {
+        Some(a) => a.as_obj(),
+        None => return,
+    };
+
+    // Poll Activity.hasWindowFocus() with a timeout
+    let max_attempts = 100; // 5 seconds max (100 * 50ms)
+    for _ in 0..max_attempts {
+        let has_focus = env
+            .call_method(activity, "hasWindowFocus", "()Z", &[])
+            .map(|r| r.z().unwrap_or(false))
+            .unwrap_or(false);
+
+        if has_focus {
+            android_log!("wait_for_window_focus: activity has focus");
+            return;
+        }
+
+        // Sleep 50ms before retrying
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    android_log!("wait_for_window_focus: timed out waiting for focus, proceeding anyway");
 }
 
 fn start_beam(app_module: &str) {
@@ -253,40 +324,44 @@ fn start_beam(app_module: &str) {
         );
     }
 
-    let selected_flags: &[&str] = if !runtime_flags.is_empty() {
-        // This is a simplification - would need proper lifetime handling
-        &[]
+    // Select which flags to use
+    let flags_to_use: Vec<&str> = if !runtime_flags.is_empty() {
+        runtime_flags.iter().map(|s| s.as_str()).collect()
     } else {
-        default_flags
+        default_flags.to_vec()
     };
 
     let boot_path = format!("{}/releases/29/start_clean", otp_root);
 
-    // Build args
-    let mut args: Vec<&str> = vec!["beam"];
-    args.extend_from_slice(selected_flags);
-    args.push("--");
-    args.push("-root");
-    args.push(&otp_root);
-    args.push("-bindir");
-    args.push(&bindir);
-    args.push("-progname");
-    args.push("erl");
-    args.push("--");
-    args.push("-noshell");
-    args.push("-noinput");
-    args.push("-boot");
-    args.push(&boot_path);
-    args.push("-pa");
-    args.push(&elixir_dir);
-    args.push("-pa");
-    args.push(&logger_dir);
-    args.push("-pa");
-    args.push(&eex_dir);
-    args.push("-pa");
-    args.push(&beams_dir);
-    args.push("-eval");
-    args.push(&eval_expr);
+    // Build args using CString for proper null-terminated strings
+    let mut args: Vec<CString> = vec![CString::new("beam").unwrap()];
+
+    for flag in &flags_to_use {
+        args.push(CString::new(*flag).unwrap());
+    }
+
+    args.push(CString::new("--").unwrap());
+    args.push(CString::new("-root").unwrap());
+    args.push(CString::new(otp_root.as_str()).unwrap());
+    args.push(CString::new("-bindir").unwrap());
+    args.push(CString::new(bindir.as_str()).unwrap());
+    args.push(CString::new("-progname").unwrap());
+    args.push(CString::new("erl").unwrap());
+    args.push(CString::new("--").unwrap());
+    args.push(CString::new("-noshell").unwrap());
+    args.push(CString::new("-noinput").unwrap());
+    args.push(CString::new("-boot").unwrap());
+    args.push(CString::new(boot_path.as_str()).unwrap());
+    args.push(CString::new("-pa").unwrap());
+    args.push(CString::new(elixir_dir.as_str()).unwrap());
+    args.push(CString::new("-pa").unwrap());
+    args.push(CString::new(logger_dir.as_str()).unwrap());
+    args.push(CString::new("-pa").unwrap());
+    args.push(CString::new(eex_dir.as_str()).unwrap());
+    args.push(CString::new("-pa").unwrap());
+    args.push(CString::new(beams_dir.as_str()).unwrap());
+    args.push(CString::new("-eval").unwrap());
+    args.push(CString::new(eval_expr.as_str()).unwrap());
 
     // Cold-start race condition fix: wait for window focus
     wait_for_window_focus();
@@ -315,34 +390,49 @@ fn start_beam(app_module: &str) {
         }
     }
 
+    // Convert args to raw pointers for erl_start
+    let mut argv: Vec<*mut c_char> = args.iter().map(|s| s.as_ptr() as *mut c_char).collect();
+
     // Call erl_start (external C function from ERTS)
-    // This would need proper FFI declaration
-    // erl_start(args.len() as c_int, args.as_ptr() as *mut *mut c_char);
+    unsafe {
+        erl_start(args.len() as c_int, argv.as_mut_ptr());
+    }
 }
 
-// ── dala_start_beam ──────────────────────────────────────────────
+// ── Global JVM/Activity access for dala_nif ──────────────────────────────
 
+/// Global JVM pointer - used by dala_nif to get JNI environment
 #[no_mangle]
-pub extern "C" fn dala_send_tap(_handle: c_int) {
-    // Stub
-}
+pub static mut G_JVM: *mut c_void = ptr::null_mut();
 
+/// Global Activity pointer - used by dala_nif for UI operations
 #[no_mangle]
-pub extern "C" fn dala_send_change_str(_handle: c_int, _utf8: *const c_char) {
-    // Stub
-}
+pub static mut G_ACTIVITY: *mut c_void = ptr::null_mut();
 
+/// JNI_OnLoad - called when the library is loaded
+/// Sets up global JVM and Activity references for dala_nif
 #[no_mangle]
-pub extern "C" fn dala_send_change_bool(_handle: c_int, _bool_val: c_int) {
-    // Stub
-}
+#[allow(non_snake_case)]
+pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jni::sys::jint {
+    // Store the JVM pointer for dala_nif
+    unsafe {
+        G_JVM = vm as *mut c_void;
+    }
 
-#[no_mangle]
-pub extern "C" fn dala_send_change_float(_handle: c_int, _value: f64) {
-    // Stub
+    // Initialize logging
+    #[cfg(target_os = "android")]
+    {
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_min_level(log::Level::Info)
+                .with_tag("DalaBeam"),
+        );
+    }
+
+    android_log!("JNI_OnLoad: initialized");
+
+    jni::sys::JNI_VERSION_1_6
 }
 
 // Re-export header functions
 pub use header::*;
-
-// ... (other event senders would follow the same pattern)

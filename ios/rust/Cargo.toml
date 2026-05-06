@@ -8,7 +8,10 @@ name = "dala_beam_ios"
 crate-type = ["staticlib"]  # Static library for iOS
 
 [dependencies]
+libc = "0.2"
 
 [features]
 default = []
 static_sqlite_nif = []
+dala_bundle_otp = []
+dala_release = []

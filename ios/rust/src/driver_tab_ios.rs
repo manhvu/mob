@@ -72,7 +72,8 @@ pub extern "C" fn erts_init_static_drivers() {
     // No-op, mirrors C version
 }
 
-// Base table without sqlite3_nif (for simulator builds)
+// Base table without sqlite3_nif (simulator builds)
+#[cfg(not(feature = "static_sqlite_nif"))]
 #[no_mangle]
 pub static mut erts_static_nif_tab: [ErtsStaticNif; 11] = [
     ErtsStaticNif {
@@ -143,11 +144,10 @@ pub static mut erts_static_nif_tab: [ErtsStaticNif; 11] = [
     },
 ];
 
-// For device builds with DALA_STATIC_SQLITE_NIF, use this alternative table
-// that includes sqlite3_nif_nif_init.
+// Device table with sqlite3_nif included
 #[cfg(feature = "static_sqlite_nif")]
 #[no_mangle]
-pub static mut erts_static_nif_tab_device: [ErtsStaticNif; 12] = [
+pub static mut erts_static_nif_tab: [ErtsStaticNif; 12] = [
     ErtsStaticNif {
         nif_init: Some(prim_tty_nif_init),
         is_builtin: 0,

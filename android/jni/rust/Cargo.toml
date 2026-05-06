@@ -10,15 +10,19 @@ crate-type = ["cdylib"]  # Dynamic library for JNI
 [dependencies]
 jni = { version = "0.21", default-features = false }
 log = "0.4"
+libc = "0.2"
 
 [features]
 default = []
 
 # BEAM tuning profiles (mirrors C defines)
-beam_untuned = []
-beam_sbwt_only = []
-beam_full_nerves = []
-beam_use_custom_flags = []
+no_beam = []           # Skip BEAM launch for battery baseline
+beam_untuned = []      # No tuning flags
+beam_sbwt_only = []    # Only scheduler busy wait tuning
+beam_full_nerves = []  # Full Nerves-style tuning (default)
+beam_use_custom_flags = []  # Use custom flags from file
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.14"
 
 [build-dependencies]
-cbindgen = "0.26"

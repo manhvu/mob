@@ -5,6 +5,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::fs;
 use std::io::Write;
 use std::os::raw::c_int;
+use std::os::unix::io::IntoRawFd;
 use std::path::PathBuf;
 use std::ptr;
 use std::sync::Mutex;
@@ -38,7 +39,7 @@ extern "C" {
 // Logging macro for iOS
 macro_rules! logi {
     ($fmt:expr $(, $args:expr)*) => {
-        println!("[DalaBeam] {}", format!($fmt $(, $args)*));
+        eprintln!("[DalaBeam] {}", format!($fmt $(, $args)*));
     };
 }
 
@@ -202,7 +203,9 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
     dala_write_diag(
         &docs_dir,
         "dala_diag_b_otp_root.txt",
-        otp_root.to_str().expect("Failed to convert OTP root to string")
+        otp_root
+            .to_str()
+            .expect("Failed to convert OTP root to string"),
     );
     logi!(
         "otp_root={} erts={} release={}",
@@ -222,7 +225,12 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
         std::env::set_var("DALA_DATA_DIR", &docs_dir);
 
         let crash_dump = PathBuf::from(&docs_dir).join("dala_erl_crash.dump");
-        std::env::set_var("ERL_CRASH_DUMP", crash_dump.to_str().expect("Failed to convert crash dump path to string"))
+        std::env::set_var(
+            "ERL_CRASH_DUMP",
+            crash_dump
+                .to_str()
+                .expect("Failed to convert crash dump path to string"),
+        );
         std::env::set_var("ERL_CRASH_DUMP_SECONDS", "30");
     }
 
@@ -333,9 +341,19 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
 
     args.push(CString::new("--").expect("Failed to create CString"));
     args.push(CString::new("-root").expect("Failed to create CString"));
-    args.push(CString::new(&otp_root).expect("Failed to create OTP root CString"));
+    args.push(
+        CString::new(
+            otp_root
+                .to_str()
+                .expect("Failed to convert OTP root to string"),
+        )
+        .expect("Failed to create OTP root CString"),
+    );
     args.push(CString::new("-bindir").expect("Failed to create CString"));
-    args.push(CString::new(&bindir).expect("Failed to create bindir CString"));
+    args.push(
+        CString::new(bindir.to_str().expect("Failed to convert bindir to string"))
+            .expect("Failed to create bindir CString"),
+    );
     args.push(CString::new("-progname").expect("Failed to create CString"));
     args.push(CString::new("erl").expect("Failed to create CString"));
     args.push(CString::new("--").expect("Failed to create CString"));
@@ -377,12 +395,6 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
 
     logi!("starting BEAM module={} argc={}", module, args.len());
 
-    // Convert to argv with proper NULL terminator
-    let mut argv: Vec<*mut c_char> = args.iter().map(|s| s.as_ptr() as *mut c_char).collect();
-    // Replace the last element (empty string placeholder) with actual NULL terminator
-    if let Some(last) = argv.last_mut() {
-        *last = ptr::null_mut();
-    }
     unsafe {
         let phase = CString::new("Starting BEAM…").expect("Rust error");
         dala_set_startup_phase(phase.as_ptr());
@@ -425,10 +437,14 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
     }
 
     // If we get here, erl_start returned (which is unexpected)
-    dala_write_diag(&docs_dir, "dala_diag_e_erl_exited.txt", "erl_start returned");
+    dala_write_diag(
+        &docs_dir,
+        "dala_diag_e_erl_exited.txt",
+        "erl_start returned",
+    );
     unsafe {
-        let error =
-            CString::new("BEAM exited unexpectedly — check Documents/dala_erl_crash.dump").expect("Rust error");
+        let error = CString::new("BEAM exited unexpectedly — check Documents/dala_erl_crash.dump")
+            .expect("Rust error");
         dala_set_startup_error(error.as_ptr());
     }
     logi!("dala_start_beam: erl_start returned (unexpected)");

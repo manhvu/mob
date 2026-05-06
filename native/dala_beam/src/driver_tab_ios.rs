@@ -16,7 +16,7 @@ pub struct ErtsStaticDriver {
 // ErtsStaticNif struct
 #[repr(C)]
 pub struct ErtsStaticNif {
-    pub nif_init: Option<extern "C" fn() -> *mut c_void>,
+    pub nif_init: Option<unsafe extern "C" fn() -> *mut c_void>,
     pub is_builtin: c_int,
     pub nif_mod: c_ulong,
     pub entry: *mut c_void,
@@ -30,7 +30,7 @@ extern "C" {
     pub static mut ram_file_driver_entry: c_void;
 }
 
-// External NIF init functions - using safe extern to match struct field type
+// External NIF init functions
 extern "C" {
     pub fn prim_tty_nif_init() -> *mut c_void;
     pub fn erl_tracer_nif_init() -> *mut c_void;
@@ -41,15 +41,10 @@ extern "C" {
     pub fn prim_socket_nif_init() -> *mut c_void;
     pub fn prim_net_nif_init() -> *mut c_void;
     pub fn asn1rt_nif_nif_init() -> *mut c_void;
-    pub fn sqlite3_nif_nif_init() -> *mut c_void;
-    // exqlite sqlite3_nif is linked statically on device
+    pub fn dala_nif_nif_init() -> *mut c_void;
+    // exqlite sqlite3_nif is linked statically on device (conditionally)
     #[cfg(feature = "dala_static_sqlite_nif")]
     pub fn sqlite3_nif_nif_init() -> *mut c_void;
-}
-
-// External NIF init functions - declared in lib.rs
-extern "C" {
-    pub fn dala_nif_nif_init() -> *mut c_void;
 }
 
 // Driver table
@@ -75,7 +70,79 @@ pub extern "C" fn erts_init_static_drivers() {
     // No-op for static linking
 }
 
-// Static NIF table
+// Static NIF table - size depends on whether sqlite3_nif is included
+#[cfg(not(feature = "dala_static_sqlite_nif"))]
+#[no_mangle]
+pub static mut erts_static_nif_tab: [ErtsStaticNif; 11] = [
+    ErtsStaticNif {
+        nif_init: Some(prim_tty_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(erl_tracer_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(prim_buffer_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(prim_file_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(zlib_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(zstd_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(prim_socket_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(prim_net_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(asn1rt_nif_nif_init),
+        is_builtin: 1,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: Some(dala_nif_nif_init),
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+    ErtsStaticNif {
+        nif_init: None,
+        is_builtin: 0,
+        nif_mod: THE_NON_VALUE,
+        entry: std::ptr::null_mut(),
+    },
+];
+
+#[cfg(feature = "dala_static_sqlite_nif")]
 #[no_mangle]
 pub static mut erts_static_nif_tab: [ErtsStaticNif; 12] = [
     ErtsStaticNif {
@@ -138,13 +205,9 @@ pub static mut erts_static_nif_tab: [ErtsStaticNif; 12] = [
         nif_mod: THE_NON_VALUE,
         entry: std::ptr::null_mut(),
     },
-    // sqlite3_nif conditionally included on iOS device builds
+    // sqlite3_nif included when dala_static_sqlite_nif feature is enabled
     ErtsStaticNif {
-        nif_init: if cfg!(feature = "dala_static_sqlite_nif") {
-            Some(sqlite3_nif_nif_init)
-        } else {
-            None
-        },
+        nif_init: Some(sqlite3_nif_nif_init),
         is_builtin: 0,
         nif_mod: THE_NON_VALUE,
         entry: std::ptr::null_mut(),
