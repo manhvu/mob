@@ -356,6 +356,15 @@ defmodule Dala.Spark.Dsl do
     transformers: [Dala.Spark.Transformers.GenerateMount, Dala.Spark.Transformers.Render],
     verifiers: [__MODULE__.Verifier]
 
+  # Enables `use Dala.Spark.Dsl` in user modules. Sets up Spark.Dsl with
+  # this extension and imports the `dala/1` macro.
+  defmacro __using__(_opts) do
+    quote do
+      use Spark.Dsl, default_extensions: [extensions: Dala.Spark.Dsl]
+      import Dala.Spark.Dsl, only: [dala: 1]
+    end
+  end
+
   # Verifier module for compile-time prop validation
   defmodule Verifier do
     @moduledoc """
@@ -408,12 +417,11 @@ defmodule Dala.Spark.Dsl do
     {:ok, entity}
   end
 
-  # Define the dala/1 macro that wraps Spark DSL
+  # Define the dala/1 macro that wraps Spark DSL sections.
+  # `use Dala.Spark.Dsl` already sets up the Spark extension at the module
+  # level, so this macro just executes the block — Spark picks up the
+  # section entities (attributes, screen) through its own compilation pipeline.
   defmacro dala(do: block) do
-    quote do
-      use Spark.Dsl.Extension, extensions: [Dala.Spark.Dsl]
-
-      unquote(block)
-    end
+    block
   end
 end

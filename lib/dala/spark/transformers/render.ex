@@ -43,7 +43,7 @@ defmodule Dala.Spark.Transformers.Render do
   end
 
   defp build_node(%Spark.Dsl.Entity{} = entity) do
-    type = entity.__struct__
+    type = struct_to_type(entity.__struct__)
     props = build_props(entity)
     children = build_render_tree(Map.get(entity, :children, []))
 
@@ -55,6 +55,24 @@ defmodule Dala.Spark.Transformers.Render do
       }
     end
   end
+
+  defp struct_to_type(Dala.Spark.Dsl.Text), do: :text
+  defp struct_to_type(Dala.Spark.Dsl.Button), do: :button
+  defp struct_to_type(Dala.Spark.Dsl.WebView), do: :web_view
+  defp struct_to_type(Dala.Spark.Dsl.CameraPreview), do: :camera_preview
+  defp struct_to_type(Dala.Spark.Dsl.NativeView), do: :native_view
+  defp struct_to_type(Dala.Spark.Dsl.Image), do: :image
+  defp struct_to_type(Dala.Spark.Dsl.Switch), do: :switch
+  defp struct_to_type(Dala.Spark.Dsl.ActivityIndicator), do: :activity_indicator
+  defp struct_to_type(Dala.Spark.Dsl.Modal), do: :modal
+  defp struct_to_type(Dala.Spark.Dsl.RefreshControl), do: :refresh_control
+  defp struct_to_type(Dala.Spark.Dsl.Scroll), do: :scroll
+  defp struct_to_type(Dala.Spark.Dsl.Pressable), do: :pressable
+  defp struct_to_type(Dala.Spark.Dsl.SafeArea), do: :safe_area
+  defp struct_to_type(Dala.Spark.Dsl.StatusBar), do: :status_bar
+  defp struct_to_type(Dala.Spark.Dsl.ProgressBar), do: :progress_bar
+  defp struct_to_type(Dala.Spark.Dsl.List), do: :list
+  defp struct_to_type(other), do: other |> Module.split() |> List.last() |> Macro.underscore() |> String.to_atom()
 
   defp build_node(other), do: Macro.escape(other)
 

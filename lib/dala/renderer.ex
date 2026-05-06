@@ -349,12 +349,12 @@ defmodule Dala.Renderer do
       has_replace? = Enum.any?(patches, fn {action, _} -> action == :replace end)
 
       if has_replace? do
-        # Full render for replacements
+        # Full render for replacements — use prepare_with_taps to properly
+        # resolve {pid, tag} tuples into NIF handles and batch-register them.
         nif.clear_taps()
         nif.set_transition(transition)
 
-        prepared = prepare(new_node, nif, platform, ctx)
-        {taps, prepared} = extract_taps(prepared)
+        {prepared, taps} = prepare_with_taps(new_node, nif, platform, ctx)
         nif.set_taps(taps)
 
         json =
@@ -365,9 +365,33 @@ defmodule Dala.Renderer do
         nif.set_root(json)
         {:ok, patches}
       else
-        # Send incremental patches
-        send_patches(patches, new_node, platform, nif, ctx)
-        {:ok, patches}
+        # Check if patches contain inserts/removes (which may carry new tap
+        # targets). The binary protocol encodes on_tap as a NIF handle, but
+        # Dala.Node props still have raw {pid, tag} tuples. Until the patch
+        # encoder resolves these, fall back to full render for structural changes.
+        has_structural? = Enum.any?(patches, fn {action, _} -> action in [:insert, :remove] end)
+
+        if has_structural? do
+          # Structural change — full render with tap resolution
+          nif.clear_taps()
+          nif.set_transition(transition)
+
+          {prepared, taps} = prepare_with_taps(new_node, nif, platform, ctx)
+          nif.set_taps(taps)
+
+          json =
+            prepared
+            |> :json.encode()
+            |> IO.iodata_to_binary()
+
+          nif.set_root(json)
+          {:ok, patches}
+        else
+          # Pure prop updates — safe to send as patches (no new tap targets)
+          nif.set_transition(transition)
+          send_patches(patches, new_node, platform, nif, ctx)
+          {:ok, patches}
+        end
       end
     end
   end
@@ -375,12 +399,6 @@ defmodule Dala.Renderer do
   defp to_node(nil, _), do: nil
   defp to_node(%Dala.Node{} = node, _), do: node
   defp to_node(map, default_id), do: Dala.Node.from_map(map, default_id)
-
-  defp extract_taps(node) do
-    # Extract tap handles from prepared node
-    # This is a simplified version - in reality, taps are registered during prepare
-    {[], node}
-  end
 
   # Send patches to native
   defp send_patches(patches, _tree, _platform, nif, _ctx) do

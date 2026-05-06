@@ -84,14 +84,10 @@ defmodule Dala.ML.EMLX do
   Returns `true` if running on a real iOS device (not simulator).
   """
   def ios_device? do
-    case :os.type() do
-      {:unix, :darwin} ->
-        # Check if running on iOS device by looking for device-specific paths
-        # or by checking if we're in the iOS simulator environment
-        not ios_simulator?()
-
-      _ ->
-        false
+    try do
+      :dala_nif.platform() == :ios and not ios_simulator?()
+    rescue
+      _ -> false
     end
   end
 
@@ -99,8 +95,14 @@ defmodule Dala.ML.EMLX do
   Returns `true` if running in iOS Simulator.
   """
   def ios_simulator? do
-    System.get_env("SIMULATOR_DEVICE_NAME") != nil or
-      System.get_env("IPHONE_SIMULATOR_ROOT") != nil
+    try do
+      :dala_nif.platform() == :ios and (
+        System.get_env("SIMULATOR_DEVICE_NAME") != nil or
+        System.get_env("IPHONE_SIMULATOR_ROOT") != nil
+      )
+    rescue
+      _ -> false
+    end
   end
 
   @doc """

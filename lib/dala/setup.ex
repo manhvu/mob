@@ -69,14 +69,7 @@ defmodule Dala.Setup do
   """
   @spec ensure_bluetooth_permissions(Dala.Socket.t()) :: Dala.Socket.t()
   def ensure_bluetooth_permissions(socket) do
-    case Dala.Permissions.request(socket, :bluetooth) do
-      {:ok, _} ->
-        socket
-
-      {:error, reason} ->
-        # Store error in assigns for the screen to handle
-        Dala.Socket.assign(socket, :bluetooth_permission_error, reason)
-    end
+    Dala.Permissions.request(socket, :bluetooth)
   end
 
   @doc """
@@ -89,15 +82,7 @@ defmodule Dala.Setup do
   """
   @spec ensure_wifi_permissions(Dala.Socket.t()) :: Dala.Socket.t()
   def ensure_wifi_permissions(socket) do
-    # WiFi on Android needs location permission for scanning
-    case Dala.Permissions.request(socket, :wifi) do
-      {:ok, _} ->
-        socket
-
-      {:error, reason} ->
-        # Store error in assigns for the screen to handle
-        Dala.Socket.assign(socket, :wifi_permission_error, reason)
-    end
+    Dala.Permissions.request(socket, :wifi)
   end
 
   @doc """

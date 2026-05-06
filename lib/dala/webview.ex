@@ -54,7 +54,7 @@ defmodule Dala.WebView do
 
   The result is JSON-decoded before delivery.
   """
-  @spec eval_js(Phoenix.LiveView.Socket.t(), String.t()) :: Phoenix.LiveView.Socket.t()
+  @spec eval_js(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def eval_js(socket, code) when is_binary(code) do
     :dala_nif.webview_eval_js(code)
     socket
@@ -63,7 +63,7 @@ defmodule Dala.WebView do
   @doc """
   Navigate to a new URL in the WebView.
   """
-  @spec navigate(Phoenix.LiveView.Socket.t(), String.t()) :: Phoenix.LiveView.Socket.t()
+  @spec navigate(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def navigate(socket, url) when is_binary(url) do
     js = "window.location.href = #{Jason.encode!(url)}"
     :dala_nif.webview_eval_js(js)
@@ -73,7 +73,7 @@ defmodule Dala.WebView do
   @doc """
   Reload the current page.
   """
-  @spec reload(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  @spec reload(Dala.Socket.t()) :: Dala.Socket.t()
   def reload(socket) do
     :dala_nif.webview_eval_js("window.location.reload()")
     socket
@@ -82,7 +82,7 @@ defmodule Dala.WebView do
   @doc """
   Stop loading the current page.
   """
-  @spec stop_loading(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  @spec stop_loading(Dala.Socket.t()) :: Dala.Socket.t()
   def stop_loading(socket) do
     :dala_nif.webview_eval_js("window.stop()")
     socket
@@ -91,7 +91,7 @@ defmodule Dala.WebView do
   @doc """
   Go forward in the WebView history (if possible).
   """
-  @spec go_forward(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  @spec go_forward(Dala.Socket.t()) :: Dala.Socket.t()
   def go_forward(socket) do
     :dala_nif.webview_eval_js("if (window.history.length > 1) window.history.forward()")
     socket
@@ -110,7 +110,7 @@ defmodule Dala.WebView do
 
   Results arrive as `handle_info({:webview, :interact_result, %{"action" => ..., "success" => ...}}, socket)`.
   """
-  @spec interact(Phoenix.LiveView.Socket.t(), tuple()) :: Phoenix.LiveView.Socket.t()
+  @spec interact(Dala.Socket.t(), tuple()) :: Dala.Socket.t()
   def interact(socket, action) do
     js = interact_js(action)
     :dala_nif.webview_eval_js(js)
@@ -203,7 +203,7 @@ defmodule Dala.WebView do
 
   Note: Currently not implemented on all platforms.
   """
-  @spec screenshot(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  @spec screenshot(Dala.Socket.t()) :: Dala.Socket.t()
   def screenshot(socket) do
     :dala_nif.webview_screenshot()
     socket
@@ -213,7 +213,7 @@ defmodule Dala.WebView do
   Push a message from Elixir into the WebView page. Calls `window.dala._dispatch(json)`
   in JS, which delivers the data to all `window.dala.onMessage` handlers.
   """
-  @spec post_message(Phoenix.LiveView.Socket.t(), term()) :: Phoenix.LiveView.Socket.t()
+  @spec post_message(Dala.Socket.t(), term()) :: Dala.Socket.t()
   def post_message(socket, data) do
     json = :json.encode(data)
     :dala_nif.webview_post_message(json)

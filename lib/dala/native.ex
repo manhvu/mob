@@ -46,6 +46,31 @@ defmodule Dala.Native do
   @doc "Get safe area insets"
   def safe_area, do: :erlang.nif_error(:nif_not_loaded)
 
+  # Device info & events
+  @doc "Get current color scheme (:light or :dark)"
+  def color_scheme, do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Register the dispatcher pid for device events"
+  def device_set_dispatcher(_pid), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Get battery state and level — returns {state_atom, percentage}"
+  def device_battery_state, do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Get thermal state — returns :nominal | :fair | :serious | :critical"
+  def device_thermal_state, do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Check low power mode — returns boolean"
+  def device_low_power_mode, do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Check if app is in foreground — returns boolean"
+  def device_foreground, do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Get OS version string"
+  def device_os_version, do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc "Get device model string"
+  def device_model, do: :erlang.nif_error(:nif_not_loaded)
+
   # Device APIs (to be implemented in Rust)
   def haptic(_type), do: :erlang.nif_error(:nif_not_loaded)
   def clipboard_put(_text), do: :erlang.nif_error(:nif_not_loaded)
@@ -151,6 +176,10 @@ defmodule Dala.Native do
   def storage_save_to_media_store(_path, _type), do: :erlang.nif_error(:nif_not_loaded)
   def storage_external_files_dir(_type), do: :erlang.nif_error(:nif_not_loaded)
 
+  # Background execution
+  def background_keep_alive, do: :erlang.nif_error(:nif_not_loaded)
+  def background_stop, do: :erlang.nif_error(:nif_not_loaded)
+
   # Alerts/overlays
   def alert_show(_title, _message, _buttons_json), do: :erlang.nif_error(:nif_not_loaded)
   def action_sheet_show(_title, _buttons_json), do: :erlang.nif_error(:nif_not_loaded)
@@ -161,6 +190,7 @@ defmodule Dala.Native do
   def webview_post_message(_json), do: :erlang.nif_error(:nif_not_loaded)
   def webview_can_go_back, do: :erlang.nif_error(:nif_not_loaded)
   def webview_go_back, do: :erlang.nif_error(:nif_not_loaded)
+  def webview_screenshot, do: :erlang.nif_error(:nif_not_loaded)
 
   # Linking
   @doc "Open URL externally"
