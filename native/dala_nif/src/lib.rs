@@ -1,4 +1,5 @@
 use rustler::{Binary, Env, NifResult, Term};
+use std::ffi::c_void;
 use std::sync::Mutex;
 
 #[cfg(target_os = "android")]
@@ -17,6 +18,10 @@ use tree::*;
 lazy_static::lazy_static! {
     static ref TREE: Mutex<Tree> = Mutex::new(Tree::new());
 }
+
+// Global environment for iOS callbacks (BLE events, etc.)
+static mut GLOBAL_ENV: Option<Env<'static>> = None;
+static mut ENV_INITIALIZED: bool = false;
 
 // ============================================================================
 // Helpers
@@ -42,7 +47,81 @@ fn term_or_error<'a>(env: Env<'a>, opt: Option<Term<'a>>) -> NifResult<Term<'a>>
 // Cache the Erlang environment for use by ObjC callbacks
 #[rustler::nif]
 fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    unsafe {
+        if !ENV_INITIALIZED {
+            // Store the environment for later use by callbacks
+            GLOBAL_ENV = Some(std::mem::transmute::<Env<'a>, Env<'static>>(env));
+            ENV_INITIALIZED = true;
+            // Register Bluetooth callbacks
+            register_bluetooth_callbacks();
+        }
+    }
     ok(env)
+}
+
+// Register Bluetooth callbacks with Objective-C code
+#[cfg(target_os = "ios")]
+fn register_bluetooth_callbacks() {
+    type BluetoothCallback = unsafe extern "C" fn(*const libc::c_char);
+
+    unsafe extern "C" fn device_found_callback(
+        identifier: *const libc::c_char,
+        name: *const libc::c_char,
+        rssi: libc::c_int,
+        advertisement_data: *const libc::c_char,
+    ) {
+        // Send message to Elixir: {:bluetooth, :device_found, ...}
+        eprintln!("[Dala BLE] Device found callback triggered");
+        // Full implementation would use erl_nif API to send message to Elixir process
+    }
+
+    unsafe extern "C" fn device_connected_callback(identifier: *const libc::c_char) {
+        eprintln!("[Dala BLE] Device connected callback triggered");
+    }
+
+    unsafe extern "C" fn device_connect_failed_callback(
+        identifier: *const libc::c_char,
+        error: *const libc::c_char,
+    ) {
+        eprintln!("[Dala BLE] Device connect failed callback triggered");
+    }
+
+    unsafe extern "C" fn device_disconnected_callback(identifier: *const libc::c_char) {
+        eprintln!("[Dala BLE] Device disconnected callback triggered");
+    }
+
+    // Register callbacks with Objective-C
+    extern "C" {
+        fn DalaBluetoothSetDeviceFoundCallback(
+            callback: unsafe extern "C" fn(
+                *const libc::c_char,
+                *const libc::c_char,
+                libc::c_int,
+                *const libc::c_char,
+            ),
+        );
+        fn DalaBluetoothSetDeviceConnectedCallback(
+            callback: unsafe extern "C" fn(*const libc::c_char),
+        );
+        fn DalaBluetoothSetDeviceConnectFailedCallback(
+            callback: unsafe extern "C" fn(*const libc::c_char, *const libc::c_char),
+        );
+        fn DalaBluetoothSetDeviceDisconnectedCallback(
+            callback: unsafe extern "C" fn(*const libc::c_char),
+        );
+    }
+
+    unsafe {
+        DalaBluetoothSetDeviceFoundCallback(device_found_callback);
+        DalaBluetoothSetDeviceConnectedCallback(device_connected_callback);
+        DalaBluetoothSetDeviceConnectFailedCallback(device_connect_failed_callback);
+        DalaBluetoothSetDeviceDisconnectedCallback(device_disconnected_callback);
+    }
+}
+
+#[cfg(not(target_os = "ios"))]
+fn register_bluetooth_callbacks() {
+    // No-op on non-iOS platforms
 }
 
 // Deliver webview eval result to Elixir
@@ -596,6 +675,232 @@ fn swipe_xy<'a>(
     let _x2v: f64 = _x2.decode()?;
     let _y2v: f64 = _y2.decode()?;
     platform_swipe_xy(_x1v, _y1v, _x2v, _y2v);
+    ok(env)
+}
+
+// ============================================================================
+// Bluetooth (BLE)
+// ============================================================================
+
+#[rustler::nif]
+fn bluetooth_state<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    #[cfg(target_os = "android")]
+    {
+        // On Android, we need JNIEnv - use the cached JavaVM
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            let state = crate::common::platform_bluetooth_state_with_env(&mut jni_env);
+            return Ok(atom(env, Box::leak(state.into_boxed_str())));
+        }
+    }
+    let state = platform_bluetooth_state();
+    Ok(atom(env, state))
+}
+
+#[rustler::nif]
+fn bluetooth_start_scan<'a>(
+    env: Env<'a>,
+    services: Term<'a>,
+    timeout_ms: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let _services: Vec<String> = services.decode().unwrap_or_default();
+    let _timeout: u64 = timeout_ms.decode().unwrap_or(10_000);
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_start_scan_with_env(
+                &mut jni_env,
+                &_services,
+                _timeout,
+            );
+            return ok(env);
+        }
+    }
+    platform_bluetooth_start_scan(&_services, _timeout);
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_stop_scan<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_stop_scan_with_env(&mut jni_env);
+            return ok(env);
+        }
+    }
+    platform_bluetooth_stop_scan();
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_connect<'a>(env: Env<'a>, device_id: Term<'a>) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_connect_with_env(&mut jni_env, &_id);
+            return ok(env);
+        }
+    }
+    platform_bluetooth_connect(&_id);
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_disconnect<'a>(env: Env<'a>, device_id: Term<'a>) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_disconnect_with_env(&mut jni_env, &_id);
+            return ok(env);
+        }
+    }
+    platform_bluetooth_disconnect(&_id);
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_discover_services<'a>(env: Env<'a>, device_id: Term<'a>) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_discover_services_with_env(&mut jni_env, &_id);
+            return ok(env);
+        }
+    }
+    platform_bluetooth_discover_services(&_id);
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_read_characteristic<'a>(
+    env: Env<'a>,
+    device_id: Term<'a>,
+    service: Term<'a>,
+    characteristic: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    let _srv: String = service.decode()?;
+    let _chr: String = characteristic.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_read_characteristic_with_env(
+                &mut jni_env,
+                &_id,
+                &_srv,
+                &_chr,
+            );
+            return ok(env);
+        }
+    }
+    platform_bluetooth_read_characteristic(&_id, &_srv, &_chr);
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_write_characteristic<'a>(
+    env: Env<'a>,
+    device_id: Term<'a>,
+    service: Term<'a>,
+    characteristic: Term<'a>,
+    value: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    let _srv: String = service.decode()?;
+    let _chr: String = characteristic.decode()?;
+    let _val: Binary = value.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_write_characteristic_with_env(
+                &mut jni_env,
+                &_id,
+                &_srv,
+                &_chr,
+                _val.as_slice(),
+            );
+            return ok(env);
+        }
+    }
+    platform_bluetooth_write_characteristic(&_id, &_srv, &_chr, _val.as_slice());
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_subscribe<'a>(
+    env: Env<'a>,
+    device_id: Term<'a>,
+    service: Term<'a>,
+    characteristic: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    let _srv: String = service.decode()?;
+    let _chr: String = characteristic.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_subscribe_with_env(&mut jni_env, &_id, &_srv, &_chr);
+            return ok(env);
+        }
+    }
+    platform_bluetooth_subscribe(&_id, &_srv, &_chr);
+    ok(env)
+}
+
+#[rustler::nif]
+fn bluetooth_unsubscribe<'a>(
+    env: Env<'a>,
+    device_id: Term<'a>,
+    service: Term<'a>,
+    characteristic: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let _id: String = device_id.decode()?;
+    let _srv: String = service.decode()?;
+    let _chr: String = characteristic.decode()?;
+    #[cfg(target_os = "android")]
+    {
+        if let Some(mut jni_env) = crate::android::get_jni_env() {
+            crate::common::platform_bluetooth_unsubscribe_with_env(
+                &mut jni_env,
+                &_id,
+                &_srv,
+                &_chr,
+            );
+            return ok(env);
+        }
+    }
+    platform_bluetooth_unsubscribe(&_id, &_srv, &_chr);
+    ok(env)
+}
+
+// ============================================================================
+// WiFi
+// ============================================================================
+
+#[rustler::nif]
+fn wifi_current_network<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    let result = platform_wifi_current_network(env);
+    Ok(result)
+}
+
+#[rustler::nif]
+fn wifi_scan<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    platform_wifi_scan();
+    ok(env)
+}
+
+#[rustler::nif]
+fn wifi_enable<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    platform_wifi_enable();
+    ok(env)
+}
+
+#[rustler::nif]
+fn wifi_disable<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    platform_wifi_disable();
     ok(env)
 }
 

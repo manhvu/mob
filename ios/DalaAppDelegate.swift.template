@@ -1,0 +1,110 @@
+// DalaAppDelegate.swift - Template for iOS App Delegate with Bluetooth support
+//
+// This file shows how to integrate Dala Bluetooth functionality into your iOS app.
+// Add this to your Xcode project and modify your @main App struct or AppDelegate
+// to call the Bluetooth initialization.
+
+import UIKit
+import CoreBluetooth
+
+// MARK: - Bluetooth Manager Initialization
+
+extension DalaBluetoothBridge {
+    /// Call this early in app lifecycle to ensure Bluetooth is ready
+    static func initializeBluetooth() {
+        // This ensures the DalaBluetoothManager is linked and initialized
+        DalaBluetoothBridge.ensureLinked()
+
+        // Check initial Bluetooth state
+        let state = DalaBluetoothManager.shared().bluetoothState()
+        print("[Dala] Bluetooth state: \(state)")
+    }
+}
+
+// MARK: - Example App Delegate
+
+@main
+class AppDelegate: UIResponder, UIApplicationDelegate {
+
+    var window: UIWindow?
+
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+
+        // Initialize Dala Bluetooth manager
+        // This ensures the manager is linked and ready when needed
+        DalaBluetoothBridge.initializeBluetooth()
+
+        return true
+    }
+
+    // MARK: - UISceneSession Lifecycle
+
+    func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+    }
+}
+
+// MARK: - Bluetooth Permission Handling
+
+extension AppDelegate {
+
+    /// Request Bluetooth permission (iOS 13+)
+    /// Call this when user tries to use Bluetooth features
+    func requestBluetoothPermission() {
+        // On iOS, the system automatically shows a permission prompt
+        // when you first try to use Bluetooth. The usage description
+        // in Info.plist will be shown to the user.
+
+        // For CBCentralManager, just creating an instance with a delegate
+        // will trigger the permission prompt if not already granted
+        let manager = CBCentralManager(delegate: nil, queue: nil)
+        _ = manager // Keep reference if needed
+    }
+}
+
+// MARK: - Usage Notes
+/*
+To use this in your Dala iOS app:
+
+1. Add this file to your Xcode project (or integrate the code into your existing AppDelegate)
+
+2. Ensure these files are also in your project:
+   - DalaBluetoothManager.h
+   - DalaBluetoothManager.m
+   - DalaBluetoothCInterface.m
+   - DalaBluetooth.swift
+
+3. Link CoreBluetooth.framework in your project settings
+
+4. Add these keys to your Info.plist:
+   - NSBluetoothAlwaysUsageDescription: "This app uses Bluetooth to connect to nearby devices."
+   - NSBluetoothPeripheralUsageDescription: "This app uses Bluetooth to connect to nearby devices."
+
+5. In your Elixir code, use Dala.Bluetooth to interact with Bluetooth:
+
+   # Check state
+   case Dala.Bluetooth.state() do
+     :powered_on ->
+       Dala.Bluetooth.start_scan(socket)
+     :unauthorized ->
+       # Permission needed - iOS will prompt automatically on first use
+       IO.puts("Bluetooth permission needed")
+     state ->
+       IO.puts("Bluetooth state: #{state}")
+   end
+
+6. Handle Bluetooth events in your screen:
+
+   def handle_info({:bluetooth, :device_found, device}, socket) do
+     IO.puts("Found device: #{device.name}")
+     {:noreply, socket}
+   end
+
+   def handle_info({:bluetooth, :device_connected, device}, socket) do
+     IO.puts("Connected to: #{device.name}")
+     {:noreply, socket}
+   end
+*/

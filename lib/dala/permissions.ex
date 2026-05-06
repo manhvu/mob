@@ -13,11 +13,14 @@ defmodule Dala.Permissions do
     - `:photo_library`
     - `:location`
     - `:notifications`
+    - `:bluetooth`
+    - `:wifi`
 
   Capabilities that need *no* permission: haptics, clipboard, share sheet, file picker.
   """
 
-  @type capability :: :camera | :microphone | :photo_library | :location | :notifications
+  @type capability ::
+          :camera | :microphone | :photo_library | :location | :notifications | :bluetooth | :wifi
 
   @doc """
   Request an OS permission from the user.
@@ -36,7 +39,15 @@ defmodule Dala.Permissions do
   """
   @spec request(Dala.Socket.t(), capability()) :: Dala.Socket.t()
   def request(socket, capability)
-      when capability in [:camera, :microphone, :photo_library, :location, :notifications] do
+      when capability in [
+             :camera,
+             :microphone,
+             :photo_library,
+             :location,
+             :notifications,
+             :bluetooth,
+             :wifi
+           ] do
     :dala_nif.request_permission(capability)
     socket
   end

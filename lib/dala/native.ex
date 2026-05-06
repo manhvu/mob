@@ -86,6 +86,56 @@ defmodule Dala.Native do
   def motion_start(_sensors, _interval), do: :erlang.nif_error(:nif_not_loaded)
   def motion_stop, do: :erlang.nif_error(:nif_not_loaded)
 
+  # Bluetooth (BLE)
+  @spec bluetooth_state() :: atom()
+  def bluetooth_state, do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_start_scan(list(), integer()) :: :ok | {:error, term()}
+  def bluetooth_start_scan(_services, _timeout_ms), do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_stop_scan() :: :ok | {:error, term()}
+  def bluetooth_stop_scan, do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_connect(String.t()) :: :ok | {:error, term()}
+  def bluetooth_connect(_device_id), do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_disconnect(String.t()) :: :ok | {:error, term()}
+  def bluetooth_disconnect(_device_id), do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_discover_services(String.t()) :: :ok | {:error, term()}
+  def bluetooth_discover_services(_device_id), do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_read_characteristic(String.t(), String.t(), String.t()) ::
+          :ok | {:error, term()}
+  def bluetooth_read_characteristic(_device_id, _service, _characteristic),
+    do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_write_characteristic(String.t(), String.t(), String.t(), binary()) ::
+          :ok | {:error, term()}
+  def bluetooth_write_characteristic(_device_id, _service, _characteristic, _value),
+    do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_subscribe(String.t(), String.t(), String.t()) :: :ok | {:error, term()}
+  def bluetooth_subscribe(_device_id, _service, _characteristic),
+    do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec bluetooth_unsubscribe(String.t(), String.t(), String.t()) :: :ok | {:error, term()}
+  def bluetooth_unsubscribe(_device_id, _service, _characteristic),
+    do: :erlang.nif_error(:nif_not_loaded)
+
+  # WiFi
+  @spec wifi_current_network() :: map() | atom()
+  def wifi_current_network, do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec wifi_scan() :: :ok | {:error, term()}
+  def wifi_scan, do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec wifi_enable() :: :ok | {:error, term()}
+  def wifi_enable, do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec wifi_disable() :: :ok | {:error, term()}
+  def wifi_disable, do: :erlang.nif_error(:nif_not_loaded)
+
   # QR/barcode scanner
   def scanner_scan(_formats_json), do: :erlang.nif_error(:nif_not_loaded)
 

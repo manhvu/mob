@@ -179,8 +179,10 @@ defmodule Dala.DiffTest do
     test "encode_frame handles multiple patches" do
       patches = [
         {:remove, "old_id"},
-        {:insert, "root", 0, %Dala.Node{id: "new", type: :text, props: %{text: "Hi"}, children: []}}
+        {:insert, "root", 0,
+         %Dala.Node{id: "new", type: :text, props: %{text: "Hi"}, children: []}}
       ]
+
       binary = Dala.Renderer.encode_frame(patches)
 
       <<version::little-16, patch_count::little-16, _rest::binary>> = binary
@@ -198,7 +200,13 @@ defmodule Dala.DiffTest do
     end
 
     test "encode_frame includes layout props" do
-      node = %Dala.Node{id: "c1", type: :column, props: %{padding: 16.0, flex_direction: :row}, children: []}
+      node = %Dala.Node{
+        id: "c1",
+        type: :column,
+        props: %{padding: 16.0, flex_direction: :row},
+        children: []
+      }
+
       patches = [{:insert, "root", 0, node}]
       binary = Dala.Renderer.encode_frame(patches)
 

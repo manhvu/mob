@@ -3,6 +3,13 @@
 use rustler::{Env, Term};
 use std::sync::Mutex;
 
+// Helper: create an atom term
+fn atom<'a>(env: Env<'a>, name: &str) -> Term<'a> {
+    rustler::types::atom::Atom::from_str(env, name)
+        .unwrap()
+        .to_term(env)
+}
+
 // Safe area insets
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
@@ -532,6 +539,259 @@ pub fn platform_swipe_xy(_x1: f64, _y1: f64, _x2: f64, _y2: f64) {
 
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     println!("[Dala] swipe_xy stub");
+}
+
+// ============================================================================
+// Bluetooth (BLE)
+// ============================================================================
+
+pub fn platform_bluetooth_state<'a>() -> &'a str {
+    #[cfg(target_os = "ios")]
+    return ios::bluetooth_state();
+
+    #[cfg(target_os = "android")]
+    return android::bluetooth_state();
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    "unsupported"
+}
+
+// Android-specific: takes JNIEnv for JNI calls
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_state_with_env(env: &mut jni::JNIEnv) -> String {
+    android::bluetooth_state_with_env(env)
+}
+
+pub fn platform_bluetooth_start_scan(services: &[String], timeout_ms: u64) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_start_scan(services, timeout_ms);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_start_scan(services, timeout_ms);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_start_scan stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_start_scan_with_env(
+    env: &mut jni::JNIEnv,
+    services: &[String],
+    timeout_ms: u64,
+) {
+    android::bluetooth_start_scan_with_env(env, services, timeout_ms);
+}
+
+pub fn platform_bluetooth_stop_scan() {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_stop_scan();
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_stop_scan();
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_stop_scan stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_stop_scan_with_env(env: &mut jni::JNIEnv) {
+    android::bluetooth_stop_scan_with_env(env);
+}
+
+pub fn platform_bluetooth_connect(device_id: &str) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_connect(device_id);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_connect(device_id);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_connect stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_connect_with_env(env: &mut jni::JNIEnv, device_id: &str) {
+    android::bluetooth_connect_with_env(env, device_id);
+}
+
+pub fn platform_bluetooth_disconnect(device_id: &str) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_disconnect(device_id);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_disconnect(device_id);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_disconnect stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_disconnect_with_env(env: &mut jni::JNIEnv, device_id: &str) {
+    android::bluetooth_disconnect_with_env(env, device_id);
+}
+
+pub fn platform_bluetooth_discover_services(device_id: &str) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_discover_services(device_id);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_discover_services(device_id);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_discover_services stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_discover_services_with_env(env: &mut jni::JNIEnv, device_id: &str) {
+    android::bluetooth_discover_services_with_env(env, device_id);
+}
+
+pub fn platform_bluetooth_read_characteristic(
+    device_id: &str,
+    service: &str,
+    characteristic: &str,
+) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_read_characteristic(device_id, service, characteristic);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_read_characteristic(device_id, service, characteristic);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_read_characteristic stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_read_characteristic_with_env(
+    env: &mut jni::JNIEnv,
+    device_id: &str,
+    service: &str,
+    characteristic: &str,
+) {
+    android::bluetooth_read_characteristic_with_env(env, device_id, service, characteristic);
+}
+
+pub fn platform_bluetooth_write_characteristic(
+    device_id: &str,
+    service: &str,
+    characteristic: &str,
+    value: &[u8],
+) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_write_characteristic(device_id, service, characteristic, value);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_write_characteristic(device_id, service, characteristic, value);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_write_characteristic stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_write_characteristic_with_env(
+    env: &mut jni::JNIEnv,
+    device_id: &str,
+    service: &str,
+    characteristic: &str,
+    value: &[u8],
+) {
+    android::bluetooth_write_characteristic_with_env(
+        env,
+        device_id,
+        service,
+        characteristic,
+        value,
+    );
+}
+
+pub fn platform_bluetooth_subscribe(device_id: &str, service: &str, characteristic: &str) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_subscribe(device_id, service, characteristic);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_subscribe(device_id, service, characteristic);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_subscribe stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_subscribe_with_env(
+    env: &mut jni::JNIEnv,
+    device_id: &str,
+    service: &str,
+    characteristic: &str,
+) {
+    android::bluetooth_subscribe_with_env(env, device_id, service, characteristic);
+}
+
+pub fn platform_bluetooth_unsubscribe(device_id: &str, service: &str, characteristic: &str) {
+    #[cfg(target_os = "ios")]
+    ios::bluetooth_unsubscribe(device_id, service, characteristic);
+
+    #[cfg(target_os = "android")]
+    android::bluetooth_unsubscribe(device_id, service, characteristic);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] bluetooth_unsubscribe stub");
+}
+
+#[cfg(target_os = "android")]
+pub fn platform_bluetooth_unsubscribe_with_env(
+    env: &mut jni::JNIEnv,
+    device_id: &str,
+    service: &str,
+    characteristic: &str,
+) {
+    android::bluetooth_unsubscribe_with_env(env, device_id, service, characteristic);
+}
+
+// ============================================================================
+// WiFi
+// ============================================================================
+
+pub fn platform_wifi_current_network<'a>(env: Env<'a>) -> Term<'a> {
+    #[cfg(target_os = "ios")]
+    return ios::wifi_current_network(env);
+
+    #[cfg(target_os = "android")]
+    return android::wifi_current_network(env);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    return atom(env, "unknown");
+}
+
+pub fn platform_wifi_scan() {
+    #[cfg(target_os = "ios")]
+    ios::wifi_scan();
+
+    #[cfg(target_os = "android")]
+    android::wifi_scan();
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] wifi_scan stub");
+}
+
+pub fn platform_wifi_enable() {
+    #[cfg(target_os = "ios")]
+    ios::wifi_enable();
+
+    #[cfg(target_os = "android")]
+    android::wifi_enable();
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] wifi_enable stub");
+}
+
+pub fn platform_wifi_disable() {
+    #[cfg(target_os = "ios")]
+    ios::wifi_disable();
+
+    #[cfg(target_os = "android")]
+    android::wifi_disable();
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] wifi_disable stub");
 }
 
 // ============================================================================

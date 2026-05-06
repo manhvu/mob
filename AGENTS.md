@@ -290,6 +290,24 @@ These are the things we've burned ourselves on. Following them isn't optional.
     
     **Testing:** `Dala.Diff` has comprehensive tests in `test/dala/diff_test.exs`.
 
+## 19. **Bluetooth/WiFi setup mix task.**
+    `mix dala.setup_bluetooth_wifi` simplifies Bluetooth and WiFi permissions setup.
+    
+    **Features:**
+    - Detects platform (iOS, Android, or both)
+    - Runs platform-specific setup scripts if available (`scripts/ios_setup.sh`, `scripts/android_setup.sh`)
+    - Falls back to manual setup with clear instructions
+    - Verifies setup by checking files and permissions
+    - Idempotent (safe to run multiple times)
+    
+    **Options:**
+    - `--platform ios|android|all` (default: all)
+    - `--no-color` to disable colored output
+    
+    **Runtime helpers:** `Dala.Setup` module provides `check_bluetooth/0`, `check_wifi/0`,
+    `ensure_bluetooth_permissions/1`, `ensure_wifi_permissions/1`, and `diagnostic/0`.
+    Call from app startup or screens to verify permissions at runtime.
+
 ## Where to look
 
 | Question | File |
@@ -306,6 +324,10 @@ These are the things we've burned ourselves on. Following them isn't optional.
 | Architecture decisions (one ADR per cross-cutting decision) | `docs/decisions/` |
 | iOS device deployment (provisioning, build chain, gotchas) | `guides/ios_physical_device.md` |
 | iOS ML support (Nx, Axon, EMLX) | `guides/ios_ml_support.md`, `lib/dala/ml/` |
+| Bluetooth/WiFi setup and API | `docs/bluetooth_wifi_implementation.md`, `lib/dala/bluetooth.ex`, `lib/dala/wifi.ex` |
+| Bluetooth/WiFi setup scripts | `scripts/ios_setup.sh`, `scripts/android_setup.sh` |
+| iOS Bluetooth native code | `ios/DalaBluetoothManager.{h,m}`, `ios/DalaBluetoothCInterface.m` |
+| Android Bluetooth/WiFi bridge | `android/src/main/java/com/example/dala/DalaBridge.java` |
 | Generator templates (dala_new) | `dala_new/priv/templates/dala.new/` |
 | Build / release tooling | `dala_dev/scripts/release/`, `dala_dev/build_release.md` |
 
@@ -326,6 +348,45 @@ Key constraints:
 
 Helper modules: `Dala.ML.EMLX`, `Dala.ML.Nx` in `lib/dala/ml/`.
 Full guide: `guides/ios_ml_support.md`
+
+## 20. **Bluetooth and WiFi support.**
+    Dala provides full BLE and WiFi APIs via `Dala.Bluetooth` and `Dala.WiFi` modules.
+    
+    **One-command setup:**
+    ```bash
+    mix dala.setup_bluetooth_wifi              # set up both platforms
+    mix dala.setup_bluetooth_wifi --platform ios   # iOS only
+    mix dala.setup_bluetooth_wifi --check          # verify without changes
+    mix dala.bt_setup                              # shorter alias
+    ```
+    
+    **Runtime API:**
+    ```elixir
+    Dala.Bluetooth.state()                        # :powered_on | :powered_off | ...
+    Dala.Bluetooth.start_scan(socket)              # scan for BLE devices
+    Dala.Bluetooth.connect(socket, device_id)      # connect to device
+    Dala.Bluetooth.read_characteristic(socket, ...)  # GATT read
+    Dala.WiFi.current_network()                   # %{connected: true, ssid: ...}
+    Dala.WiFi.connected?()                        # true | false
+    Dala.Setup.diagnostic()                       # full BT+WiFi diagnostic
+    Dala.Setup.print_diagnostic()                 # print report to console
+    ```
+    
+    **Events arrive as handle_info:**
+    ```elixir
+    handle_info({:bluetooth, :device_found, %{id: id, name: name, rssi: rssi}}, socket)
+    handle_info({:bluetooth, :device_connected, %{id: id}}, socket)
+    handle_info({:wifi, :state_changed, %{connected: bool, ssid: ssid}}, socket)
+    ```
+    
+    **iOS:** CoreBluetooth via `DalaBluetoothManager` (ObjC) → C interface → Rust NIF.
+    **Android:** `DalaBridge.java` → JNI → Rust NIF.
+    
+    **Permissions:** Request via `Dala.Permissions.request(socket, :bluetooth)` / `:wifi`.
+    
+    **Setup modules:** `Dala.Setup.IOS`, `Dala.Setup.Android` for programmatic setup.
+    **Setup scripts:** `scripts/ios_setup.sh`, `scripts/android_setup.sh`.
+    **Full docs:** `docs/bluetooth_wifi_implementation.md`.
 
 ## Conventions worth knowing
 
