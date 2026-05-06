@@ -22,7 +22,7 @@ Dala is three coordinated repos. **Know which one to edit before you change anyt
 
 | Repo | Path | What lives here | Edit when |
 |---|---|---|---|
-| **dala** | `~/code/dala` | Runtime library: `Dala.Screen`, `Dala.App`, `Dala.Renderer`, `Dala.Dist`, `Dala.Test`, the iOS Swift / Android Kotlin native bridges, the NIF | UI behavior, on-device runtime, native bridge changes |
+| **dala** | `~/code/dala` | Runtime library: `Dala.Screen`, `Dala.App`, `Dala.Renderer`, `Dala.Dist`, `Dala.Test`, **`Dala.Preview` dev tool**, the iOS Swift / Android Kotlin native bridges, the NIF | UI behavior, on-device runtime, native bridge changes, **dev tooling** |
 | **dala_dev** | `~/code/dala_dev` | Mix tasks: `dala.deploy`, `dala.connect`, `dala.devices`, `dala.emulators`, `dala.provision`, `dala.doctor`, `dala.battery_bench_*`. Device discovery (`DalaDev.Discovery.{Android,IOS}`). Native build orchestration (`DalaDev.NativeBuild`). OTP tarball download/cache (`DalaDev.OtpDownloader`). | Build/deploy mechanics, device handling, dev tooling |
 | **dala_new** | `~/code/dala_new` | Project generator. Hex archive (`mix archive.install hex dala_new`). Templates in `priv/templates/dala.new/`. Generates both native Dala UI projects and Phoenix LiveView wrappers. | Generator output for new projects |
 
@@ -364,6 +364,41 @@ Key constraints:
 
 Helper modules: `Dala.ML.EMLX`, `Dala.ML.Nx` in `lib/dala/ml/`.
 Full guide: `guides/ios_ml_support.md`
+
+## 21. **Dev-only UI preview tool.**
+    `Dala.Preview` module (in `dev_tools/` directory) provides HTML-based preview
+    of Dala UI components in a browser, no simulator/emulator needed.
+    
+    **Key points:**
+    - Lives in `dev_tools/` directory — only compiled in `:dev` environment
+    - Not included in Hex package (excluded via `mix.exs` package/0 filter)
+    - Generates static HTML with CSS that mimics Dala's styling
+    - Supports all major Dala UI components (column, row, text, button, etc.)
+    
+    **Usage:**
+    ```elixir
+    # In IEx (dev environment)
+    Dala.Preview.preview(MyApp.HomeScreen)
+    Dala.Preview.preview_to_file(MyApp.HomeScreen, "preview.html")
+    Dala.Preview.preview_and_open(MyApp.HomeScreen)
+    ```
+    
+    ```bash
+    # Via mix task
+    mix dala.preview MyApp.HomeScreen
+    mix dala.preview MyApp.HomeScreen --output custom.html --no-open
+    ```
+    
+    **Implementation:**
+    - `dev_tools/dala/preview.ex` — Main module with HTML generation
+    - `dev_tools/mix/tasks/dala/preview.ex` — Mix task
+    - Renders Dala UI trees as styled HTML divs with CSS
+    - Shows component tree inspector (toggleable with Alpine.js)
+    
+    **Limitations:**
+    - Static preview only (no live interaction like taps)
+    - Doesn't execute `mount/3` or `handle_event/3` — just renders the UI tree
+    - For full interactivity, use `Dala.Test` with real device/node
 
 ## 20. **Bluetooth and WiFi support.**
     Dala provides full BLE and WiFi APIs via `Dala.Bluetooth` and `Dala.WiFi` modules.

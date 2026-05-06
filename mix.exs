@@ -122,7 +122,8 @@ defmodule Dala.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/onboarding", "test/onboarding/support"]
+  defp elixirc_paths(:test), do: ["lib", "test/onboarding", "test/onboarding/support", "dev_tools", "dev_tools/test"]
+  defp elixirc_paths(:dev), do: ["lib", "dev_tools", "dev_tools/test"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp package do
@@ -141,7 +142,7 @@ defmodule Dala.MixProject do
   defp deps do
     [
       # HTML/HEEx template engine — same one Phoenix uses
-      # {:phoenix_live_view, "~> 1.0", optional: true},  # add when HEEx rendering lands
+      {:phoenix_live_view, "~> 1.0", only: [:dev, :test]},
       {:nimble_parsec, "~> 1.0"},
       {:spark, "~> 2.7"},
       {:rustler, "~> 0.37.3", runtime: false},

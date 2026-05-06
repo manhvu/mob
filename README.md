@@ -1,6 +1,6 @@
 # Dala
 
-BEAM-on-device dalaile framework for Elixir. OTP runs inside your iOS and Android apps — embedded directly in the app bundle, no server required. Screens are GenServers; the UI is rendered by Compose and SwiftUI via a thin NIF.
+Mobile framework for Elixir. OTP runs inside your iOS and Android apps — embedded directly in the app bundle, no server required. Screens are GenServers; the UI is rendered by Compose and SwiftUI via Rust.
 
 [![Hex.pm](https://img.shields.io/hexpm/v/dala.svg)](https://hex.pm/packages/dala)
 [![Docs](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/dala)
@@ -29,7 +29,7 @@ Add to `mix.exs`:
 
 ```elixir
 def deps do
-  [{:dala, "~> 0.5"}]
+  [{:dala, "~> 0.0.5"}]
 end
 ```
 

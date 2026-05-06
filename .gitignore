@@ -30,7 +30,7 @@ ios/*.o
 user_issues.md
 /docs
 
-*.DS_Store*
+.DS_Store
 .dexter.db*
 
 # Rust binary artifacts

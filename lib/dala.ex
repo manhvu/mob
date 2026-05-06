@@ -33,6 +33,7 @@ defmodule Dala do
   - `Dala.Theme` — design token system
   - `Dala.Renderer` — component tree serialisation
   - `Dala.Test` — live device inspection and testing helpers
+  - `Dala.Preview` (dev only) — preview UI in browser without device
 
   See the [Getting Started](guides/getting_started.html) guide to create your
   first app. See [Architecture & Prior Art](guides/architecture.html) for how
