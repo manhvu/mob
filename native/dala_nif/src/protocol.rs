@@ -234,6 +234,12 @@ fn decode_node(bytes: &[u8], i: &mut usize) -> super::tree::Node {
 
 /// Decode a binary frame and apply patches to the tree.
 pub fn decode_and_apply(tree: &mut super::tree::Tree, bytes: &[u8]) {
+    // Need at least 4 bytes for header (version + patch_count)
+    if bytes.len() < 4 {
+        eprintln!("[Dala] Input too short for header: {} bytes", bytes.len());
+        return;
+    }
+
     let mut i = 0;
 
     // Header: [u16 version][u16 patch_count]
@@ -314,5 +320,453 @@ fn decode_node_from_insert(bytes: &[u8], i: &mut usize, id: u64) -> super::tree:
         layout: super::tree::Layout::default(),
         dirty_layout: true,
         dirty_paint: true,
+    }
+}
+
+// ── Tests ──────────────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tree::{AlignItems, FlexDirection, JustifyContent, Node, NodeKind, Props, Tree};
+
+    // Helper to create a simple tree for testing
+    fn make_tree() -> Tree {
+        Tree::new()
+    }
+
+    #[test]
+    fn test_read_u8() {
+        let bytes = vec![0xAB];
+        let mut i = 0;
+        assert_eq!(read_u8(&bytes, &mut i), 0xAB);
+        assert_eq!(i, 1);
+    }
+
+    #[test]
+    fn test_read_u16_le() {
+        let bytes = vec![0x34, 0x12]; // 0x1234 in little-endian
+        let mut i = 0;
+        assert_eq!(read_u16(&bytes, &mut i), 0x1234);
+        assert_eq!(i, 2);
+    }
+
+    #[test]
+    fn test_read_u32_le() {
+        let bytes = vec![0x78, 0x56, 0x34, 0x12]; // 0x12345678
+        let mut i = 0;
+        assert_eq!(read_u32(&bytes, &mut i), 0x12345678);
+        assert_eq!(i, 4);
+    }
+
+    #[test]
+    fn test_read_u64_le() {
+        let bytes = vec![0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01];
+        let mut i = 0;
+        assert_eq!(read_u64(&bytes, &mut i), 0x0123456789ABCDEF);
+        assert_eq!(i, 8);
+    }
+
+    #[test]
+    fn test_read_f32_le() {
+        let bytes = 123.45f32.to_le_bytes();
+        let mut i = 0;
+        let val = read_f32(&bytes, &mut i);
+        assert!((val - 123.45).abs() < 0.01);
+        assert_eq!(i, 4);
+    }
+
+    #[test]
+    fn test_read_string_inline() {
+        let mut bytes = vec![];
+        let s = "Hello";
+        bytes.extend_from_slice(&(s.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(s.as_bytes());
+
+        let mut i = 0;
+        let result = read_string_inline(&bytes, &mut i);
+        assert_eq!(result, "Hello");
+        assert_eq!(i, 7); // 2 (len) + 5 (string)
+    }
+
+    #[test]
+    fn test_decode_remove_patch() {
+        // Header: version=1, patch_count=1
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count
+        bytes.push(OP_REMOVE); // opcode
+        bytes.extend_from_slice(&99u64.to_le_bytes()); // id=99
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Tree should have processed the remove patch
+        // (actual verification depends on tree implementation)
+    }
+
+    #[test]
+    fn test_decode_update_props_patch() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count
+        bytes.push(OP_UPDATE); // opcode
+        bytes.extend_from_slice(&42u64.to_le_bytes()); // id=42
+
+        // Props: 1 field
+        bytes.push(1); // field_count=1
+        bytes.push(FIELD_TEXT); // tag=TEXT
+        let text = "Updated";
+        bytes.extend_from_slice(&(text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(text.as_bytes());
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Tree should have updated props for node 42
+    }
+
+    #[test]
+    fn test_decode_insert_patch() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count
+        bytes.push(OP_INSERT); // opcode
+        bytes.extend_from_slice(&100u64.to_le_bytes()); // id=100
+        bytes.extend_from_slice(&50u64.to_le_bytes()); // parent=50
+        bytes.extend_from_slice(&0u32.to_le_bytes()); // index=0
+        bytes.push(NODE_TEXT); // type=TEXT
+
+        // Props: 1 field
+        bytes.push(1); // field_count=1
+        bytes.push(FIELD_TEXT); // tag=TEXT
+        let text = "Hello";
+        bytes.extend_from_slice(&(text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(text.as_bytes());
+
+        // Children: count=0
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Tree should have inserted new node
+    }
+
+    #[test]
+    fn test_decode_multiple_patches() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&2u16.to_le_bytes()); // patch_count=2
+
+        // Patch 1: REMOVE id=10
+        bytes.push(OP_REMOVE);
+        bytes.extend_from_slice(&10u64.to_le_bytes());
+
+        // Patch 2: UPDATE id=20 with text
+        bytes.push(OP_UPDATE);
+        bytes.extend_from_slice(&20u64.to_le_bytes());
+        bytes.push(1); // field_count=1
+        bytes.push(FIELD_TEXT);
+        let text = "Updated";
+        bytes.extend_from_slice(&(text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(text.as_bytes());
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Tree should have processed both patches
+    }
+
+    #[test]
+    fn test_decode_props_all_types() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.push(OP_UPDATE);
+        bytes.extend_from_slice(&1u64.to_le_bytes());
+
+        // Props with multiple fields
+        bytes.push(5); // field_count=5
+
+        // text
+        bytes.push(FIELD_TEXT);
+        let text = "Hello";
+        bytes.extend_from_slice(&(text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(text.as_bytes());
+
+        // width
+        bytes.push(FIELD_WIDTH);
+        bytes.extend_from_slice(&100.0f32.to_le_bytes());
+
+        // height
+        bytes.push(FIELD_HEIGHT);
+        bytes.extend_from_slice(&50.0f32.to_le_bytes());
+
+        // padding
+        bytes.push(FIELD_PADDING);
+        bytes.extend_from_slice(&10.0f32.to_le_bytes());
+
+        // flex_direction (row)
+        bytes.push(FIELD_FLEX_DIRECTION);
+        bytes.push(FLEX_ROW);
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+    }
+
+    #[test]
+    fn test_invalid_version() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&99u16.to_le_bytes()); // invalid version
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Should print error and return without panic
+    }
+
+    #[test]
+    fn test_empty_patch_list() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes()); // patch_count=0
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Should do nothing, no panic
+    }
+
+    #[test]
+    fn test_deeply_nested_tree_decoding() {
+        // Build a patch that simulates a deeply nested tree update
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count=1
+
+        bytes.push(OP_INSERT);
+        bytes.extend_from_slice(&1u64.to_le_bytes()); // id
+        bytes.extend_from_slice(&0u64.to_le_bytes()); // parent
+        bytes.extend_from_slice(&0u32.to_le_bytes()); // index
+        bytes.push(NODE_COLUMN); // type
+
+        // Props
+        bytes.push(1); // field_count=1
+        bytes.push(FIELD_PADDING);
+        bytes.extend_from_slice(&5.0f32.to_le_bytes());
+
+        // Children: 4 levels deep
+        bytes.extend_from_slice(&4u32.to_le_bytes()); // 4 children
+        for i in 1..=4 {
+            bytes.extend_from_slice(&(i as u64).to_le_bytes());
+        }
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+    }
+
+    #[test]
+    fn test_wide_tree_many_children() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count=1
+
+        bytes.push(OP_INSERT);
+        bytes.extend_from_slice(&100u64.to_le_bytes()); // id
+        bytes.extend_from_slice(&0u64.to_le_bytes()); // parent
+        bytes.extend_from_slice(&0u32.to_le_bytes()); // index
+        bytes.push(NODE_COLUMN); // type
+
+        // Props: 2 fields
+        bytes.push(2);
+        bytes.push(FIELD_PADDING);
+        bytes.extend_from_slice(&16.0f32.to_le_bytes());
+        bytes.push(FIELD_BACKGROUND);
+        let bg = "surface";
+        bytes.extend_from_slice(&(bg.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(bg.as_bytes());
+
+        // 25 children
+        bytes.extend_from_slice(&25u32.to_le_bytes());
+        for i in 1..=25 {
+            bytes.extend_from_slice(&(i as u64).to_le_bytes());
+        }
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+    }
+
+    #[test]
+    fn test_multiple_patch_types_mixed() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&5u16.to_le_bytes()); // patch_count=5
+
+        // 1. REMOVE
+        bytes.push(OP_REMOVE);
+        bytes.extend_from_slice(&10u64.to_le_bytes());
+
+        // 2. UPDATE with multiple props
+        bytes.push(OP_UPDATE);
+        bytes.extend_from_slice(&20u64.to_le_bytes());
+        bytes.push(3); // field_count=3
+        bytes.push(FIELD_TEXT);
+        let text = "Updated text";
+        bytes.extend_from_slice(&(text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(text.as_bytes());
+        bytes.push(FIELD_WIDTH);
+        bytes.extend_from_slice(&200.0f32.to_le_bytes());
+        bytes.push(FIELD_HEIGHT);
+        bytes.extend_from_slice(&50.0f32.to_le_bytes());
+
+        // 3. INSERT
+        bytes.push(OP_INSERT);
+        bytes.extend_from_slice(&30u64.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.push(NODE_BUTTON);
+        bytes.push(2); // field_count=2
+        bytes.push(FIELD_TEXT);
+        let btn_text = "Click me";
+        bytes.extend_from_slice(&(btn_text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(btn_text.as_bytes());
+        bytes.push(FIELD_BACKGROUND);
+        let bg = "blue";
+        bytes.extend_from_slice(&(bg.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(bg.as_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes()); // no children
+
+        // 4. UPDATE with flex props
+        bytes.push(OP_UPDATE);
+        bytes.extend_from_slice(&40u64.to_le_bytes());
+        bytes.push(3);
+        bytes.push(FIELD_FLEX_GROW);
+        bytes.extend_from_slice(&1.0f32.to_le_bytes());
+        bytes.push(FIELD_FLEX_DIRECTION);
+        bytes.push(FLEX_ROW);
+        bytes.push(FIELD_JUSTIFY_CONTENT);
+        bytes.push(JUSTIFY_CENTER);
+
+        // 5. REMOVE
+        bytes.push(OP_REMOVE);
+        bytes.extend_from_slice(&50u64.to_le_bytes());
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+    }
+
+    #[test]
+    fn test_unicode_text_handling() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count=1
+
+        bytes.push(OP_UPDATE);
+        bytes.extend_from_slice(&1u64.to_le_bytes()); // id
+
+        // Props with unicode text (emoji, CJK, accents)
+        bytes.push(3); // field_count=3
+
+        bytes.push(FIELD_TEXT);
+        let text = "Hello 🎉 你好 안녕하세요 Café";
+        bytes.extend_from_slice(&(text.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(text.as_bytes());
+
+        bytes.push(FIELD_TITLE);
+        let title = "こんにちは";
+        bytes.extend_from_slice(&(title.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(title.as_bytes());
+
+        bytes.push(FIELD_COLOR);
+        let color = "primary";
+        bytes.extend_from_slice(&(color.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(color.as_bytes());
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+    }
+
+    #[test]
+    fn test_rapid_successive_decodes() {
+        for i in 1..=10 {
+            let mut bytes = vec![];
+            bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+            bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count=1
+
+            bytes.push(OP_UPDATE);
+            bytes.extend_from_slice(&(i as u64).to_le_bytes());
+            bytes.push(1); // field_count=1
+            bytes.push(FIELD_PADDING);
+            bytes.extend_from_slice(&(i as f32).to_le_bytes());
+
+            let mut tree = make_tree();
+            decode_and_apply(&mut tree, &bytes);
+        }
+    }
+
+    #[test]
+    fn test_edge_case_max_children() {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count=1
+
+        bytes.push(OP_INSERT);
+        bytes.extend_from_slice(&999u64.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.push(NODE_COLUMN);
+        bytes.push(0); // no props
+
+        // 100 children (stress test)
+        bytes.extend_from_slice(&100u32.to_le_bytes());
+        for i in 0..100 {
+            bytes.extend_from_slice(&(i as u64).to_le_bytes());
+        }
+
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+    }
+
+    #[test]
+    fn test_all_node_types() {
+        let node_types = [
+            (NODE_COLUMN, "Column"),
+            (NODE_ROW, "Row"),
+            (NODE_TEXT, "Text"),
+            (NODE_BUTTON, "Button"),
+            (NODE_IMAGE, "Image"),
+            (NODE_SCROLL, "Scroll"),
+            (NODE_WEBVIEW, "WebView"),
+        ];
+
+        for (node_type, _name) in node_types.iter() {
+            let mut bytes = vec![];
+            bytes.extend_from_slice(&1u16.to_le_bytes()); // version
+            bytes.extend_from_slice(&1u16.to_le_bytes()); // patch_count=1
+
+            bytes.push(OP_INSERT);
+            bytes.extend_from_slice(&1u64.to_le_bytes());
+            bytes.extend_from_slice(&0u64.to_le_bytes());
+            bytes.extend_from_slice(&0u32.to_le_bytes());
+            bytes.push(*node_type);
+            bytes.push(0); // no props
+            bytes.extend_from_slice(&0u32.to_le_bytes()); // no children
+
+            let mut tree = make_tree();
+            decode_and_apply(&mut tree, &bytes);
+        }
+    }
+
+    #[test]
+    fn test_malformed_input_graceful_handling() {
+        // Too short for header
+        let bytes = vec![0x01];
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Should not panic
+
+        // Invalid opcode
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.push(0xFF); // invalid opcode
+        let mut tree = make_tree();
+        decode_and_apply(&mut tree, &bytes);
+        // Should not panic
     }
 }

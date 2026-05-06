@@ -550,3 +550,4 @@ Duration: `:short` (default, ~2 s) or `:long` (~4 s). iOS renders a floating lab
 | `:label` | string | `""` |
 | `:style` | `:default`, `:cancel`, `:destructive` | `:default` |
 | `:action` | atom — delivered as `{:alert, atom}` to `handle_info/2` | `:dismiss` |
+```

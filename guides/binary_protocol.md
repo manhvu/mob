@@ -9,7 +9,7 @@ Dala's UI render pipeline uses a **custom binary protocol** to transfer UI trees
 | Aspect | JSON (Old) | Binary Protocol (New) |
 |--------|-------------|----------------------|
 | Encoding | `:json.encode/1` | `Dala.Renderer.encode_tree/1` |
-| Decoding | `JSON.parse()` in Rust | Direct binary read in Rust |
+| Decoding | Rust NIF decode | Direct binary read in Rust NIF |
 | Size | ~200-400 bytes per node | ~50-100 bytes per node |
 | Parsing | String parsing overhead | Zero-copy struct reads |
 | BEAM boundary | Binary (off-heap) | Binary (off-heap, zero-copy) |
@@ -17,7 +17,7 @@ Dala's UI render pipeline uses a **custom binary protocol** to transfer UI trees
 ### Key Benefits
 
 1. **Zero-copy at boundary**: Rustler's `Binary<'a>` maps directly to BEAM off-heap binaries
-2. **No JSON parsing**: Native side reads structured binary data directly
+2. **No JSON parsing**: Rust NIF reads structured binary data directly
 3. **Compact encoding**: Binary format is 3-5x smaller than JSON
 4. **Type-safe**: Well-defined format with versioning support
 
@@ -217,7 +217,7 @@ Dala.Renderer.hash_id(id)  # returns u64 integer
 
 ### Rust NIF Side (Decoder)
 
-The Rust NIF (`native/dala_nif/src/`) receives binaries via Rustler:
+The Rust NIF (`native/dala_nif/src/protocol.rs`) receives binaries via Rustler:
 
 ```rust
 #[rustler::nif]
@@ -297,7 +297,7 @@ end
 
 - `Dala.Native.set_root/1` (JSON) is still available for backward compatibility
 - `Dala.Native.set_root_binary/1` is the new preferred method
-- The Rust NIF should implement both `set_root` and `set_root_binary`
+- The Rust NIF implements both `set_root` (JSON) and `set_root_binary` (binary)
 
 ---
 
@@ -377,5 +377,5 @@ New property tags can be added (13, 14, 15, ...) without breaking backward compa
 
 - Implementation: `lib/dala/renderer.ex` (functions `encode_tree`, `encode_frame`, `hash_id`)
 - NIF declarations: `lib/dala/native.ex` (`set_root_binary/1`)
-- Tests: `test/dala/binary_protocol_test.exs`
-- Rust NIF: `native/dala_nif/src/` (decoder implementation needed)
+- Tests: `test/dala/binary_protocol_test.exs` (Elixir) and `native/dala_nif/src/protocol.rs` (Rust)
+- Rust NIF decoder: `native/dala_nif/src/protocol.rs` (fully implemented with 21+ tests)
