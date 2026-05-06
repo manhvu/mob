@@ -4,12 +4,12 @@ defmodule Dala.MixProject do
   def project do
     [
       app: :dala,
-      version: "0.0.4",
+      version: "0.0.5",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      description: "An other mobile framework for Elixir, rework from Mob framework",
+      description: "An Elixir mobile framework powered by the BEAM, reworked from the Mob framework.",
       source_url: "https://github.com/manhvu/dala",
       homepage_url: "https://hexdocs.pm/dala",
       package: package(),
@@ -35,6 +35,7 @@ defmodule Dala.MixProject do
         "README.md": [title: "Dala"],
         "guides/getting_started.md": [title: "Getting Started"],
         "guides/architecture.md": [title: "Architecture & Prior Art"],
+              "guides/build_and_beam_loading.md": [title: "Build & BEAM Loading"],
         "guides/screen_lifecycle.md": [title: "Screen Lifecycle"],
         "guides/components.md": [title: "Components"],
         "guides/styling.md": [title: "Styling & Native Rendering"],
@@ -54,7 +55,7 @@ defmodule Dala.MixProject do
         "guides/liveview.md": [title: "LiveView Integration"],
         "guides/ios_ml_support.md": [title: "iOS ML Support"],
         "guides/ios_physical_device.md": [title: "iOS Physical Device"],
-        "guides/rustler_in_mob.md": [title: "Rustler in Mobile"],
+        "guides/rustler_in_dala.md": [title: "Rustler in Mobile"],
         "guides/rustler_message_sending.md": [title: "Rustler Message Sending"],
         "guides/emlx_ios_summary.md": [title: "EMLX iOS Summary"],
         "guides/publishing.md": [title: "Publishing to App Store / TestFlight"],
@@ -63,7 +64,13 @@ defmodule Dala.MixProject do
         "guides/security.md": [title: "Security Guide"]
       ],
       groups_for_extras: [
-        Guides: ~r/guides\/.*/
+        "Getting Started": ~r/guides\/(getting_started|architecture|build_and_beam_loading)\.md/,
+        "UI & Components": ~r/guides\/(components|styling|theming|ui_|render_engine|binary_protocol|spark_dsl|screen_lifecycle|navigation)\.md/,
+        "Events & Interaction": ~r/guides\/(events|event_)\.md/,
+        "Data & Device APIs": ~r/guides\/(data|device_capabilities)\.md/,
+        "Testing & Development": ~r/guides\/(testing|agentic_coding)\.md/,
+        "iOS & Rust": ~r/guides\/(ios_|rustler_|emlx_)\.md/,
+        "Advanced Topics": ~r/guides\/(liveview|publishing|security|troubleshooting)\.md/
       ],
       groups_for_modules: [
         Core: [Dala, Dala.App, Dala.Screen, Dala.Socket, Dala.State],
