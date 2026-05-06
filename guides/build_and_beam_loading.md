@@ -283,9 +283,12 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
 Key `erl_start` arguments:
 ```rust
 // BEAM tuning flags (from dala_beam_ios.rs)
+// Defaults to 4:1 (4 online, 1 dirty) but can be overridden via:
+// - DALA_BEAM_SCHEDULERS env var (format: "online:dirty")
+// - DALA_BEAM_SDCPU env var (format: "online:dirty")
 let default_flags: &[&str] = &[
-    "-S", "1:1",           // Schedulers: 1 online, 1 dirty
-    "-SDcpu", "1:1",       // Dirty CPU schedulers
+    "-S", "4:1",           // Schedulers: 4 online, 1 dirty
+    "-SDcpu", "4:1",       // Dirty CPU schedulers
     "-SDio", "1",          // Dirty I/O schedulers
     "-A", "1",             // Async threads
     "-sbwt", "none",       // No busy wait

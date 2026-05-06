@@ -332,8 +332,8 @@ fn start_beam(app_module: &str) {
         runtime_flags.iter().map(|s| s.as_str()).collect()
     } else {
         default_flags.iter().map(|s| s.as_str()).collect()
+    };_vec()
     };
-
 
     // Build args using CString for proper null-terminated strings
     let mut args: Vec<CString> = vec![CString::new("beam").unwrap()];

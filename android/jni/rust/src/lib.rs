@@ -306,33 +306,36 @@ fn start_beam(app_module: &str) {
 
     let eval_expr = format!("{}:start().", app_module);
 
-    // BEAM tuning flags based on feature
-    let flags: Vec<&str> = if cfg!(feature = "beam_untuned") {
+    // BEAM tuning flags based on feature and environment
+    let flags: Vec<String> = if cfg!(feature = "beam_untuned") {
         vec![]
     } else if cfg!(feature = "beam_sbwt_only") {
-        vec!["-sbwt", "none", "-sbwtdcpu", "none", "-sbwtdio", "none"]
+        vec!["-sbwt".into(), "none".into(), "-sbwtdcpu".into(), "none".into(), "-sbwtdio".into(), "none".into()]
     } else {
         // Default: BEAM_FULL_NERVES (optimized for mobile)
+        // Allow override via DALA_BEAM_SCHEDULERS env var (format: "online:dirty")
+        let scheduler_config =
+            std::env::var("DALA_BEAM_SCHEDULERS").unwrap_or_else(|_| "4:1".to_string());
+        let sdcpu_config = std::env::var("DALA_BEAM_SDCPU").unwrap_or_else(|_| "4:1".to_string());
         vec![
-            "-S",
-            "1:1",
-            "-SDcpu",
-            "1:1",
-            "-SDio",
-            "1",
-            "-A",
-            "1",
-            "-sbwt",
-            "none",
-            "-sbwtdcpu",
-            "none",
-            "-sbwtdio",
-            "none",
+            "-S".into(),
+            scheduler_config,
+            "-SDcpu".into(),
+            sdcpu_config,
+            "-SDio".into(),
+            "1".into(),
+            "-A".into(),
+            "1".into(),
+            "-sbwt".into(),
+            "none".into(),
+            "-sbwtdcpu".into(),
+            "none".into(),
+            "-sbwtdio".into(),
+            "none".into(),
         ]
     };
 
-    // Check for runtime flags file
-    let flags_path = format!("{}/dala_beam_flags", beams_dir);
+    // Runtime override: read flags from beams_dir/dala_beam_flags
     let runtime_flags: Vec<String> = if let Ok(contents) = std::fs::read_to_string(&flags_path) {
         let flags: Vec<String> = contents.split_whitespace().map(|s| s.to_string()).collect();
         log_info!(

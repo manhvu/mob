@@ -602,7 +602,6 @@ pub fn bluetooth_unsubscribe(device_id: &str, service: &str, characteristic: &st
             result
         }
     }
-}
 
 // Helper: Get WiFi IP address using getifaddrs
 unsafe fn get_wifi_ip_address() -> String {
@@ -722,4 +721,122 @@ pub fn linking_initial_url<'a>(env: rustler::Env<'a>) -> rustler::Term<'a> {
     rustler::types::atom::Atom::from_str(env, "nil")
         .unwrap()
         .to_term(env)
+}
+
+// ===========================================================================
+// CoreML
+// ===========================================================================
+
+use std::ffi::{c_char, c_void};
+use std::os::raw::c_int;
+
+type DalaCoreMLPredictionCallback = unsafe extern "C" fn(
+    model_identifier: *const c_char,
+    result_json: *const c_char,
+    error: *const c_char,
+);
+
+#[link(name = "objc", kind = "dylib")]
+unsafe extern "C" {
+    fn DalaCoreMLLoadModel(
+        model_path: *const c_char,
+        identifier: *const c_char,
+        error_buffer: *mut c_char,
+        error_buffer_size: usize,
+    );
+
+    fn DalaCoreMLUnloadModel(identifier: *const c_char);
+
+    fn DalaCoreMLIsModelLoaded(identifier: *const c_char) -> c_int;
+
+    fn DalaCoreMLPredict(
+        identifier: *const c_char,
+        inputs_json: *const c_char,
+        callback: DalaCoreMLPredictionCallback,
+    );
+
+    fn DalaCoreMLLoadedModels() -> *mut c_char;
+
+    fn DalaCoreMLFreeString(str: *const c_char);
+}
+
+pub fn coreml_load_model(model_path: &str, identifier: &str) -> Result<(), String> {
+    let model_path_c = std::ffi::CString::new(model_path).unwrap();
+    let identifier_c = std::ffi::CString::new(identifier).unwrap();
+    let mut error_buffer = vec![0u8; 256];
+
+    unsafe {
+        DalaCoreMLLoadModel(
+            model_path_c.as_ptr(),
+            identifier_c.as_ptr(),
+            error_buffer.as_mut_ptr() as *mut c_char,
+            error_buffer.len(),
+        );
+    }
+
+    // Check if error buffer has content
+    let error_msg = unsafe {
+        let c_str = error_buffer.as_ptr() as *const c_char;
+        if *c_str != 0 {
+            std::ffi::CStr::from_ptr(c_str)
+                .to_string_lossy()
+                .into_owned()
+        } else {
+            String::new()
+        }
+    };
+
+    if error_msg.is_empty() {
+        Ok(())
+    } else {
+        Err(error_msg)
+    }
+}
+
+pub fn coreml_unload_model(identifier: &str) {
+    let identifier_c = std::ffi::CString::new(identifier).unwrap();
+    unsafe {
+        DalaCoreMLUnloadModel(identifier_c.as_ptr());
+    }
+}
+
+pub fn coreml_is_model_loaded(identifier: &str) -> bool {
+    let identifier_c = std::ffi::CString::new(identifier).unwrap();
+    unsafe { DalaCoreMLIsModelLoaded(identifier_c.as_ptr()) != 0 }
+}
+
+pub fn coreml_predict(
+    identifier: &str,
+    inputs_json: &str,
+    callback: DalaCoreMLPredictionCallback,
+) {
+    let identifier_c = std::ffi::CString::new(identifier).unwrap();
+    let inputs_json_c = std::ffi::CString::new(inputs_json).unwrap();
+    unsafe {
+        DalaCoreMLPredict(
+            identifier_c.as_ptr(),
+            inputs_json_c.as_ptr(),
+            callback,
+        );
+    }
+}
+
+pub fn coreml_loaded_models() -> Vec<String> {
+    unsafe {
+        let c_str = DalaCoreMLLoadedModels();
+        if c_str.is_null() {
+            return vec![];
+        }
+        let json = std::ffi::CStr::from_ptr(c_str)
+            .to_string_lossy()
+            .into_owned();
+        DalaCoreMLFreeString(c_str);
+
+        // Parse JSON array
+        if let Ok(array) = serde_json::from_str::<Vec<String>>(&json) {
+            array
+        } else {
+            vec![]
+        }
+    }
 }

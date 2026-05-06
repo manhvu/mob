@@ -301,8 +301,21 @@ pub extern "C" fn dala_start_beam(app_module: *const c_char) {
     std::env::set_var("DALA_BEAMS_DIR", beams_dir.to_str().expect("Rust error"));
 
     // BEAM tuning flags
+    // Allow override via DALA_BEAM_SCHEDULERS env var (format: "online:dirty")
+    let scheduler_config =
+        std::env::var("DALA_BEAM_SCHEDULERS").unwrap_or_else(|_| "4:1".to_string());
+    let sdcpu_config = std::env::var("DALA_BEAM_SDCPU").unwrap_or_else(|_| "4:1".to_string());
     let default_flags: &[&str] = &[
-        "-S", "1:1", "-SDcpu", "1:1", "-SDio", "1", "-A", "1", "-sbwt", "none",
+        "-S",
+        &scheduler_config,
+        "-SDcpu",
+        &sdcpu_config,
+        "-SDio",
+        "1",
+        "-A",
+        "1",
+        "-sbwt",
+        "none",
     ];
 
     // Runtime override from beams_dir/dala_beam_flags

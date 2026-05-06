@@ -8,11 +8,13 @@ defmodule Dala.ML.Nx do
   """
 
   @doc """
-  Initializes Nx with the best available backend for iOS.
+  Initializes Nx with the best available backend for the current platform.
 
   Priority:
   1. EMLX (if available) - best for Apple Silicon
   2. Nx default (pure Elixir fallback)
+
+  Also see `Dala.ML` for the unified entry point.
   """
   def init_for_ios do
     cond do
@@ -58,44 +60,62 @@ defmodule Dala.ML.Nx do
   end
 
   @doc """
-  Example: Simple neural network layer using Axon on iOS.
+  Example: Simple neural network layer using Axon.
 
-  Note: Axon is pure Elixir and works on any platform with Nx.
-  This is just an example - Axon needs to be added as a dependency.
+  Axon is now a direct dependency - here's how to use it:
+
+      model =
+        Axon.input("input", shape: {nil, 784})
+        |> Axon.dense(128, activation: :relu)
+        |> Axon.dense(10, activation: :softmax)
+
+      {init_fn, predict_fn} = Axon.build(model)
+      params = init_fn.(Nx.template({1, 784}, :f32), %{})
+      predict_fn.(params, input_tensor)
   """
   def example_dense_layer do
-    # This is an example - requires Axon as a dependency
-    quote do
-      require Axon
+    :see_docs
+  end
 
-      Axon.input("input", shape: {nil, 784})
-      |> Axon.dense(128, activation: :relu)
-      |> Axon.dense(10, activation: :softmax)
+  @doc """
+  Loads a pre-trained Axon model for inference.
+
+  Note: Check Axon documentation for the current serialization API.
+  Axon models can be saved/loaded using Axon's built-in serialization.
+  """
+  def load_model(_model_path) do
+    {:error, "Use Axon's serialization API directly"}
+  end
+
+  @doc """
+  Runs inference with an Axon model using the best available backend.
+
+  ## Example
+
+      {:ok, model, params} = Dala.ML.Nx.load_model("model.axmodel")
+      input = Nx.tensor([[1.0, 2.0, 3.0]])
+      result = Dala.ML.Nx.inference(model, params, input)
+  """
+  def inference(model, params, input_data) do
+    backend = default_backend()
+    input_tensor = Nx.tensor(input_data, backend: backend)
+
+    try do
+      output = Axon.predict(model, params, input_tensor)
+      {:ok, output}
+    rescue
+      e -> {:error, Exception.message(e)}
     end
   end
 
   @doc """
-  Loads a pre-trained model for inference on iOS.
-
-  Note: This is a placeholder. In practice, you would:
-  1. Train or download a pre-trained model
-  2. Serialize it (Axon supports serialization)
-  3. Load it here for inference
+  Checks if Axon is available.
   """
-  def load_model(_model_path) do
-    # Placeholder for model loading logic
-    # Example:
-    # {:ok, model} = Axon.load("path/to/model.axmodel")
-    :not_implemented
-  end
-
-  @doc """
-  Runs inference with a model using the best available backend.
-  """
-  def inference(_model, input_data) do
-    backend = default_backend()
-    input_tensor = tensor(input_data, backend: backend)
-    # Axon.predict(model, params, input_tensor)
-    {:ok, input_tensor}
+  def axon_available? do
+    try do
+      Code.ensure_loaded?(Axon)
+    rescue
+      _ -> false
+    end
   end
 end

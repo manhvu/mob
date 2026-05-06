@@ -347,22 +347,49 @@ These are the things we've burned ourselves on. Following them isn't optional.
 | Generator templates (dala_new) | `dala_new/priv/templates/dala.new/` |
 | Build / release tooling | `dala_dev/scripts/release/`, `dala_dev/build_release.md` |
 
-## iOS ML Support (Nx ecosystem)
+## iOS ML Support (Nx ecosystem + CoreML + ONNX)
 
-Dala supports machine learning on iOS via the Nx ecosystem:
+Dala supports machine learning on iOS via three paths:
+
+### Nx Ecosystem (Pure Elixir, Cross-Platform)
 
 - **Nx**: Pure Elixir, works on any platform ✅
+- **Scholar**: Traditional ML (regression, clustering, SVM, etc.), pure Elixir ✅
+- **NxSignal**: DSP (digital signal processing) for audio/time series, pure Elixir ✅
 - **Axon**: Neural networks, pure Elixir ✅
 - **EMLX**: MLX backend for Apple Silicon — **recommended for iOS** ⚠️
 
+### CoreML (iOS-Native, Hardware-Accelerated)
+
+- **CoreML**: Apple's native ML framework — **best performance on iOS** 🚀
+  - Uses Apple Neural Engine (ANE) for hardware acceleration
+  - Supports .mlmodel and .mlpackage formats
+  - Access via `Dala.ML.CoreML` module
+
+### ONNX Runtime (Cross-Platform, Production-Ready)
+
+- **ONNX Runtime**: Industry-standard ONNX inference engine
+  - **iOS**: Uses CoreML EP (Execution Provider) for Neural Engine
+  - **Android**: Uses NNAPI EP for hardware acceleration
+  - **Desktop**: Uses CPU/CUDA/ TensorRT EPs
+  - Access via `Dala.ML.ONNX` module
+  - Rust core: `native/dala_onnx/` (C ABI)
+
 **Not supported on iOS:** Emily (macOS-only), NxIREE, EXLA/XLA, Torchx.
+
+**Newly integrated (v0.0.6+):**
+- Scholar, NxSignal, Axon are now direct dependencies
+- CoreML bridge for iOS-native inference
+- ONNX Runtime for cross-platform production inference
+
+Use `Dala.ML.setup/0` for Nx ecosystem zero-config setup.
 
 Key constraints:
 1. **No JIT on iOS devices** — W^X policy blocks JIT. Set `LIBMLX_ENABLE_JIT=false`.
 2. **Metal GPU available** — EMLX uses MLX with Metal on iOS devices and simulator.
 3. **Unified memory** — Apple Silicon's shared CPU/GPU memory makes EMLX efficient.
 
-Helper modules: `Dala.ML.EMLX`, `Dala.ML.Nx` in `lib/dala/ml/`.
+Helper modules: `Dala.ML`, `Dala.ML.EMLX`, `Dala.ML.Nx`, `Dala.ML.CoreML`, `Dala.ML.ONNX` in `lib/dala/ml/`.
 Full guide: `guides/ios_ml_support.md`
 
 ## 21. **Dev-only UI preview tool.**

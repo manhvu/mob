@@ -159,8 +159,9 @@ defmodule Dala.ML.EMLX do
   def benchmark do
     if available?() do
       # Create a decent-sized matrix
-      a = Nx.random_uniform({100, 100}, backend: EMLX.Backend)
-      b = Nx.random_uniform({100, 100}, backend: EMLX.Backend)
+      key = Nx.Random.key(42)
+      {a, _key} = Nx.Random.uniform(key, {100, 100}, backend: EMLX.Backend)
+      {b, _key} = Nx.Random.uniform(key, {100, 100}, backend: EMLX.Backend)
 
       {time_microseconds, _} =
         :timer.tc(fn ->

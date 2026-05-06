@@ -332,8 +332,10 @@ fn start_beam(app_module: &str) {
         runtime_flags.iter().map(|s| s.as_str()).collect()
     } else {
         default_flags.iter().map(|s| s.as_str()).collect()
+    };_vec()
     };
 
+    let boot_path = format!("{}/releases/29/start_clean", otp_root);
 
     // Build args using CString for proper null-terminated strings
     let mut args: Vec<CString> = vec![CString::new("beam").unwrap()];

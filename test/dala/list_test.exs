@@ -21,10 +21,10 @@ defmodule Dala.ListTest do
         end
       }
 
-      {children, active_keys} = List.expand(list, %{}, self())
+      result = expand(list, %{}, self())
 
-      assert length(children) == 3
-      assert length(active_keys) == 3
+      assert result.type == :lazy_list
+      assert length(result.children) == 3
     end
 
     test "handles empty list" do
@@ -37,9 +37,9 @@ defmodule Dala.ListTest do
         end
       }
 
-      {children, active_keys} = List.expand(list, %{}, self())
-      assert children == []
-      assert active_keys == []
+      result = expand(list, %{}, self())
+      assert result.type == :lazy_list
+      assert result.children == []
     end
   end
 
@@ -59,7 +59,7 @@ defmodule Dala.ListTest do
       }
 
       renderers = %{
-        item: fn item, _index ->
+        :custom_list => fn item ->
           %{
             type: :button,
             props: %{text: "Btn: #{item}"},
@@ -68,8 +68,9 @@ defmodule Dala.ListTest do
         end
       }
 
-      {children, _} = List.expand(list, renderers, self())
-      assert length(children) == 2
+      result = expand(list, renderers, self())
+      assert result.type == :lazy_list
+      assert length(result.children) == 2
     end
   end
 end

@@ -158,7 +158,14 @@ defmodule Dala.MixProject do
       {:rustler, "~> 0.37.3", runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:jump_credo_checks, "~> 0.1.0", only: [:dev, :test], runtime: false}
+      {:jump_credo_checks, "~> 0.1.0", only: [:dev, :test], runtime: false},
+
+      # ML dependencies (all pure Elixir, compatible with iOS/Android)
+      {:nx, "~> 0.10"},
+      {:polaris, "~> 0.1"},
+      {:scholar, "~> 0.4.0"},
+      {:nx_signal, "~> 0.3.0"},
+      {:axon, "~> 0.8.0"}
     ]
   end
 end

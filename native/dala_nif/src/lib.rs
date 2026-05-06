@@ -927,8 +927,224 @@ fn linking_initial_url<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
     Ok(result)
 }
 
-// ============================================================================
+// ===========================================================================
+// CoreML (iOS only)
+// ===========================================================================
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn coreml_load_model<'a>(
+    env: Env<'a>,
+    model_path: Term<'a>,
+    identifier: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let path: String = model_path.decode()?;
+    let id: String = identifier.decode()?;
+    match crate::ios::coreml_load_model(&path, &id) {
+        Ok(()) => ok(env),
+        Err(e) => {
+            let error_term = rustler::types::binary::Binary::from(e.as_bytes());
+            Ok(error_term.to_term(env))
+        }
+    }
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn coreml_load_model<'a>(
+    env: Env<'a>,
+    _model_path: Term<'a>,
+    _identifier: Term<'a>,
+) -> NifResult<Term<'a>> {
+    Ok(atom(env, "not_supported"))
+}
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn coreml_unload_model<'a>(env: Env<'a>, identifier: Term<'a>) -> NifResult<Term<'a>> {
+    let id: String = identifier.decode()?;
+    crate::ios::coreml_unload_model(&id);
+    ok(env)
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn coreml_unload_model<'a>(env: Env<'a>, _identifier: Term<'a>) -> NifResult<Term<'a>> {
+    ok(env)
+}
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn coreml_is_model_loaded<'a>(env: Env<'a>, identifier: Term<'a>) -> NifResult<Term<'a>> {
+    let id: String = identifier.decode()?;
+    let loaded = crate::ios::coreml_is_model_loaded(&id);
+    let atom_name = if loaded { "true" } else { "false" };
+    Ok(atom(env, atom_name))
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn coreml_is_model_loaded<'a>(env: Env<'a>, _identifier: Term<'a>) -> NifResult<Term<'a>> {
+    Ok(atom(env, "false"))
+}
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn coreml_predict<'a>(
+    env: Env<'a>,
+    identifier: Term<'a>,
+    inputs_json: Term<'a>,
+) -> NifResult<Term<'a>> {
+    let id: String = identifier.decode()?;
+    let json: String = inputs_json.decode()?;
+    crate::ios::coreml_predict(&id, &json, coreml_prediction_callback);
+    ok(env)
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn coreml_predict<'a>(
+    env: Env<'a>,
+    _identifier: Term<'a>,
+    _inputs_json: Term<'a>,
+) -> NifResult<Term<'a>> {
+    ok(env)
+}
+
+#[cfg(target_os = "ios")]
+unsafe extern "C" fn coreml_prediction_callback(
+    model_identifier: *const std::ffi::c_char,
+    result_json: *const std::ffi::c_char,
+    error: *const std::ffi::c_char,
+) {
+    // Convert C strings to Rust strings
+    let identifier = if !model_identifier.is_null() {
+        std::ffi::CStr::from_ptr(model_identifier)
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        String::new()
+    };
+
+    if !error.is_null() {
+        let error_msg = std::ffi::CStr::from_ptr(error)
+            .to_string_lossy()
+            .into_owned();
+        eprintln!("[Dala CoreML] Prediction error: {}", error_msg);
+        return;
+    }
+
+    let result = if !result_json.is_null() {
+        std::ffi::CStr::from_ptr(result_json)
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        String::new()
+    };
+
+    // Send result to Elixir via message
+    // This would use erl_nif to send a message to a waiting process
+    eprintln!(
+        "[Dala CoreML] Prediction result for {}: {}",
+        identifier, result
+    );
+}
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn coreml_loaded_models<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    let models = crate::ios::coreml_loaded_models();
+    let model_terms: Vec<Term> = models
+        .iter()
+        .map(|m| rustler::types::binary::Binary::from(m.as_bytes()).to_term(env))
+        .collect();
+    Ok(rustler::types::tuple::make_tuple(env, &model_terms).unwrap())
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn coreml_loaded_models<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    Ok(rustler::types::atom::Atom::from_str(env, "none")
+        .unwrap()
+        .to_term(env))
+}
+
+#[cfg(target_os = "ios")]
+mod onnx;
+
+// ONNX Runtime NIFs
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn onnx_create_session<'a>(env: Env<'a>, model_data: Binary<'a>) -> NifResult<Term<'a>> {
+    let data = model_data.as_slice();
+    let session_id = crate::onnx::create_session(data);
+    if session_id == 0 {
+        Ok(atom(env, "error"))
+    } else {
+        Ok(rustler::types::tuple::make_tuple(
+            env,
+            &[
+                rustler::types::atom::Atom::from_str(env, "ok")
+                    .unwrap()
+                    .to_term(env),
+                rustler::types::u64::U64::new(session_id).to_term(env),
+            ],
+        )
+        .unwrap())
+    }
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn onnx_create_session<'a>(env: Env<'a>, _model_data: Term<'a>) -> NifResult<Term<'a>> {
+    Ok(atom(env, "not_supported"))
+}
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn onnx_destroy_session<'a>(env: Env<'a>, session_id: Term<'a>) -> NifResult<Term<'a>> {
+    let id: u64 = session_id.decode()?;
+    let result = crate::onnx::destroy_session(id);
+    if result == 0 {
+        ok(env)
+    } else {
+        Ok(atom(env, "error"))
+    }
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn onnx_destroy_session<'a>(env: Env<'a>, _session_id: Term<'a>) -> NifResult<Term<'a>> {
+    ok(env)
+}
+
+#[cfg(target_os = "ios")]
+#[rustler::nif]
+fn onnx_run<'a>(env: Env<'a>, session_id: Term<'a>, input: Binary<'a>) -> NifResult<Term<'a>> {
+    let id: u64 = session_id.decode()?;
+    let input_data = input.as_slice();
+    // For now, echo input as output (placeholder)
+    let output_term = rustler::types::binary::Binary::from(input_data).to_term(env);
+    Ok(rustler::types::tuple::make_tuple(
+        env,
+        &[
+            rustler::types::atom::Atom::from_str(env, "ok")
+                .unwrap()
+                .to_term(env),
+            output_term,
+        ],
+    )
+    .unwrap())
+}
+
+#[cfg(not(target_os = "ios"))]
+#[rustler::nif]
+fn onnx_run<'a>(env: Env<'a>, _session_id: Term<'a>, _input: Term<'a>) -> NifResult<Term<'a>> {
+    Ok(atom(env, "not_supported"))
+}
+
+// ===========================================================================
 // Initialize NIF
-// ============================================================================
+// ===========================================================================
 
 rustler::init!("Elixir.Dala.Native");

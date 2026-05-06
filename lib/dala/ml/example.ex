@@ -43,11 +43,12 @@ defmodule Dala.ML.Example do
       |> Nx.reshape({1, 224, 224, 3})
 
     # Simulate inference with EMLX
-    output = Nx.random_uniform({1, 1000}, backend: EMLX.Backend)
+    key = Nx.Random.key(42)
+    {output, _key} = Nx.Random.uniform(key, {1, 1000}, backend: EMLX.Backend)
 
     %{
       predicted_class: Nx.argmax(output) |> Nx.to_number(),
-      confidence: Nx.max(output) |> Nx.to_number(),
+      confidence: Nx.reduce_max(output) |> Nx.to_number(),
       backend: "EMLX",
       note: "Load actual quantized model for production"
     }
@@ -65,7 +66,7 @@ defmodule Dala.ML.Example do
 
     # Simulate YOLO output: [batch, grid, grid, 3 * (5 + classes)]
     detection_output =
-      Nx.random_uniform({1, 13, 13, 18}, backend: EMLX.Backend)
+      Nx.Random.uniform(Nx.Random.key(42), {1, 13, 13, 18}, backend: EMLX.Backend)
 
     %{
       output_shape: Nx.shape(detection_output),

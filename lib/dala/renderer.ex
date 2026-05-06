@@ -562,7 +562,7 @@ defmodule Dala.Renderer do
     [<<count::8>>, fields]
   end
 
-  defp encode_props_with_taps(props, nif, platform, ctx) when is_map(props) do
+  defp encode_props_with_taps(props, nif, _platform, _ctx) when is_map(props) do
     {fields, count, taps} =
       Enum.reduce(Map.to_list(props), {[], 0, []}, fn
         {:on_tap, {pid, tag}}, {acc, cnt, ts} when is_pid(pid) ->

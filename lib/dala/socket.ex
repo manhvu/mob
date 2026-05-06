@@ -120,6 +120,36 @@ defmodule Dala.Socket do
   end
 
   @doc """
+  Queue a pop_to navigation action.
+
+  Pops screens until the target module is at the top of the stack.
+  """
+  @spec pop_to(t(), module() | atom()) :: t()
+  def pop_to(%__MODULE__{__dala__: dala} = socket, dest) do
+    %{socket | __dala__: Map.put(dala, :nav_action, {:pop_to, dest})}
+  end
+
+  @doc """
+  Queue a pop_to_root navigation action.
+
+  Pops all screens except the root.
+  """
+  @spec pop_to_root(t()) :: t()
+  def pop_to_root(%__MODULE__{__dala__: dala} = socket) do
+    %{socket | __dala__: Map.put(dala, :nav_action, {:pop_to_root})}
+  end
+
+  @doc """
+  Queue a reset_to navigation action.
+
+  Replaces the entire navigation stack with a fresh screen.
+  """
+  @spec reset_to(t(), module() | atom(), map()) :: t()
+  def reset_to(%__MODULE__{__dala__: dala} = socket, dest, params \\ %{}) do
+    %{socket | __dala__: Map.put(dala, :nav_action, {:reset, dest, params})}
+  end
+
+  @doc """
   Get a value from the internal `__dala__` metadata.
 
   Used internally by the screen process.
@@ -149,11 +179,17 @@ defmodule Dala.Socket do
   end
 
   @doc """
-  Check if a specific key has changed since the last render.
+  Check if specific key(s) have changed since the last render.
 
-  Returns `true` if the key was assigned since the last render.
+  Returns `true` if all keys were assigned since the last render.
+  Accepts a single atom or a list of atoms.
   """
-  @spec changed?(t(), atom()) :: boolean()
+  @spec changed?(t(), atom() | [atom()]) :: boolean()
+  def changed?(%__MODULE__{__dala__: dala}, keys) when is_list(keys) do
+    changed = Map.get(dala, :changed, MapSet.new())
+    Enum.all?(keys, fn key -> MapSet.member?(changed, key) end)
+  end
+
   def changed?(%__MODULE__{__dala__: dala}, key) do
     changed = Map.get(dala, :changed, MapSet.new())
     MapSet.member?(changed, key)

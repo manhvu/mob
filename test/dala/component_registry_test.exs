@@ -6,6 +6,12 @@ defmodule Dala.ComponentRegistryTest do
   Tests for Dala.ComponentRegistry.
   """
 
+  setup do
+    # Start the registry
+    Dala.ComponentRegistry.start_link()
+    :ok
+  end
+
   describe "register/3" do
     test "registers component successfully" do
       # This would need a running screen process
@@ -16,7 +22,7 @@ defmodule Dala.ComponentRegistryTest do
 
   describe "lookup/3" do
     test "returns :error for non-existent component" do
-      result = Dala.ComponentRegistry.lookup({self(), :test_id, Dala.Test})
+      result = Dala.ComponentRegistry.lookup(self(), :test_id, Dala.Test)
       assert {:error, :not_found} = result
     end
   end
