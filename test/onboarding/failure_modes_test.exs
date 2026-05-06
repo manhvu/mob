@@ -49,7 +49,7 @@ defmodule Dala.Onboarding.FailureModesTest do
 
   describe "OTP download — empty cache directory (Nix curl silent fail)" do
     # NOTE: Full isolation of these tests requires a dala_dev release that respects
-    # the dala_CACHE_DIR env var. Until then, we can only safely test that
+    # the DALA_CACHE_DIR env var. Until then, we can only safely test that
     # dala.install completes successfully and that the global OTP cache is valid.
     # Failure injection into the workspace-local cache has no effect because the
     # published dala_dev OtpDownloader hardcodes ~/.dala/cache/.

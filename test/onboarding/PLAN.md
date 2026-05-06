@@ -101,7 +101,7 @@ export WORK_DIR=/tmp/dala_onboarding_$RUN_ID
 export MIX_HOME=$WORK_DIR/mix_home
 export HEX_HOME=$WORK_DIR/hex_home
 export HOME_OVERRIDE=$WORK_DIR/toolchain   # used by mise/asdf
-export dala_CACHE_DIR=$WORK_DIR/dala_cache   # overrides ~/.dala/cache
+export DALA_CACHE_DIR=$WORK_DIR/dala_cache   # overrides ~/.dala/cache
 ```
 
 This ensures:
@@ -231,9 +231,9 @@ assert_file_content("my_app/ios/build.sh", ~r/dala_logo/)
 ```
 run("mix dala.install", in: WORK_DIR/my_app, timeout: 300_000)
 assert_exit_code(0)
-assert_dir_exists("$dala_CACHE_DIR/otp-ios-sim-*/erts-*")    # iOS
-assert_dir_exists("$dala_CACHE_DIR/otp-android-*/erts-*")     # Android
-assert_file_exists("$dala_CACHE_DIR/otp-ios-sim-*/my_app")    # beams dir
+assert_dir_exists("$DALA_CACHE_DIR/otp-ios-sim-*/erts-*")    # iOS
+assert_dir_exists("$DALA_CACHE_DIR/otp-android-*/erts-*")     # Android
+assert_file_exists("$DALA_CACHE_DIR/otp-ios-sim-*/my_app")    # beams dir
 ```
 
 The OTP download is the highest-risk step. On Nix the `curl` path must be the system curl — assert that download used `:httpc` (or `/usr/bin/curl` as fallback) and not a Nix-shelled curl.

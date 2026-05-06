@@ -39,7 +39,7 @@ defmodule Mix.Tasks.Dala.OnboardingTest do
   ## Workspace isolation
 
   Each test creates a fresh temp directory under `/tmp/dala_onboarding_<id>/`
-  with its own MIX_HOME, HEX_HOME, and dala_CACHE_DIR. On success the workspace
+  with its own MIX_HOME, HEX_HOME, and DALA_CACHE_DIR. On success the workspace
   is deleted. On failure it is preserved and its path is printed so you can
   inspect logs and the generated project.
   """

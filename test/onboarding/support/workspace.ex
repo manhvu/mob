@@ -4,7 +4,7 @@ defmodule Dala.Onboarding.Workspace do
 
   Each workspace gets:
   - A unique directory under /tmp
-  - Its own MIX_HOME, HEX_HOME, and dala_CACHE_DIR so nothing leaks from the
+  - Its own MIX_HOME, HEX_HOME, and DALA_CACHE_DIR so nothing leaks from the
     developer's real environment
   - A logs/ subdirectory where Shell output is persisted per step
   - Automatic cleanup on success; preservation on failure with a printed path
@@ -20,7 +20,7 @@ defmodule Dala.Onboarding.Workspace do
   `Workspace.shell_opts/1`, which injects the correct cd/env overrides.
   """
 
-  defstruct [:id, :root, :project_dir, :mix_home, :hex_home, :dala_cache_dir, :logs_dir]
+  defstruct [:id, :root, :project_dir, :mix_home, :hex_home, :DALA_CACHE_DIR, :logs_dir]
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -28,7 +28,7 @@ defmodule Dala.Onboarding.Workspace do
           project_dir: Path.t() | nil,
           mix_home: Path.t(),
           hex_home: Path.t(),
-          dala_cache_dir: Path.t(),
+          DALA_CACHE_DIR: Path.t(),
           logs_dir: Path.t()
         }
 
@@ -50,7 +50,7 @@ defmodule Dala.Onboarding.Workspace do
       project_dir: nil,
       mix_home: mkdir!(root, "mix_home"),
       hex_home: mkdir!(root, "hex_home"),
-      dala_cache_dir: mkdir!(root, "dala_cache"),
+      DALA_CACHE_DIR: mkdir!(root, "dala_cache"),
       logs_dir: mkdir!(root, "logs")
     }
 
@@ -131,7 +131,7 @@ defmodule Dala.Onboarding.Workspace do
     %{
       "MIX_HOME" => ws.mix_home,
       "HEX_HOME" => ws.hex_home,
-      "dala_CACHE_DIR" => ws.dala_cache_dir,
+      "DALA_CACHE_DIR" => ws.DALA_CACHE_DIR,
       # Prevent the running node from trying to connect to anything
       "MIX_ENV" => "dev",
       "RELEASE_DISTRIBUTION" => "none"

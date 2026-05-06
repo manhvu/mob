@@ -205,8 +205,8 @@ defmodule Dala.Onboarding.GeneratorTest do
       shell_project("mix dala.install", ws, timeout: 600_000)
 
       # OtpDownloader in the published dala_dev package uses ~/.dala/cache/ regardless
-      # of dala_CACHE_DIR. Check the global cache that dala.install actually writes to.
-      # (A future dala_dev release will respect dala_CACHE_DIR for full isolation.)
+      # of DALA_CACHE_DIR. Check the global cache that dala.install actually writes to.
+      # (A future dala_dev release will respect DALA_CACHE_DIR for full isolation.)
       otp_cache = Path.join([System.get_env("HOME"), ".dala", "cache"])
       cache_dirs = File.ls!(otp_cache)
       ios_dir = Enum.find(cache_dirs, &String.starts_with?(&1, "otp-ios-sim-"))

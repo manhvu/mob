@@ -47,7 +47,7 @@ All improvements made to the Dala codebase for better reliability, user experien
 **File**: `lib/dala/live_view.ex`
 - Implemented hash-based port allocation using `:erlang.phash2/2`
 - Port now computed deterministically from app name (range 4200-4999)
-- Added `dala_LIVEVIEW_PORT` environment variable for runtime override
+- Added `DALA_LIVEVIEW_PORT` environment variable for runtime override
 - Added `liveview_port` application config support
 - Collision probability ~2.5% for 5 apps (birthday paradox)
 

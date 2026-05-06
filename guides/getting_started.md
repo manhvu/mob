@@ -536,22 +536,22 @@ deploy time), but you'll need to edit those config files by hand.
 
 | Env var | Read by | When to set |
 |---|---|---|
-| `dala_ELIXIR_LIB` | `dala.install` (writes into `dala.exs`); iOS `build.sh` | before `dala.install` |
-| `dala_DIR` | `mix dala.new --local` (path resolution); iOS `build.sh` | before `dala.new` (only if using `--local`) |
-| `dala_DEV_DIR` | `mix dala.new --local` (path resolution) | before `dala.new` (only if using `--local`) |
-| `dala_CACHE_DIR` | OTP downloader at install + any `--native` deploy | before `dala.install` |
-| `dala_SIM_RUNTIME_DIR` | iOS `build.sh` (writer) and `dala_beam.m` (reader) | before first `dala.deploy --native` |
+| `DALA_ELIXIR_LIB` | `dala.install` (writes into `dala.exs`); iOS `build.sh` | before `dala.install` |
+| `DALA_DIR` | `mix dala.new --local` (path resolution); iOS `build.sh` | before `dala.new` (only if using `--local`) |
+| `DALA_DEV_DIR` | `mix dala.new --local` (path resolution) | before `dala.new` (only if using `--local`) |
+| `DALA_CACHE_DIR` | OTP downloader at install + any `--native` deploy | before `dala.install` |
+| `DALA_SIM_RUNTIME_DIR` | iOS `build.sh` (writer) and `dala_beam.m` (reader) | before first `dala.deploy --native` |
 | `ANDROID_HOME` | `dala.install` (auto-detected, written to `local.properties`); Gradle | before `dala.install` |
 | `JAVA_HOME` | Gradle | before `dala.deploy --native` |
 
 Each var has a default if you don't set it; the table column says where
 each *would* land:
 
-  * `dala_ELIXIR_LIB` — computed from the running BEAM (mise/asdf path)
-  * `dala_DIR` / `dala_DEV_DIR` — resolves from `dala.exs` or `deps/dala`,
+  * `DALA_ELIXIR_LIB` — computed from the running BEAM (mise/asdf path)
+  * `DALA_DIR` / `DALA_DEV_DIR` — resolves from `dala.exs` or `deps/dala`,
     or sibling discovery (`./dala_dev` then `../dala_dev`)
-  * `dala_CACHE_DIR` — `~/.dala/cache/`
-  * `dala_SIM_RUNTIME_DIR` — `~/.dala/runtime/ios-sim/`
+  * `DALA_CACHE_DIR` — `~/.dala/cache/`
+  * `DALA_SIM_RUNTIME_DIR` — `~/.dala/runtime/ios-sim/`
   * `ANDROID_HOME` — read from `android/local.properties` `sdk.dir`
 
 Quick recipe for a Nix user with Elixir from
@@ -559,9 +559,9 @@ Quick recipe for a Nix user with Elixir from
 `shell.nix` so it loads on `cd`:
 
 ```sh
-export dala_ELIXIR_LIB="$(elixir -e 'IO.puts(Path.dirname(to_string(:code.lib_dir(:elixir))))')"
-export dala_CACHE_DIR="$HOME/.dala/cache"           # or somewhere your Nix gc-roots manage
-export dala_SIM_RUNTIME_DIR="$HOME/.dala/runtime/ios-sim"
+export DALA_ELIXIR_LIB="$(elixir -e 'IO.puts(Path.dirname(to_string(:code.lib_dir(:elixir))))')"
+export DALA_CACHE_DIR="$HOME/.dala/cache"           # or somewhere your Nix gc-roots manage
+export DALA_SIM_RUNTIME_DIR="$HOME/.dala/runtime/ios-sim"
 export ANDROID_HOME="$HOME/Android/Sdk"           # wherever your nixpkgs AndroidSdk lives
 ```
 
@@ -574,8 +574,8 @@ mix dala.install      # picks up the env vars, bakes them into dala.exs / local.
 mix dala.deploy --native
 ```
 
-`mix dala.cache` and `mix dala.cache --clear` know about both `dala_CACHE_DIR`
-and `dala_SIM_RUNTIME_DIR` overrides — if you point them at a project-local
+`mix dala.cache` and `mix dala.cache --clear` know about both `DALA_CACHE_DIR`
+and `DALA_SIM_RUNTIME_DIR` overrides — if you point them at a project-local
 or sandbox-friendly path, that's also what cache listings and `--clear` will
 target.
 
@@ -587,10 +587,10 @@ target.
 
 - **`~/.dala/cache/`** — pre-built OTP runtimes for iOS sim, iOS device, and
   Android (one per ABI). Reused across every Dala project. ~200–400 MB each.
-  Override with `dala_CACHE_DIR`.
+  Override with `DALA_CACHE_DIR`.
 - **`~/.dala/runtime/ios-sim/`** — the OTP root that the running iOS simulator
   app reads from at startup (dala_new ≥ 0.1.20). One per machine, not per
-  project — last project deployed wins. Override with `dala_SIM_RUNTIME_DIR`.
+  project — last project deployed wins. Override with `DALA_SIM_RUNTIME_DIR`.
   Older projects use `/tmp/otp-ios-sim` instead, which `dala.cache` still lists.
 - **`~/Library/Caches/elixir_make/`** (macOS) or `~/.cache/elixir_make/`
   (Linux) — pre-built NIF tarballs that `exqlite` and other NIF deps download
@@ -608,8 +608,8 @@ mix dala.cache --clear --include-transitive # delete ours + elixir_make's
 To relocate Dala-owned paths (sandbox-friendly for Nix or CI environments):
 
 ```bash
-export dala_CACHE_DIR=/path/to/cache         # OTP runtime cache
-export dala_SIM_RUNTIME_DIR=/path/to/runtime # iOS simulator runtime
+export DALA_CACHE_DIR=/path/to/cache         # OTP runtime cache
+export DALA_SIM_RUNTIME_DIR=/path/to/runtime # iOS simulator runtime
 ```
 
 `dala.cache` deliberately does not touch `~/.hex`, `~/.mix`, `~/.gradle`, or

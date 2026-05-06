@@ -23,7 +23,7 @@ defmodule Dala.Onboarding.FailureInjector do
   re-download — or surface a clear error if it cannot.
   """
   @spec empty_otp_cache(Workspace.t(), :ios | :android) :: {:ok, undo_fn()}
-  def empty_otp_cache(%Workspace{dala_cache_dir: cache}, platform) do
+  def empty_otp_cache(%Workspace{DALA_CACHE_DIR: cache}, platform) do
     # Match the naming pattern used by OtpDownloader
     prefix =
       case platform do

@@ -268,8 +268,8 @@ Devices are assigned dist ports by index to avoid conflicts:
 - Device 0 (Android): port 9100
 - Device 1 (iOS sim): port 9101
 
-iOS dist port is passed via `SIMCTL_CHILD_dala_DIST_PORT` env var; `dala_beam.m` reads
-`dala_DIST_PORT` at startup. Android dist port is passed as an intent extra (`dala_dist_port`);
+iOS dist port is passed via `SIMCTL_CHILD_DALA_DIST_PORT` env var; `dala_beam.m` reads
+`DALA_DIST_PORT` at startup. Android dist port is passed as an intent extra (`dala_dist_port`);
 **`MainActivity.java` does NOT yet read this — multi-Android support is pending.**
 
 Both iOS and Android end up registered in the same Mac EPMD. `mix dala.connect` sets
@@ -475,7 +475,7 @@ Workspaces from passing tests are deleted automatically.
 
 **Known limitations (published `dala_dev 0.1.7`):**
 
-- `dala_OTP_BASE_URL` is not respected — OTP download URL cannot be overridden for
+- `DALA_OTP_BASE_URL` is not respected — OTP download URL cannot be overridden for
   failure injection. Network failure tests verify OTP reporting format instead.
 - `check_elixir` reads `System.version()` (the running BEAM) — PATH-based fake Elixir
   versions have no effect. The Elixir version test verifies the check produces clear output.
