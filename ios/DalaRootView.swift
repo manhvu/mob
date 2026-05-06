@@ -273,7 +273,7 @@ struct DalaNodeView: View, Equatable {
         Group {
             switch node.nodeType {
             case .column:
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: node.gap) {
                     ForEach(node.childNodes) { child in
                         DalaNodeView(node: child)
                     }
@@ -287,9 +287,10 @@ struct DalaNodeView: View, Equatable {
                 .dalaGestures(node)
                 // Use drawingGroup for columns with many children to improve performance
                 .modifier(DrawingGroupModifier(shouldApply: node.childNodes.count > 10))
+                .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .row:
-                HStack(spacing: 0) {
+                HStack(spacing: node.gap) {
                     ForEach(node.childNodes) { child in
                         DalaNodeView(node: child)
                     }
@@ -302,6 +303,7 @@ struct DalaNodeView: View, Equatable {
                 .dalaGestures(node)
                 // Use drawingGroup for rows with many children
                 .modifier(DrawingGroupModifier(shouldApply: node.childNodes.count > 10))
+                .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .box:
                 ZStack(alignment: .topLeading) {
@@ -331,6 +333,7 @@ struct DalaNodeView: View, Equatable {
                 .dalaGestures(node)
                 // Use drawingGroup for boxes with many children
                 .modifier(DrawingGroupModifier(shouldApply: node.childNodes.count > 10))
+                .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .label:
                 Text(node.text ?? "")
@@ -346,6 +349,7 @@ struct DalaNodeView: View, Equatable {
                         view.contentShape(Rectangle()).onTapGesture { tap() }
                     }
                     .dalaGestures(node)
+                    .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .icon:
                 // Resolve logical icon name (e.g. "settings") to the matching
@@ -374,6 +378,7 @@ struct DalaNodeView: View, Equatable {
                 .padding(node.paddingEdgeInsets)
                 .background(node.backgroundColor.map { Color($0) } ?? Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: node.cornerRadius))
+                .disabled(node.disabled)
                 .ifLet(node.accessibilityId) { view, id in
                     view.accessibilityIdentifier(id)
                 }
@@ -414,14 +419,17 @@ struct DalaNodeView: View, Equatable {
                 let initialText = node.text ?? ""
                 DalaTextField(node: node, placeholder: placeholder, initialText: initialText)
                     .padding(node.paddingEdgeInsets)
+                    .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .toggle:
                 DalaToggle(node: node)
                     .padding(node.paddingEdgeInsets)
+                    .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .slider:
                 DalaSlider(node: node)
                     .padding(node.paddingEdgeInsets)
+                    .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .divider:
                 Divider()
@@ -430,6 +438,7 @@ struct DalaNodeView: View, Equatable {
                         node.color.map { Color($0) } ?? Color(UIColor.separator)
                     )
                     .padding(node.paddingEdgeInsets)
+                    .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .spacer:
                 if node.fixedSize > 0 {
@@ -441,6 +450,7 @@ struct DalaNodeView: View, Equatable {
             case .image:
                 DalaImage(node: node)
                     .padding(node.paddingEdgeInsets)
+                    .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
 
             case .lazyList:
                 ScrollView(.vertical, showsIndicators: true) {
@@ -470,12 +480,14 @@ struct DalaNodeView: View, Equatable {
                         .tint(trackColor)
                         .frame(maxWidth: .infinity)
                         .padding(node.paddingEdgeInsets)
+                        .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
                 } else {
                     ProgressView(value: node.value, total: 1.0)
                         .progressViewStyle(.linear)
                         .tint(trackColor)
                         .frame(maxWidth: .infinity)
                         .padding(node.paddingEdgeInsets)
+                        .ifLet(node.accessibilityId) { view, id in view.accessibilityIdentifier(id) }
                 }
 
             case .tabBar:

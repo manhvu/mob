@@ -152,6 +152,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Layout behaviour
 @property (nonatomic) BOOL    fillWidth;    // fill parent width (default NO; button default YES)
 @property (nonatomic) CGFloat cornerRadius; // rounded corners in pt (default 0)
+@property (nonatomic) CGFloat gap;          // spacing between children in VStack/HStack (default 0)
+@property (nonatomic) BOOL    disabled;     // disables interaction (default NO)
 
 // Border (currently honored on box). Both must be set for a border to draw.
 @property (nonatomic, strong, nullable) UIColor* borderColor;

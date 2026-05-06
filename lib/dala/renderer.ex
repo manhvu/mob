@@ -239,6 +239,42 @@ defmodule Dala.Renderer do
     },
     list: %{
       scroll: true
+    },
+    column: %{},
+    row: %{},
+    box: %{},
+    divider: %{
+      thickness: 1.0,
+      color: :border
+    },
+    spacer: %{},
+    text_field: %{
+      background: :surface_raised,
+      text_color: :on_surface,
+      placeholder_color: :muted,
+      border_color: :border,
+      padding: :space_sm,
+      corner_radius: :radius_sm,
+      text_size: :base
+    },
+    toggle: %{
+      value: false,
+      track_color: :primary
+    },
+    slider: %{
+      value: 0.0,
+      min_value: 0.0,
+      max_value: 1.0,
+      color: :primary
+    },
+    tab_bar: %{},
+    video: %{
+      autoplay: false,
+      loop: false,
+      controls: true
+    },
+    icon: %{
+      text_size: 20.0
     }
   }
 
@@ -589,12 +625,38 @@ defmodule Dala.Renderer do
 
   # ── Tree preparation ──────────────────────────────────────────────────────
 
+  # Type aliases: Elixir uses familiar names, native side uses different strings.
+  # This keeps the Elixir API ergonomic while matching native expectations.
+  @type_aliases %{
+    switch: :toggle,
+    progress_bar: :progress
+  }
+
   defp prepare(%{type: type, props: props, children: children}, nif, platform, ctx) do
+    # Normalize :title → :text for buttons (backward compat)
+    props =
+      if type == :button and Map.has_key?(props, :title) and not Map.has_key?(props, :text) do
+        Map.put(props, :text, Map.get(props, :title))
+      else
+        props
+      end
+
+    # Normalize :size → :fixed_size for spacers
+    props =
+      if type == :spacer and Map.has_key?(props, :size) do
+        Map.put(props, :fixed_size, Map.get(props, :size))
+      else
+        props
+      end
+
+    # Resolve type alias for native side
+    native_type = Map.get(@type_aliases, type, type)
+
     defaults = Map.get(@component_defaults, type, %{})
     with_defaults = Map.merge(defaults, props)
 
     %{
-      "type" => Atom.to_string(type),
+      "type" => Atom.to_string(native_type),
       "props" => prepare_props(with_defaults, nif, platform, ctx),
       "children" => Enum.map(children, &prepare(&1, nif, platform, ctx))
     }
@@ -637,6 +699,18 @@ defmodule Dala.Renderer do
 
       {:on_change, {pid, tag}} when is_pid(pid) ->
         [{"on_change", nif.register_tap({pid, tag})}]
+
+      {:on_toggle, {pid, tag}} when is_pid(pid) ->
+        [{"on_toggle", nif.register_tap({pid, tag})}]
+
+      {:on_press, {pid, tag}} when is_pid(pid) ->
+        [{"on_press", nif.register_tap({pid, tag})}]
+
+      {:on_refresh, {pid, tag}} when is_pid(pid) ->
+        [{"on_refresh", nif.register_tap({pid, tag})}]
+
+      {:on_dismiss, {pid, tag}} when is_pid(pid) ->
+        [{"on_dismiss", nif.register_tap({pid, tag})}]
 
       {:on_focus, {pid, tag}} when is_pid(pid) ->
         [{"on_focus", nif.register_tap({pid, tag})}]
@@ -872,6 +946,25 @@ defmodule Dala.Renderer do
   # ── Optimized tree preparation with tap batching ──────────────────────
 
   defp prepare_with_taps(%{type: type, props: props, children: children}, nif, platform, ctx) do
+    # Normalize :title → :text for buttons (backward compat)
+    props =
+      if type == :button and Map.has_key?(props, :title) and not Map.has_key?(props, :text) do
+        Map.put(props, :text, Map.get(props, :title))
+      else
+        props
+      end
+
+    # Normalize :size → :fixed_size for spacers
+    props =
+      if type == :spacer and Map.has_key?(props, :size) do
+        Map.put(props, :fixed_size, Map.get(props, :size))
+      else
+        props
+      end
+
+    # Resolve type alias for native side
+    native_type = Map.get(@type_aliases, type, type)
+
     defaults = Map.get(@component_defaults, type, %{})
     with_defaults = Map.merge(defaults, props)
 
@@ -883,7 +976,7 @@ defmodule Dala.Renderer do
     {prepared_props, prop_taps} = prepare_props_with_taps(with_defaults, nif, platform, ctx)
 
     node = %{
-      "type" => Atom.to_string(type),
+      "type" => Atom.to_string(native_type),
       "props" => prepared_props,
       "children" => prepared_children
     }

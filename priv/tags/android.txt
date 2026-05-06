@@ -4,22 +4,32 @@
 # See guides/styling.md for native mapping details.
 # Note: Video is a stub pending ExoPlayer integration.
 
+ActivityIndicator
 Box
 Button
+CameraPreview
 Column
 Divider
+Icon
 Image
 LazyList
 List
+Modal
+NativeView
+Pressable
 Progress
+ProgressBar
+RefreshControl
 Row
+SafeArea
 Scroll
 Slider
 Spacer
+StatusBar
+Switch
 TabBar
 Text
 TextField
 Toggle
 Video
-CameraPreview
 WebView
