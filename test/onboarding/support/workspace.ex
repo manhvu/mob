@@ -131,7 +131,7 @@ defmodule Dala.Onboarding.Workspace do
     %{
       "MIX_HOME" => ws.mix_home,
       "HEX_HOME" => ws.hex_home,
-      "DALA_CACHE_DIR" => ws.DALA_CACHE_DIR,
+      "DALA_CACHE_DIR" => ws.dala_cache_dir,
       # Prevent the running node from trying to connect to anything
       "MIX_ENV" => "dev",
       "RELEASE_DISTRIBUTION" => "none"

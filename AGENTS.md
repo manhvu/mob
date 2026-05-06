@@ -170,13 +170,16 @@ These are the things we've burned ourselves on. Following them isn't optional.
     bootstrap), `Logger` output goes to stderr and is invisible. Use
     `:dala_nif.log("message")` for diagnostics during early init.
 
-11. **UI render path: Elixir → JSON → Rust NIF → ObjC → SwiftUI.**
-    The render pipeline flows: `Dala.Renderer.render/4` prepares the tree,
-    encodes to JSON, calls `Dala.Native.set_root(json)`. The Rust NIF
-    (`dala_nif`) passes this to `DalaViewModel.setRootFromJSON()` via ObjC.
-    For better performance, use `render_fast/4` which batches tap
-    registrations instead of clearing + re-registering on every render.
-    See `ios/DalaNode.m` for JSON-to-UI-node parsing.
+### 11. **UI render path: Elixir → Binary Protocol → Rust NIF → ObjC → SwiftUI.**
+    The render pipeline now uses a **custom binary protocol** instead of JSON:
+    - `Dala.Renderer.render/4` encodes `Dala.Node` trees to compact binary
+    - `Dala.Renderer.encode_tree/1` handles full tree encoding
+    - `Dala.Renderer.encode_frame/1` handles incremental patch encoding
+    - `Dala.Native.set_root_binary/1` NIF receives binary data (replaces `set_root/1`)
+    - Binary format: `[u16 version][u16 flags][u64 node_count] + nodes`
+    - Patches: `[u16 version=1][u16 patch_count] + opcodes`
+    - Zero-copy at boundary: Rustler's `Binary<'a>` maps directly to BEAM off-heap binaries
+    - See `Dala.Renderer` module docs for full binary protocol spec.
 
 12. **Skip renders when nothing changed (Strategy 1).**
     `Dala.Socket.assign/3` now tracks changed keys in `__dala__.changed`.

@@ -290,18 +290,16 @@ defmodule Dala.Renderer do
 
     nif.clear_taps()
 
-    json =
-      tree
-      |> prepare(nif, platform, ctx)
-      |> :json.encode()
-      |> IO.iodata_to_binary()
+    # Use binary protocol for full tree rendering
+    node = to_node(tree, "root")
+    binary = encode_tree(node)
 
-    nif.set_root(json)
-    {:ok, :json_tree}
+    nif.set_root_binary(binary)
+    {:ok, :binary_tree}
   end
 
   # Optimized version that batches tap registrations
-  @spec render_fast(Dala.Screen.t(), atom(), module(), atom()) :: {:ok, :json_tree}
+  @spec render_fast(Dala.Screen.t(), atom(), module(), atom()) :: {:ok, :binary_tree}
   def render_fast(tree, platform, nif \\ @default_nif, transition \\ :none) do
     theme = Theme.current()
 
@@ -315,18 +313,16 @@ defmodule Dala.Renderer do
     nif.clear_taps()
     nif.set_transition(transition)
 
-    {prepared, taps} = prepare_with_taps(tree, nif, platform, ctx)
+    # For render_fast, we still need tap registration
+    # Convert to Node struct and encode with tap handles
+    node = to_node(tree, "root")
+    {binary, _taps} = encode_tree_with_taps(node, nif, platform, ctx)
 
-    # Batch register taps (avoids clear_taps + individual register_tap)
-    nif.set_taps(taps)
+    # Batch register taps
+    # nif.set_taps(taps)  # TODO: integrate tap batching with binary protocol
 
-    json =
-      prepared
-      |> :json.encode()
-      |> IO.iodata_to_binary()
-
-    nif.set_root(json)
-    {:ok, :json_tree}
+    nif.set_root_binary(binary)
+    {:ok, :binary_tree}
   end
 
   @doc """
@@ -373,20 +369,12 @@ defmodule Dala.Renderer do
       has_replace? = Enum.any?(patches, fn {action, _} -> action == :replace end)
 
       if has_replace? do
-        # Full render for replacements — use prepare_with_taps to properly
-        # resolve {pid, tag} tuples into NIF handles and batch-register them.
+        # Full render for replacements — use binary protocol
         nif.clear_taps()
         nif.set_transition(transition)
 
-        {prepared, taps} = prepare_with_taps(new_node, nif, platform, ctx)
-        nif.set_taps(taps)
-
-        json =
-          prepared
-          |> :json.encode()
-          |> IO.iodata_to_binary()
-
-        nif.set_root(json)
+        binary = encode_tree(new_node)
+        nif.set_root_binary(binary)
         {:ok, patches}
       else
         # Check if patches contain inserts/removes (which may carry new tap
@@ -396,19 +384,12 @@ defmodule Dala.Renderer do
         has_structural? = Enum.any?(patches, fn {action, _} -> action in [:insert, :remove] end)
 
         if has_structural? do
-          # Structural change — full render with tap resolution
+          # Structural change — full render with binary protocol
           nif.clear_taps()
           nif.set_transition(transition)
 
-          {prepared, taps} = prepare_with_taps(new_node, nif, platform, ctx)
-          nif.set_taps(taps)
-
-          json =
-            prepared
-            |> :json.encode()
-            |> IO.iodata_to_binary()
-
-          nif.set_root(json)
+          binary = encode_tree(new_node)
+          nif.set_root_binary(binary)
           {:ok, patches}
         else
           # Pure prop updates — safe to send as patches (no new tap targets)
@@ -437,17 +418,91 @@ defmodule Dala.Renderer do
 
   # ── Binary protocol v2 encoder ──────────────────────────────────────
   #
-  # Header:  [u16 version=1][u16 patch_count]
-  # Opcodes:
-  #   0x01 INSERT  [u64 id][u64 parent][u32 index][u8 type][PROPS]
-  #   0x02 REMOVE  [u64 id]
-  #   0x03 UPDATE  [u64 id][PROPS]
+  # Full tree format:
+  #   Header:  [u16 version=2][u16 flags=0][u64 node_count]
+  #   Nodes:   repeat [u64 id][u8 type][PROPS][u32 child_count][u64 child_ids...]
+  #
+  # Patch frame format:
+  #   Header:  [u16 version=1][u16 patch_count]
+  #   Opcodes:
+  #     0x01 INSERT  [u64 id][u64 parent][u32 index][u8 type][PROPS]
+  #     0x02 REMOVE  [u64 id]
+  #     0x03 UPDATE  [u64 id][PROPS]
   #
   # PROPS:   [u8 field_count] repeat [u8 tag][value...]
   #   1=text[u16 len][bytes]  2=title[u16 len][bytes]  3=color[u16 len][bytes]
   #   4=background[u16 len][bytes]  5=on_tap[u64]
   #   6=width[f32]  7=height[f32]  8=padding[f32]  9=flex_grow[f32]
   #   10=flex_direction[u8]  11=justify_content[u8]  12=align_items[u8]
+
+  @doc "Encode a full Dala.Node tree to binary format"
+  def encode_tree(%Dala.Node{} = node) do
+    {binary, node_count} = encode_tree_node(node)
+    IO.iodata_to_binary([<<2::little-16, 0::little-16, node_count::little-64>>, binary])
+  end
+
+  defp encode_tree_node(%Dala.Node{id: id, type: type, props: props, children: children}) do
+    node_id = hash_id(id)
+
+    {child_binaries, child_ids, total_count} =
+      Enum.reduce(children, {[], [], 0}, fn child, {bins, ids, count} ->
+        {bin, child_count} = encode_tree_node(child)
+        {[bin | bins], [<<hash_id(child.id)::little-64>> | ids], count + child_count}
+      end)
+
+    child_count = length(children)
+
+    node_binary = [
+      <<node_id::little-64>>,
+      <<kind_to_byte(type)::8>>,
+      encode_props(props),
+      <<child_count::little-32>>,
+      Enum.reverse(child_ids)
+    ]
+
+    {[node_binary | Enum.reverse(child_binaries)], total_count + 1}
+  end
+
+  @doc "Encode tree with tap handles for render_fast"
+  def encode_tree_with_taps(%Dala.Node{} = node, nif, platform, ctx) do
+    {binary, taps} = encode_tree_node_with_taps(node, nif, platform, ctx)
+    node_count = count_nodes(node)
+    {IO.iodata_to_binary([<<2::little-16, 0::little-16, node_count::little-64>>, binary]), taps}
+  end
+
+  defp encode_tree_node_with_taps(
+         %Dala.Node{id: id, type: type, props: props, children: children},
+         nif,
+         platform,
+         ctx
+       ) do
+    node_id = hash_id(id)
+
+    # Encode props with tap handling
+    {encoded_props, tap_handles} = encode_props_with_taps(props, nif, platform, ctx)
+
+    {child_binaries, child_ids, all_taps} =
+      Enum.reduce(children, {[], [], tap_handles}, fn child, {bins, ids, taps} ->
+        {bin, child_taps} = encode_tree_node_with_taps(child, nif, platform, ctx)
+        {[bin | bins], [<<hash_id(child.id)::little-64>> | ids], taps ++ child_taps}
+      end)
+
+    child_count = length(children)
+
+    node_binary = [
+      <<node_id::little-64>>,
+      <<kind_to_byte(type)::8>>,
+      encoded_props,
+      <<child_count::little-32>>,
+      Enum.reverse(child_ids)
+    ]
+
+    {[node_binary | Enum.reverse(child_binaries)], all_taps}
+  end
+
+  defp count_nodes(%Dala.Node{children: children}) do
+    1 + Enum.sum(Enum.map(children, &count_nodes/1))
+  end
 
   @doc "Encode patches to binary frame format for the native side"
   def encode_frame(patches) when is_list(patches) do
@@ -505,6 +560,70 @@ defmodule Dala.Renderer do
   defp encode_props(props) when is_map(props) do
     {fields, count} = collect_prop_fields(Map.to_list(props), [], 0)
     [<<count::8>>, fields]
+  end
+
+  defp encode_props_with_taps(props, nif, platform, ctx) when is_map(props) do
+    {fields, count, taps} =
+      Enum.reduce(Map.to_list(props), {[], 0, []}, fn
+        {:on_tap, {pid, tag}}, {acc, cnt, ts} when is_pid(pid) ->
+          handle = nif.register_tap({pid, tag})
+          {[acc, <<5::8, handle::little-64>>], cnt + 1, [handle | ts]}
+
+        {:on_tap, pid}, {acc, cnt, ts} when is_pid(pid) ->
+          handle = nif.register_tap(pid)
+          {[acc, <<5::8, handle::little-64>>], cnt + 1, [handle | ts]}
+
+        {key, value}, {acc, cnt, ts} ->
+          {field, c} = encode_single_prop(key, value)
+
+          if field do
+            {[acc, field], cnt + c, ts}
+          else
+            {acc, cnt, ts}
+          end
+      end)
+
+    {[<<count::8>>, fields], taps}
+  end
+
+  defp encode_single_prop(key, value) do
+    case key do
+      :text when is_binary(value) ->
+        {<<1::8, byte_size(value)::little-16, value::binary>>, 1}
+
+      :title when is_binary(value) ->
+        {<<2::8, byte_size(value)::little-16, value::binary>>, 1}
+
+      :color when is_binary(value) ->
+        {<<3::8, byte_size(value)::little-16, value::binary>>, 1}
+
+      :background when is_binary(value) ->
+        {<<4::8, byte_size(value)::little-16, value::binary>>, 1}
+
+      :width when is_number(value) ->
+        {<<6::8, value::float-little-32>>, 1}
+
+      :height when is_number(value) ->
+        {<<7::8, value::float-little-32>>, 1}
+
+      :padding when is_number(value) ->
+        {<<8::8, value::float-little-32>>, 1}
+
+      :flex_grow when is_number(value) ->
+        {<<9::8, value::float-little-32>>, 1}
+
+      :flex_direction when is_atom(value) ->
+        {<<10::8, flex_dir_byte(value)::8>>, 1}
+
+      :justify_content when is_atom(value) ->
+        {<<11::8, justify_byte(value)::8>>, 1}
+
+      :align_items when is_atom(value) ->
+        {<<12::8, align_byte(value)::8>>, 1}
+
+      _ ->
+        {nil, 0}
+    end
   end
 
   defp collect_prop_fields([], acc, count), do: {acc, count}
