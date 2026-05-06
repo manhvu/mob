@@ -689,3 +689,37 @@ pub fn wifi_disable() {
     // iOS doesn't allow apps to enable/disable WiFi
     eprintln!("[Dala] wifi_disable not supported on iOS");
 }
+
+// ============================================================================
+// Linking
+// ============================================================================
+
+pub fn linking_open_url(url: &str) {
+    unsafe {
+        let ns_url_string = ns_string_from_str(url);
+        let url_class = class!(NSURL);
+        let ns_url: *mut Object = msg_send![url_class, URLWithString: ns_url_string];
+        if ns_url.is_null() {
+            eprintln!("[Dala] linking_open_url: invalid URL: {}", url);
+            return;
+        }
+        let app: *mut Object = msg_send![class!(UIApplication), sharedApplication];
+        let _: () = msg_send![app, openURL: ns_url];
+    }
+}
+
+pub fn linking_can_open<'a>(env: rustler::Env<'a>) -> rustler::Term<'a> {
+    // On iOS, we generally can open URLs — return true
+    // A full implementation would call canOpenURL: but that requires the URL argument
+    rustler::types::atom::Atom::from_str(env, "true")
+        .unwrap()
+        .to_term(env)
+}
+
+pub fn linking_initial_url<'a>(env: rustler::Env<'a>) -> rustler::Term<'a> {
+    // TODO: Retrieve the launch URL from NSUserActivity or launchOptions
+    // For now, return nil
+    rustler::types::atom::Atom::from_str(env, "nil")
+        .unwrap()
+        .to_term(env)
+}

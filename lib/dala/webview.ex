@@ -1,5 +1,5 @@
 defmodule Dala.WebView do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Bidirectional JS bridge for the native WebView component.
 
@@ -56,7 +56,7 @@ defmodule Dala.WebView do
   """
   @spec eval_js(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def eval_js(socket, code) when is_binary(code) do
-    :dala_nif.webview_eval_js(code)
+    Dala.Native.webview_eval_js(code)
     socket
   end
 
@@ -66,7 +66,7 @@ defmodule Dala.WebView do
   @spec navigate(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def navigate(socket, url) when is_binary(url) do
     js = "window.location.href = #{Jason.encode!(url)}"
-    :dala_nif.webview_eval_js(js)
+    Dala.Native.webview_eval_js(js)
     socket
   end
 
@@ -75,7 +75,7 @@ defmodule Dala.WebView do
   """
   @spec reload(Dala.Socket.t()) :: Dala.Socket.t()
   def reload(socket) do
-    :dala_nif.webview_eval_js("window.location.reload()")
+    Dala.Native.webview_eval_js("window.location.reload()")
     socket
   end
 
@@ -84,7 +84,7 @@ defmodule Dala.WebView do
   """
   @spec stop_loading(Dala.Socket.t()) :: Dala.Socket.t()
   def stop_loading(socket) do
-    :dala_nif.webview_eval_js("window.stop()")
+    Dala.Native.webview_eval_js("window.stop()")
     socket
   end
 
@@ -93,7 +93,7 @@ defmodule Dala.WebView do
   """
   @spec go_forward(Dala.Socket.t()) :: Dala.Socket.t()
   def go_forward(socket) do
-    :dala_nif.webview_eval_js("if (window.history.length > 1) window.history.forward()")
+    Dala.Native.webview_eval_js("if (window.history.length > 1) window.history.forward()")
     socket
   end
 
@@ -113,7 +113,7 @@ defmodule Dala.WebView do
   @spec interact(Dala.Socket.t(), tuple()) :: Dala.Socket.t()
   def interact(socket, action) do
     js = interact_js(action)
-    :dala_nif.webview_eval_js(js)
+    Dala.Native.webview_eval_js(js)
     socket
   end
 
@@ -205,7 +205,7 @@ defmodule Dala.WebView do
   """
   @spec screenshot(Dala.Socket.t()) :: Dala.Socket.t()
   def screenshot(socket) do
-    :dala_nif.webview_screenshot()
+    Dala.Native.webview_screenshot()
     socket
   end
 
@@ -216,7 +216,7 @@ defmodule Dala.WebView do
   @spec post_message(Dala.Socket.t(), term()) :: Dala.Socket.t()
   def post_message(socket, data) do
     json = :json.encode(data)
-    :dala_nif.webview_post_message(json)
+    Dala.Native.webview_post_message(json)
     socket
   end
 end

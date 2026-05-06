@@ -669,6 +669,32 @@ pub fn wifi_disable() {
 }
 
 // ============================================================================
+// Linking
+// ============================================================================
+
+pub fn linking_open_url(_url: &str) {
+    // TODO: Call DalaBridge.openUrl(String) via JNI
+    // Requires ACTION_VIEW intent on Android
+    eprintln!("[Dala] linking_open_url stub: {}", _url);
+}
+
+pub fn linking_can_open<'a>(env: rustler::Env<'a>) -> rustler::Term<'a> {
+    // TODO: Call DalaBridge.canOpenUrl(String) via JNI
+    // For now, return true
+    rustler::types::atom::Atom::from_str(env, "true")
+        .unwrap()
+        .to_term(env)
+}
+
+pub fn linking_initial_url<'a>(env: rustler::Env<'a>) -> rustler::Term<'a> {
+    // TODO: Retrieve the launch intent data URI from DalaBridge
+    // For now, return nil
+    rustler::types::atom::Atom::from_str(env, "nil")
+        .unwrap()
+        .to_term(env)
+}
+
+// ============================================================================
 // JNI Native Methods - Callbacks from Java DalaBridge
 // ============================================================================
 // These functions are called from Java via JNI when BLE events occur.

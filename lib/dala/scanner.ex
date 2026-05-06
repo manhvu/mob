@@ -1,5 +1,5 @@
 defmodule Dala.Scanner do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   QR code and barcode scanner.
 
@@ -42,7 +42,7 @@ defmodule Dala.Scanner do
   def scan(socket, opts \\ []) do
     formats = Keyword.get(opts, :formats, [:qr]) |> Enum.map(&Atom.to_string/1)
     formats_json = :json.encode(formats)
-    :dala_nif.scanner_scan(formats_json)
+    Dala.Native.scanner_scan(formats_json)
     socket
   end
 end

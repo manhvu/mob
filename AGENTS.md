@@ -223,35 +223,48 @@ These are the things we've burned ourselves on. Following them isn't optional.
     for complete WebView navigation control.
 
 ## 16. **Spark DSL for declarative screens.**
-    Dala now supports a Spark DSL for defining screens declaratively:
-    
+    Dala supports a Spark DSL for defining screens declaratively. The DSL mirrors
+    `Dala.UI` one-to-one — every component and prop available in `Dala.UI` has
+    a DSL equivalent.
+
     ```elixir
     defmodule MyApp.CounterScreen do
       use Dala.Spark.Dsl
-      
-      dala do
+
+      attributes do
         attribute :count, :integer, default: 0
-        
-        screen name: :counter do
+      end
+
+      screen do
+        name :counter
+        column do
+          gap :space_sm
           text "Count: @count"
           button "Increment", on_tap: :increment
         end
       end
-      
+
       def handle_event(:increment, _params, socket) do
-        new_count = Dala.Socket.get_assign(socket, :count) + 1
-        socket = Dala.Socket.assign(socket, :count, new_count)
-        {:noreply, socket}
+        {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
       end
     end
     ```
-    
+
     Features:
     - **@ref syntax**: Use `@count` in strings to reference assigns (processed at compile time)
-    - **Auto-generated mount/3**: Initializes attributes with defaults automatically
+    - **Auto-generated mount/3**: Initializes attributes with defaults; always generated
     - **Compile-time verifiers**: Validates prop types and handler references
-    - **Supported components**: text, button, image, switch, webview, and more
-    
+    - **Layout containers**: column, row, box, scroll, modal, pressable, safe_area (with nested children)
+    - **Leaf components**: text, button, icon, divider, spacer, text_field, toggle, slider,
+      switch, image, video, activity_indicator, progress_bar, status_bar, refresh_control,
+      webview, camera_preview, native_view, tab_bar, list
+    - **Container props go inside do blocks**: `column do padding :space_md; gap :space_sm; ... end`
+    - **Leaf props as keyword args**: `text "Hello", text_size: :xl`
+
+    The extension module (`Dala.Spark.Dsl`) is both a Spark extension and a DSL
+    module (`use Spark.Dsl, default_extensions: [extensions: __MODULE__]`).
+    This means `use Dala.Spark.Dsl` sets up the full Spark DSL on the user module.
+
     See `guides/spark_dsl.md` for full documentation.
 
 ## 17. **Dala.App screens/1 helper.**

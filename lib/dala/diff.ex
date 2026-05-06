@@ -46,19 +46,19 @@ defmodule Dala.Diff do
   def diff(%Node{id: id}, nil), do: [{:remove, id}]
   def diff(%Node{id: id} = old, %Node{id: id} = new), do: do_diff(old, new)
 
-  def diff(%Node{id: old_id} = old, %Node{id: new_id} = new) do
+  def diff(%Node{id: old_id} = _old, %Node{id: new_id} = new) do
     # Different IDs at root level - full replacement
     [{:remove, old_id}, {:insert, :root, 0, %Dala.Node{new | id: new_id}}]
   end
 
   # Same node - check for changes
-  defp do_diff(%Node{id: id, type: type} = old, %Node{type: type} = new) do
+  defp do_diff(%Node{id: _id, type: type} = old, %Node{type: type} = new) do
     props_patches = diff_props(old, new)
     children_patches = diff_children(old, new)
     props_patches ++ children_patches
   end
 
-  defp do_diff(%Node{id: id} = old, %Node{} = new) do
+  defp do_diff(%Node{id: id} = _old, %Node{} = new) do
     # Different type - full replacement
     [{:replace, id, new}]
   end

@@ -1,5 +1,5 @@
 defmodule Dala.ML.EMLX do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   iOS integration layer for EMLX (MLX backend for Nx).
 
@@ -42,7 +42,7 @@ defmodule Dala.ML.EMLX do
       # Set Nx default backend to EMLX with appropriate device
       Nx.default_backend({EMLX.Backend, device: config.device})
 
-      :dala_nif.log("Dala.ML.EMLX: configured for #{config.device}, JIT=#{config.jit_enabled}")
+      Dala.Native.log("Dala.ML.EMLX: configured for #{config.device}, JIT=#{config.jit_enabled}")
       {:ok, config}
     else
       # Non-iOS: use default Nx backend
@@ -85,7 +85,7 @@ defmodule Dala.ML.EMLX do
   """
   def ios_device? do
     try do
-      :dala_nif.platform() == :ios and not ios_simulator?()
+      Dala.Native.platform() == :ios and not ios_simulator?()
     rescue
       _ -> false
     end
@@ -96,10 +96,9 @@ defmodule Dala.ML.EMLX do
   """
   def ios_simulator? do
     try do
-      :dala_nif.platform() == :ios and (
-        System.get_env("SIMULATOR_DEVICE_NAME") != nil or
-        System.get_env("IPHONE_SIMULATOR_ROOT") != nil
-      )
+      Dala.Native.platform() == :ios and
+              (System.get_env("SIMULATOR_DEVICE_NAME") != nil or
+                 System.get_env("IPHONE_SIMULATOR_ROOT") != nil)
     rescue
       _ -> false
     end

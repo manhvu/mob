@@ -1,6 +1,4 @@
 defmodule Dala.Blob do
-  @compile {:nowarn_undefined, [:dala_nif]}
-
   @moduledoc """
   Binary data handling via blob references.
 
@@ -23,21 +21,21 @@ defmodule Dala.Blob do
 
   @spec create(binary(), String.t()) :: term()
   def create(data, type \\ "application/octet-stream") when is_binary(data) and is_binary(type) do
-    :dala_nif.blob_create(data, type)
+    Dala.Native.blob_create(data, type)
   end
 
   @spec slice(term(), non_neg_integer(), non_neg_integer()) :: term()
   def slice(blob_ref, start_pos, end_pos) do
-    :dala_nif.blob_slice(blob_ref, start_pos, end_pos)
+    Dala.Native.blob_slice(blob_ref, start_pos, end_pos)
   end
 
   @spec to_base64(term()) :: String.t() | nil
   def to_base64(blob_ref) do
-    :dala_nif.blob_to_base64(blob_ref)
+    Dala.Native.blob_to_base64(blob_ref)
   end
 
   @spec to_file(term(), String.t()) :: {:ok, String.t()} | {:error, atom()}
   def to_file(blob_ref, path) when is_binary(path) do
-    :dala_nif.blob_to_file(blob_ref, path)
+    Dala.Native.blob_to_file(blob_ref, path)
   end
 end

@@ -1,5 +1,5 @@
 defmodule Dala.Alert do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Native alert dialogs, action sheets, and toast messages.
 
@@ -72,7 +72,7 @@ defmodule Dala.Alert do
     title = to_string(opts[:title] || "")
     message = to_string(opts[:message] || "")
     buttons = opts[:buttons] || [[label: "OK", style: :cancel]]
-    :dala_nif.alert_show(title, message, encode_buttons(buttons))
+    Dala.Native.alert_show(title, message, encode_buttons(buttons))
     socket
   end
 
@@ -85,7 +85,7 @@ defmodule Dala.Alert do
   def action_sheet(socket, opts) do
     title = to_string(opts[:title] || "")
     buttons = opts[:buttons] || []
-    :dala_nif.action_sheet_show(title, encode_buttons(buttons))
+    Dala.Native.action_sheet_show(title, encode_buttons(buttons))
     socket
   end
 
@@ -98,7 +98,7 @@ defmodule Dala.Alert do
   @spec toast(Dala.Socket.t(), String.t(), keyword()) :: Dala.Socket.t()
   def toast(socket, message, opts \\ []) do
     duration = if opts[:duration] == :long, do: "long", else: "short"
-    :dala_nif.toast_show(to_string(message), duration)
+    Dala.Native.toast_show(to_string(message), duration)
     socket
   end
 

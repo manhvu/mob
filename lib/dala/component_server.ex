@@ -1,5 +1,5 @@
 defmodule Dala.ComponentServer do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc false
   # GenServer wrapping a Dala.Component module. Each native_view instance on a
   # screen gets its own process. Started unlinked (isolated from the screen).
@@ -46,7 +46,7 @@ defmodule Dala.ComponentServer do
 
         handle =
           if platform != :no_render do
-            :dala_nif.register_component(self())
+            Dala.Native.register_component(self())
           else
             0
           end
@@ -118,7 +118,7 @@ defmodule Dala.ComponentServer do
         handle: handle
       }) do
     Dala.ComponentRegistry.deregister(screen_pid, id, module)
-    if handle != 0, do: :dala_nif.deregister_component(handle)
+    if handle != 0, do: Dala.Native.deregister_component(handle)
     module.terminate(reason, socket)
   end
 end

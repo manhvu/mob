@@ -8,8 +8,8 @@ defmodule Dala.Registry do
   ## Example
 
       Dala.Registry.register(MyReg, :map_view,
-        android: {:dala_nif, :create_map_view, []},
-        ios:     {:dala_nif, :create_map_view, []}
+        android: {Dala.Native, :create_map_view, []},
+        ios:     {Dala.Native, :create_map_view, []}
       )
 
       {:ok, {mod, fun, args}} = Dala.Registry.lookup(MyReg, :map_view, :android)
@@ -26,11 +26,11 @@ defmodule Dala.Registry do
 
   # Built-in component mappings — same NIF module for both platforms for now
   @builtins [
-    column: [android: {:dala_nif, :create_column, []}, ios: {:dala_nif, :create_column, []}],
-    row: [android: {:dala_nif, :create_row, []}, ios: {:dala_nif, :create_row, []}],
-    text: [android: {:dala_nif, :create_label, []}, ios: {:dala_nif, :create_label, []}],
-    button: [android: {:dala_nif, :create_button, []}, ios: {:dala_nif, :create_button, []}],
-    scroll: [android: {:dala_nif, :create_scroll, []}, ios: {:dala_nif, :create_scroll, []}]
+    column: [android: {Dala.Native, :create_column, []}, ios: {Dala.Native, :create_column, []}],
+    row: [android: {Dala.Native, :create_row, []}, ios: {Dala.Native, :create_row, []}],
+    text: [android: {Dala.Native, :create_label, []}, ios: {Dala.Native, :create_label, []}],
+    button: [android: {Dala.Native, :create_button, []}, ios: {Dala.Native, :create_button, []}],
+    scroll: [android: {Dala.Native, :create_scroll, []}, ios: {Dala.Native, :create_scroll, []}]
   ]
 
   @doc """

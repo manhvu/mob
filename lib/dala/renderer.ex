@@ -66,7 +66,7 @@ defmodule Dala.Renderer do
 
   alias Dala.{Style, Theme}
 
-  @default_nif :dala_nif
+  @default_nif Dala.Native
 
   # ── Base palette ──────────────────────────────────────────────────────────
   # Raw named colors. Semantic tokens (:primary, :surface, etc.) resolve
@@ -188,18 +188,6 @@ defmodule Dala.Renderer do
       font_weight: "medium",
       fill_width: true,
       text_align: :center
-    },
-    text_field: %{
-      background: :surface_raised,
-      text_color: :on_surface,
-      placeholder_color: :muted,
-      border_color: :border,
-      padding: :space_sm,
-      corner_radius: :radius_sm,
-      text_size: :base
-    },
-    divider: %{
-      color: :border
     },
     progress: %{
       color: :primary
@@ -605,15 +593,6 @@ defmodule Dala.Renderer do
   defp align_byte(:end), do: 2
   defp align_byte(:stretch), do: 3
   defp align_byte(_), do: 0
-
-  defp patch_to_json({:move, id, parent_id, new_index}) do
-    %{
-      "action" => "move",
-      "id" => to_string(id),
-      "parent_id" => to_string(parent_id),
-      "index" => new_index
-    }
-  end
 
   @doc "Return the full color palette map (token → ARGB integer)."
   @spec colors() :: %{atom() => non_neg_integer()}

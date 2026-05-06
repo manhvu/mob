@@ -195,7 +195,7 @@ defmodule Mix.Tasks.Dala.SetupBluetoothWifi do
     end
   end
 
-  defp verify_ios_setup(color?) do
+  defp verify_ios_setup(_color?) do
     checks = [
       {"Bluetooth files", Dala.Setup.IOS.bluetooth_files_present?()},
       {"Xcode project", Dala.Setup.IOS.xcode_project_exists?()}
@@ -258,7 +258,7 @@ defmodule Mix.Tasks.Dala.SetupBluetoothWifi do
     end
   end
 
-  defp verify_android_setup(color?) do
+  defp verify_android_setup(_color?) do
     checks = [
       {"AndroidManifest.xml", Dala.Setup.Android.manifest_present?()},
       {"DalaBridge.java", Dala.Setup.Android.bluetooth_files_present?()}

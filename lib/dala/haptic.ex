@@ -1,5 +1,5 @@
 defmodule Dala.Haptic do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Haptic feedback. No permission required on either platform.
 
@@ -36,7 +36,7 @@ defmodule Dala.Haptic do
   """
   @spec trigger(Dala.Socket.t(), atom()) :: Dala.Socket.t()
   def trigger(socket, type) when type in @types do
-    :dala_nif.haptic(type)
+    Dala.Native.haptic(type)
     socket
   end
 end

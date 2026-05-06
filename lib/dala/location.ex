@@ -1,5 +1,5 @@
 defmodule Dala.Location do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Device location (GPS / network).
 
@@ -20,7 +20,7 @@ defmodule Dala.Location do
   """
   @spec get_once(Dala.Socket.t()) :: Dala.Socket.t()
   def get_once(socket) do
-    :dala_nif.location_get_once()
+    Dala.Native.location_get_once()
     socket
   end
 
@@ -35,7 +35,7 @@ defmodule Dala.Location do
   @spec start(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def start(socket, opts \\ []) do
     accuracy = Keyword.get(opts, :accuracy, :balanced)
-    :dala_nif.location_start(accuracy)
+    Dala.Native.location_start(accuracy)
     socket
   end
 
@@ -44,7 +44,7 @@ defmodule Dala.Location do
   """
   @spec stop(Dala.Socket.t()) :: Dala.Socket.t()
   def stop(socket) do
-    :dala_nif.location_stop()
+    Dala.Native.location_stop()
     socket
   end
 end

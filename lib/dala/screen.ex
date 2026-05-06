@@ -1,5 +1,5 @@
 defmodule Dala.Screen do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Screen behaviour and Spark DSL entry point.
 
@@ -8,15 +8,21 @@ defmodule Dala.Screen do
       defmodule MyApp.CounterScreen do
         use Dala.Screen
 
-        screen "counter" do
+        attributes do
+          attribute :count, :integer, default: 0
+        end
+
+        screen do
+          name :counter
           column do
-            text text: "Count: @count"
-            button text: "Increment", on_tap: :increment
+            gap :space_sm
+            text "Count: @count"
+            button "Increment", on_tap: :increment
           end
         end
 
         def handle_event(:increment, _params, socket) do
-          {:ok, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
+          {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
         end
       end
 
@@ -35,9 +41,9 @@ defmodule Dala.Screen do
   # The __using__ macro now just needs to call `use Dala.Screen`
   defmacro __using__(_opts) do
     quote do
+      use Dala.Spark.Dsl
       @behaviour Dala.Screen
       import Dala.Sigil
-      import Dala.Spark.Dsl
 
       # Default handle_info implementation
       def handle_info(_message, socket), do: {:noreply, socket}
@@ -94,7 +100,7 @@ defmodule Dala.Screen do
   """
   @spec start_root(module(), map(), keyword()) :: GenServer.on_start()
   def start_root(screen_module, params \\ %{}, opts \\ []) do
-    platform = :dala_nif.platform()
+    platform = Dala.Native.platform()
     GenServer.start_link(__MODULE__, {screen_module, params, :render, platform}, opts)
   end
 
@@ -128,7 +134,7 @@ defmodule Dala.Screen do
 
     socket =
       if render_mode == :render do
-        {t, r, b, l} = :dala_nif.safe_area()
+        {t, r, b, l} = Dala.Native.safe_area()
         Dala.Socket.assign(socket, :safe_area, %{top: t, right: r, bottom: b, left: l})
       else
         Dala.Socket.assign(socket, :safe_area, %{top: 0.0, right: 0.0, bottom: 0.0, left: 0.0})
@@ -141,7 +147,7 @@ defmodule Dala.Screen do
             # Check for a notification that launched the app from a killed state.
             # Send it to self so it arrives via handle_info after init returns,
             # consistent with foreground notification delivery.
-            case :dala_nif.take_launch_notification() do
+            case Dala.Native.take_launch_notification() do
               :none -> :ok
               json -> send(self(), {:dala_launch_notification, json})
             end
@@ -321,13 +327,13 @@ defmodule Dala.Screen do
   # If a WebView is present and has internal history, navigate within it first
   # before popping the Dala nav stack.
   def handle_info({:dala, :back}, {module, socket, nav_history, render_mode}) do
-    if render_mode == :render && :dala_nif.webview_can_go_back() do
-      :dala_nif.webview_go_back()
+    if render_mode == :render && Dala.Native.webview_can_go_back() do
+      Dala.Native.webview_go_back()
       {:noreply, {module, socket, nav_history, render_mode}}
     else
       {module, new_socket, new_history, transition} =
         if nav_history == [] do
-          if render_mode == :render, do: :dala_nif.exit_app()
+          if render_mode == :render, do: Dala.Native.exit_app()
           {module, socket, [], :none}
         else
           apply_nav_action(module, Dala.Socket.put_dala(socket, :nav_action, {:pop}), nav_history)
@@ -563,7 +569,7 @@ defmodule Dala.Screen do
 
       # Use patch-based rendering
       {:ok, _patches} =
-        Dala.Renderer.render_patches(old_tree, new_node, platform, :dala_nif, transition)
+        Dala.Renderer.render_patches(old_tree, new_node, platform, Dala.Native, transition)
 
       # Store the new tree for next diff
       socket = Dala.Socket.put_dala(socket, :last_tree, new_node)
@@ -583,7 +589,7 @@ defmodule Dala.Screen do
     else
       safe_area =
         if platform == :ios do
-          {t, r, b, l} = :dala_nif.safe_area()
+          {t, r, b, l} = Dala.Native.safe_area()
           %{top: t, right: r, bottom: b, left: l}
         else
           %{top: 0.0, right: 0.0, bottom: 0.0, left: 0.0}

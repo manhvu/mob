@@ -1,5 +1,5 @@
 defmodule Dala.Storage.Apple do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   iOS-specific storage locations and media library integration.
 
@@ -42,7 +42,7 @@ defmodule Dala.Storage.Apple do
   """
   @spec dir(atom()) :: String.t() | nil
   def dir(location) when location in @locations do
-    case :dala_nif.storage_dir(location) do
+    case Dala.Native.storage_dir(location) do
       nil -> nil
       path -> IO.iodata_to_binary(path)
     end
@@ -55,7 +55,7 @@ defmodule Dala.Storage.Apple do
   """
   @spec save_to_photo_library(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def save_to_photo_library(socket, path) do
-    :dala_nif.storage_save_to_photo_library(path)
+    Dala.Native.storage_save_to_photo_library(path)
     socket
   end
 end

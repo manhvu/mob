@@ -1,5 +1,5 @@
 defmodule Dala.Motion do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Accelerometer and gyroscope sensor data.
 
@@ -34,7 +34,7 @@ defmodule Dala.Motion do
       |> Enum.map(&Atom.to_string/1)
 
     interval_ms = Keyword.get(opts, :interval_ms, 100)
-    :dala_nif.motion_start(sensors, interval_ms)
+    Dala.Native.motion_start(sensors, interval_ms)
     socket
   end
 
@@ -43,7 +43,7 @@ defmodule Dala.Motion do
   """
   @spec stop(Dala.Socket.t()) :: Dala.Socket.t()
   def stop(socket) do
-    :dala_nif.motion_stop()
+    Dala.Native.motion_stop()
     socket
   end
 end

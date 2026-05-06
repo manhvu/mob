@@ -266,5 +266,4 @@ defmodule Dala.DeviceTest do
       end
     end
   end
-
 end

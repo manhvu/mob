@@ -1,5 +1,5 @@
 defmodule Dala.LiveView do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Bridge between Phoenix LiveView and the Dala native WebView.
 
@@ -218,7 +218,7 @@ defmodule Dala.LiveView do
   """
   def suppress_dev_tool_warnings do
     # Only suppress on dalaile platforms where these tools can't possibly run
-    if :dala_nif.platform() in [:android, :ios] do
+    if Dala.Native.platform() in [:android, :ios] do
       case Application.get_env(:esbuild, :version) do
         nil -> Application.put_env(:esbuild, :version, "0.25.0")
         _ -> :ok

@@ -1,5 +1,5 @@
 defmodule Dala.Biometric do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Biometric authentication (Face ID / Touch ID / fingerprint).
 
@@ -23,7 +23,7 @@ defmodule Dala.Biometric do
   @spec authenticate(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def authenticate(socket, opts \\ []) do
     reason = Keyword.get(opts, :reason, "Authenticate")
-    :dala_nif.biometric_authenticate(reason)
+    Dala.Native.biometric_authenticate(reason)
     socket
   end
 end

@@ -1,5 +1,5 @@
 defmodule Dala.Dist do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Platform-aware Erlang distribution startup.
 
@@ -63,19 +63,19 @@ defmodule Dala.Dist do
     case System.get_env(env_var) do
       nil ->
         # Development fallback: derive from app name
-        :dala_nif.log("Dala.Dist: no " <> env_var <> " set, deriving cookie from app name")
+        Dala.Native.log("Dala.Dist: no " <> env_var <> " set, deriving cookie from app name")
         :crypto.hash(:sha256, app_name) |> Base.encode16() |> String.to_atom()
 
       cookie_str ->
         # Validate cookie format to prevent issues
         if String.length(cookie_str) == 0 or String.length(cookie_str) > 255 do
-          :dala_nif.log("Dala.Dist: invalid cookie length in " <> env_var <> ", using fallback")
+          Dala.Native.log("Dala.Dist: invalid cookie length in " <> env_var <> ", using fallback")
           :crypto.hash(:sha256, app_name) |> Base.encode16() |> String.to_atom()
         else
           # Log warning about atom creation (atoms are not GC'd)
-          :dala_nif.log(
-            "Dala.Dist: using cookie from " <> env_var <> " (atoms are not garbage collected)"
-          )
+          Dala.Native.log(
+                      "Dala.Dist: using cookie from " <> env_var <> " (atoms are not garbage collected)"
+                    )
 
           String.to_atom(cookie_str)
         end
@@ -126,7 +126,7 @@ defmodule Dala.Dist do
         :ok
 
       true ->
-        case :dala_nif.platform() do
+        case Dala.Native.platform() do
           :ios ->
             :ok
 
@@ -138,7 +138,7 @@ defmodule Dala.Dist do
             node = apply_suffix(base_node, System.get_env("dala_NODE_SUFFIX"))
 
             if node != base_node do
-              :dala_nif.log("Dala.Dist: node suffix applied — #{base_node} → #{node}")
+              Dala.Native.log("Dala.Dist: node suffix applied — #{base_node} → #{node}")
             end
 
             spawn(fn -> start_after(node, cookie, delay, dist_port) end)
@@ -210,11 +210,11 @@ defmodule Dala.Dist do
     #
     # Without the tunnel (standalone launch), EPMD will never appear on 4369 and
     # we skip distribution entirely — the app runs fine, just not debuggable remotely.
-    :dala_nif.log("Dala.Dist: waiting for EPMD (adb reverse tcp:4369 tcp:4369)...")
+    Dala.Native.log("Dala.Dist: waiting for EPMD (adb reverse tcp:4369 tcp:4369)...")
 
     case wait_for_epmd(10_000) do
       :ready ->
-        :dala_nif.log("Dala.Dist: EPMD reachable, starting dist")
+        Dala.Native.log("Dala.Dist: EPMD reachable, starting dist")
         # OTP auth tries to write HOME/.config/erlang/.erlang.cookie — ensure the dir exists.
         home = System.get_env("HOME") || "/data/data/com.dala.demo/files"
         File.mkdir_p("#{home}/.config/erlang")
@@ -225,21 +225,21 @@ defmodule Dala.Dist do
         :application.set_env(:kernel, :inet_dist_listen_min, dist_port)
         :application.set_env(:kernel, :inet_dist_listen_max, dist_port)
         result = Node.start(node, :longnames)
-        :dala_nif.log("Dala.Dist: result=#{inspect(result)}")
+        Dala.Native.log("Dala.Dist: result=#{inspect(result)}")
 
         case result do
           {:ok, _} ->
             Node.set_cookie(cookie)
-            :dala_nif.log("Dala.Dist: distribution started")
+            Dala.Native.log("Dala.Dist: distribution started")
 
           _ ->
             :ok
         end
 
       :timeout ->
-        :dala_nif.log(
-          "Dala.Dist: no EPMD on port 4369 after 10s -- skipping dist (run mix dala.connect to enable)"
-        )
+        Dala.Native.log(
+                  "Dala.Dist: no EPMD on port 4369 after 10s -- skipping dist (run mix dala.connect to enable)"
+                )
     end
   end
 

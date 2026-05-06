@@ -905,6 +905,29 @@ fn wifi_disable<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
 }
 
 // ============================================================================
+// Linking
+// ============================================================================
+
+#[rustler::nif]
+fn linking_open_url<'a>(env: Env<'a>, url: Term<'a>) -> NifResult<Term<'a>> {
+    let s: String = url.decode()?;
+    platform_linking_open_url(&s);
+    ok(env)
+}
+
+#[rustler::nif]
+fn linking_can_open<'a>(env: Env<'a>, _url: Term<'a>) -> NifResult<Term<'a>> {
+    let result = platform_linking_can_open(env);
+    Ok(result)
+}
+
+#[rustler::nif]
+fn linking_initial_url<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
+    let result = platform_linking_initial_url(env);
+    Ok(result)
+}
+
+// ============================================================================
 // Initialize NIF
 // ============================================================================
 

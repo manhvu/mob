@@ -1,5 +1,5 @@
 defmodule Dala.Device do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Cross-platform device events and queries.
 
@@ -109,36 +109,36 @@ defmodule Dala.Device do
   @doc "Current battery level (0..100), or -1 if unknown."
   @spec battery_level() :: integer()
   def battery_level do
-    {_state, pct} = :dala_nif.device_battery_state()
+    {_state, pct} = Dala.Native.device_battery_state()
     pct
   end
 
   @doc "Current battery state — `:unplugged | :charging | :full | :unknown`."
   @spec battery_state() :: :unplugged | :charging | :full | :unknown
   def battery_state do
-    {state, _pct} = :dala_nif.device_battery_state()
+    {state, _pct} = Dala.Native.device_battery_state()
     state
   end
 
   @doc "Current thermal state — `:nominal | :fair | :serious | :critical`."
   @spec thermal_state() :: :nominal | :fair | :serious | :critical
-  def thermal_state, do: :dala_nif.device_thermal_state()
+  def thermal_state, do: Dala.Native.device_thermal_state()
 
   @doc "True if Low Power Mode (iOS) / Power Save Mode (Android) is on."
   @spec low_power_mode?() :: boolean()
-  def low_power_mode?, do: :dala_nif.device_low_power_mode() == true
+  def low_power_mode?, do: Dala.Native.device_low_power_mode() == true
 
   @doc "True if the app is currently in the foreground."
   @spec foreground?() :: boolean()
-  def foreground?, do: :dala_nif.device_foreground() == true
+  def foreground?, do: Dala.Native.device_foreground() == true
 
   @doc "OS version string (e.g. \"17.4\")."
   @spec os_version() :: String.t()
-  def os_version, do: to_string(:dala_nif.device_os_version())
+  def os_version, do: to_string(Dala.Native.device_os_version())
 
   @doc "Device model (e.g. \"iPhone\", \"Pixel 8\")."
   @spec model() :: String.t()
-  def model, do: to_string(:dala_nif.device_model())
+  def model, do: to_string(Dala.Native.device_model())
 
   # ── GenServer ─────────────────────────────────────────────────────────────
 
@@ -220,7 +220,7 @@ defmodule Dala.Device do
 
   defp maybe_set_dispatcher do
     try do
-      :dala_nif.device_set_dispatcher(self())
+      Dala.Native.device_set_dispatcher(self())
       :ok
     rescue
       _ -> {:error, :nif_not_loaded}

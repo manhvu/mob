@@ -1,5 +1,5 @@
 defmodule Dala.Photos do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Photo / video library picker.
 
@@ -23,7 +23,7 @@ defmodule Dala.Photos do
   def pick(socket, opts \\ []) do
     max = Keyword.get(opts, :max, 1)
     types = Keyword.get(opts, :types, [:image]) |> Enum.map(&Atom.to_string/1)
-    :dala_nif.photos_pick(max, types)
+    Dala.Native.photos_pick(max, types)
     socket
   end
 end

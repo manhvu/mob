@@ -1,5 +1,4 @@
 defmodule Dala.WiFi do
-  @compile {:nowarn_undefined, [:dala_nif]}
   @moduledoc """
   WiFi network information and configuration.
 
@@ -35,7 +34,7 @@ defmodule Dala.WiFi do
   """
   @spec current_network() :: map()
   def current_network do
-    :dala_nif.wifi_current_network()
+    Dala.Native.wifi_current_network()
   end
 
   @doc """
@@ -58,7 +57,7 @@ defmodule Dala.WiFi do
   """
   @spec scan(Dala.Socket.t()) :: Dala.Socket.t()
   def scan(socket) do
-    :dala_nif.wifi_scan()
+    Dala.Native.wifi_scan()
     socket
   end
 
@@ -80,7 +79,7 @@ defmodule Dala.WiFi do
   """
   @spec enable() :: :ok | {:error, term()}
   def enable do
-    :dala_nif.wifi_enable()
+    Dala.Native.wifi_enable()
   end
 
   @doc """
@@ -90,6 +89,6 @@ defmodule Dala.WiFi do
   """
   @spec disable() :: :ok | {:error, term()}
   def disable do
-    :dala_nif.wifi_disable()
+    Dala.Native.wifi_disable()
   end
 end

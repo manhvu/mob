@@ -1,5 +1,5 @@
 defmodule Dala.Theme do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Design token system for Dala apps.
 
@@ -172,7 +172,7 @@ defmodule Dala.Theme do
   """
   @spec color_scheme() :: :light | :dark
   def color_scheme do
-    case :dala_nif.color_scheme() do
+    case Dala.Native.color_scheme() do
       :dark -> :dark
       _ -> :light
     end

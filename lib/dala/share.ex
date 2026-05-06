@@ -1,5 +1,5 @@
 defmodule Dala.Share do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   System share sheet. Opens the OS share dialog with a piece of content.
   Fire-and-forget — no response arrives in the BEAM.
@@ -20,7 +20,7 @@ defmodule Dala.Share do
   """
   @spec text(Dala.Socket.t(), binary()) :: Dala.Socket.t()
   def text(socket, content) when is_binary(content) do
-    :dala_nif.share_text(content)
+    Dala.Native.share_text(content)
     socket
   end
 end

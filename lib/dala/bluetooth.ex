@@ -1,5 +1,4 @@
 defmodule Dala.Bluetooth do
-  @compile {:nowarn_undefined, [:dala_nif]}
   @moduledoc """
   Bluetooth Low Energy (BLE) support.
 
@@ -40,7 +39,7 @@ defmodule Dala.Bluetooth do
   """
   @spec state() :: state()
   def state do
-    :dala_nif.bluetooth_state()
+    Dala.Native.bluetooth_state()
   end
 
   @doc """
@@ -56,7 +55,7 @@ defmodule Dala.Bluetooth do
   def start_scan(socket, opts \\ []) do
     services = Keyword.get(opts, :services, [])
     timeout_ms = Keyword.get(opts, :timeout_ms, 10_000)
-    :dala_nif.bluetooth_start_scan(services, timeout_ms)
+    Dala.Native.bluetooth_start_scan(services, timeout_ms)
     socket
   end
 
@@ -65,7 +64,7 @@ defmodule Dala.Bluetooth do
   """
   @spec stop_scan(Dala.Socket.t()) :: Dala.Socket.t()
   def stop_scan(socket) do
-    :dala_nif.bluetooth_stop_scan()
+    Dala.Native.bluetooth_stop_scan()
     socket
   end
 
@@ -76,7 +75,7 @@ defmodule Dala.Bluetooth do
   """
   @spec connect(Dala.Socket.t(), device_id()) :: Dala.Socket.t()
   def connect(socket, device_id) do
-    :dala_nif.bluetooth_connect(device_id)
+    Dala.Native.bluetooth_connect(device_id)
     socket
   end
 
@@ -85,7 +84,7 @@ defmodule Dala.Bluetooth do
   """
   @spec disconnect(Dala.Socket.t(), device_id()) :: Dala.Socket.t()
   def disconnect(socket, device_id) do
-    :dala_nif.bluetooth_disconnect(device_id)
+    Dala.Native.bluetooth_disconnect(device_id)
     socket
   end
 
@@ -94,7 +93,7 @@ defmodule Dala.Bluetooth do
   """
   @spec discover_services(Dala.Socket.t(), device_id()) :: Dala.Socket.t()
   def discover_services(socket, device_id) do
-    :dala_nif.bluetooth_discover_services(device_id)
+    Dala.Native.bluetooth_discover_services(device_id)
     socket
   end
 
@@ -105,7 +104,7 @@ defmodule Dala.Bluetooth do
   """
   @spec read_characteristic(Dala.Socket.t(), device_id(), uuid(), uuid()) :: Dala.Socket.t()
   def read_characteristic(socket, device_id, service_uuid, characteristic_uuid) do
-    :dala_nif.bluetooth_read_characteristic(device_id, service_uuid, characteristic_uuid)
+    Dala.Native.bluetooth_read_characteristic(device_id, service_uuid, characteristic_uuid)
     socket
   end
 
@@ -117,7 +116,7 @@ defmodule Dala.Bluetooth do
   @spec write_characteristic(Dala.Socket.t(), device_id(), uuid(), uuid(), binary()) ::
           Dala.Socket.t()
   def write_characteristic(socket, device_id, service_uuid, characteristic_uuid, value) do
-    :dala_nif.bluetooth_write_characteristic(device_id, service_uuid, characteristic_uuid, value)
+    Dala.Native.bluetooth_write_characteristic(device_id, service_uuid, characteristic_uuid, value)
     socket
   end
 
@@ -128,7 +127,7 @@ defmodule Dala.Bluetooth do
   """
   @spec subscribe(Dala.Socket.t(), device_id(), uuid(), uuid()) :: Dala.Socket.t()
   def subscribe(socket, device_id, service_uuid, characteristic_uuid) do
-    :dala_nif.bluetooth_subscribe(device_id, service_uuid, characteristic_uuid)
+    Dala.Native.bluetooth_subscribe(device_id, service_uuid, characteristic_uuid)
     socket
   end
 
@@ -137,7 +136,7 @@ defmodule Dala.Bluetooth do
   """
   @spec unsubscribe(Dala.Socket.t(), device_id(), uuid(), uuid()) :: Dala.Socket.t()
   def unsubscribe(socket, device_id, service_uuid, characteristic_uuid) do
-    :dala_nif.bluetooth_unsubscribe(device_id, service_uuid, characteristic_uuid)
+    Dala.Native.bluetooth_unsubscribe(device_id, service_uuid, characteristic_uuid)
     socket
   end
 end

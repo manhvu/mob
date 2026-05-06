@@ -1,5 +1,5 @@
 defmodule Dala.ML.Nx do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Nx integration helpers for Dala on iOS.
 

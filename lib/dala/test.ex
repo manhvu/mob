@@ -346,7 +346,7 @@ defmodule Dala.Test do
   """
   @spec ui_tree(node()) :: list()
   def ui_tree(node) do
-    :rpc.call(node, :dala_nif, :ui_tree, [])
+    :rpc.call(node, Dala.Native, :ui_tree, [])
   end
 
   @doc """
@@ -386,7 +386,7 @@ defmodule Dala.Test do
   """
   @spec view_tree(node()) :: map() | {:error, term()}
   def view_tree(node) do
-    case :rpc.call(node, :dala_nif, :ui_view_tree, []) do
+    case :rpc.call(node, Dala.Native, :ui_view_tree, []) do
       bin when is_binary(bin) -> :json.decode(bin) |> normalize_tree()
       %{} = m -> m
       other -> other
@@ -497,7 +497,7 @@ defmodule Dala.Test do
   """
   @spec ax_action(node(), String.t(), atom()) :: :ok | {:error, atom()}
   def ax_action(node, match, action) do
-    :rpc.call(node, :dala_nif, :ax_action, [match, action])
+    :rpc.call(node, Dala.Native, :ax_action, [match, action])
   end
 
   @doc """
@@ -517,7 +517,7 @@ defmodule Dala.Test do
   """
   @spec ax_action_at_xy(node(), number(), number(), atom()) :: :ok | {:error, atom()}
   def ax_action_at_xy(node, x, y, action) do
-    :rpc.call(node, :dala_nif, :ax_action_at_xy, [x * 1.0, y * 1.0, action])
+    :rpc.call(node, Dala.Native, :ax_action_at_xy, [x * 1.0, y * 1.0, action])
   end
 
   @doc """
@@ -702,7 +702,7 @@ defmodule Dala.Test do
   """
   @spec screen_info(node()) :: map()
   def screen_info(node) do
-    :rpc.call(node, :dala_nif, :screen_info, [])
+    :rpc.call(node, Dala.Native, :screen_info, [])
   end
 
   @doc """
@@ -713,7 +713,7 @@ defmodule Dala.Test do
   """
   @spec tap_xy(node(), number(), number()) :: :ok | {:error, atom()}
   def tap_xy(node, x, y) do
-    :rpc.call(node, :dala_nif, :tap_xy, [x * 1.0, y * 1.0])
+    :rpc.call(node, Dala.Native, :tap_xy, [x * 1.0, y * 1.0])
   end
 
   @doc """
@@ -727,13 +727,13 @@ defmodule Dala.Test do
   """
   @spec type_text(node(), String.t()) :: :ok | {:error, atom()}
   def type_text(node, text) do
-    :rpc.call(node, :dala_nif, :type_text, [text])
+    :rpc.call(node, Dala.Native, :type_text, [text])
   end
 
   @doc "Delete one character behind the cursor (backspace)."
   @spec delete_backward(node()) :: :ok | {:error, atom()}
   def delete_backward(node) do
-    :rpc.call(node, :dala_nif, :delete_backward, [])
+    :rpc.call(node, Dala.Native, :delete_backward, [])
   end
 
   @doc """
@@ -746,13 +746,13 @@ defmodule Dala.Test do
   """
   @spec key_press(node(), atom()) :: :ok | {:error, atom()}
   def key_press(node, key) when key in [:return, :tab, :escape, :space] do
-    :rpc.call(node, :dala_nif, :key_press, [key])
+    :rpc.call(node, Dala.Native, :key_press, [key])
   end
 
   @doc "Clear all text in the focused input (select-all + delete)."
   @spec clear_text(node()) :: :ok | {:error, atom()}
   def clear_text(node) do
-    :rpc.call(node, :dala_nif, :clear_text, [])
+    :rpc.call(node, Dala.Native, :clear_text, [])
   end
 
   @doc """
@@ -763,7 +763,7 @@ defmodule Dala.Test do
   """
   @spec long_press_xy(node(), number(), number(), non_neg_integer()) :: :ok | {:error, atom()}
   def long_press_xy(node, x, y, duration_ms \\ 800) do
-    :rpc.call(node, :dala_nif, :long_press_xy, [x * 1.0, y * 1.0, duration_ms])
+    :rpc.call(node, Dala.Native, :long_press_xy, [x * 1.0, y * 1.0, duration_ms])
   end
 
   @doc """
@@ -774,7 +774,7 @@ defmodule Dala.Test do
   """
   @spec swipe(node(), number(), number(), number(), number()) :: :ok | {:error, atom()}
   def swipe(node, x1, y1, x2, y2) do
-    :rpc.call(node, :dala_nif, :swipe_xy, [x1 * 1.0, y1 * 1.0, x2 * 1.0, y2 * 1.0])
+    :rpc.call(node, Dala.Native, :swipe_xy, [x1 * 1.0, y1 * 1.0, x2 * 1.0, y2 * 1.0])
   end
 
   @doc """

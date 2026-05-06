@@ -1,6 +1,4 @@
 defmodule Dala.Settings do
-  @compile {:nowarn_undefined, [:dala_nif]}
-
   @moduledoc """
   Persistent app settings (UserDefaults on iOS, SharedPreferences on Android).
 
@@ -25,18 +23,18 @@ defmodule Dala.Settings do
 
   @spec get(String.t()) :: any() | nil
   def get(key) when is_binary(key) do
-    :dala_nif.settings_get(key)
+    Dala.Native.settings_get(key)
   end
 
   @spec set(Dala.Socket.t(), String.t(), any()) :: Dala.Socket.t()
   def set(socket, key, value) when is_binary(key) do
-    :dala_nif.settings_set(key, value)
+    Dala.Native.settings_set(key, value)
     socket
   end
 
   @spec watch(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def watch(socket, key) when is_binary(key) do
-    :dala_nif.settings_watch(key)
+    Dala.Native.settings_watch(key)
     socket
   end
 end

@@ -1,5 +1,5 @@
 defmodule Dala.Audio do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Microphone recording and audio playback.
 
@@ -37,7 +37,7 @@ defmodule Dala.Audio do
   """
   @spec start_recording(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def start_recording(socket, opts \\ []) do
-    :dala_nif.audio_start_recording(:json.encode(recording_opts(opts)))
+    Dala.Native.audio_start_recording(:json.encode(recording_opts(opts)))
     socket
   end
 
@@ -56,7 +56,7 @@ defmodule Dala.Audio do
   """
   @spec stop_recording(Dala.Socket.t()) :: Dala.Socket.t()
   def stop_recording(socket) do
-    :dala_nif.audio_stop_recording()
+    Dala.Native.audio_stop_recording()
     socket
   end
 
@@ -73,7 +73,7 @@ defmodule Dala.Audio do
   """
   @spec play(Dala.Socket.t(), String.t(), keyword()) :: Dala.Socket.t()
   def play(socket, path, opts \\ []) do
-    :dala_nif.audio_play(path, :json.encode(play_opts(opts)))
+    Dala.Native.audio_play(path, :json.encode(play_opts(opts)))
     socket
   end
 
@@ -89,14 +89,14 @@ defmodule Dala.Audio do
   @doc "Stop the currently playing audio."
   @spec stop_playback(Dala.Socket.t()) :: Dala.Socket.t()
   def stop_playback(socket) do
-    :dala_nif.audio_stop_playback()
+    Dala.Native.audio_stop_playback()
     socket
   end
 
   @doc "Adjust playback volume (0.0–1.0) without stopping playback."
   @spec set_volume(Dala.Socket.t(), float()) :: Dala.Socket.t()
   def set_volume(socket, volume) when is_float(volume) or is_integer(volume) do
-    :dala_nif.audio_set_volume(volume / 1.0)
+    Dala.Native.audio_set_volume(volume / 1.0)
     socket
   end
 end

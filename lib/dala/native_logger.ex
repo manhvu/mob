@@ -42,11 +42,11 @@ defmodule Dala.NativeLogger do
   Logger handler is present so logs appear in the console.
 
   Options:
-  - `:nif` — NIF module to use (default `:dala_nif`; override in tests)
+  - `:nif` — NIF module to use (default `Dala.Native`; override in tests)
   """
   @spec install(keyword()) :: :ok
   def install(opts \\ []) do
-    nif = Keyword.get(opts, :nif, :dala_nif)
+    nif = Keyword.get(opts, :nif, Dala.Native)
 
     if nif.platform() in [:android, :ios] do
       case :logger.add_handler(@handler_id, __MODULE__, %{nif: nif}) do

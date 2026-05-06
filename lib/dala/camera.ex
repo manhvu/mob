@@ -1,5 +1,5 @@
 defmodule Dala.Camera do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Native camera capture for photos and videos.
 
@@ -25,7 +25,7 @@ defmodule Dala.Camera do
   @spec capture_photo(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def capture_photo(socket, opts \\ []) do
     quality = Keyword.get(opts, :quality, :high)
-    :dala_nif.camera_capture_photo(quality)
+    Dala.Native.camera_capture_photo(quality)
     socket
   end
 
@@ -38,7 +38,7 @@ defmodule Dala.Camera do
   @spec capture_video(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def capture_video(socket, opts \\ []) do
     max_duration = Keyword.get(opts, :max_duration, 60)
-    :dala_nif.camera_capture_video(max_duration)
+    Dala.Native.camera_capture_video(max_duration)
     socket
   end
 
@@ -52,14 +52,14 @@ defmodule Dala.Camera do
   @spec start_preview(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def start_preview(socket, opts \\ []) do
     facing = Keyword.get(opts, :facing, :back) |> Atom.to_string()
-    :dala_nif.camera_start_preview(:json.encode(%{"facing" => facing}))
+    Dala.Native.camera_start_preview(:json.encode(%{"facing" => facing}))
     socket
   end
 
   @doc "Stop the active camera preview session."
   @spec stop_preview(Dala.Socket.t()) :: Dala.Socket.t()
   def stop_preview(socket) do
-    :dala_nif.camera_stop_preview()
+    Dala.Native.camera_stop_preview()
     socket
   end
 end

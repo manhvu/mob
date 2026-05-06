@@ -1,5 +1,5 @@
 defmodule Dala.ML.Example do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Simple example of using EMLX in a Dala iOS app.
 

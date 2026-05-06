@@ -1,5 +1,4 @@
 defmodule Dala.Linking do
-  @compile {:nowarn_undefined, [:dala_nif]}
   @moduledoc """
   Linking API for opening URLs and handling deep links.
 
@@ -24,17 +23,17 @@ defmodule Dala.Linking do
 
   @spec open_url(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def open_url(socket, url) when is_binary(url) do
-    :dala_nif.linking_open_url(url)
+    Dala.Native.linking_open_url(url)
     socket
   end
 
   @spec can_open?(String.t()) :: boolean()
   def can_open?(url) when is_binary(url) do
-    :dala_nif.linking_can_open(url)
+    Dala.Native.linking_can_open(url)
   end
 
   @spec initial_url() :: String.t() | nil
   def initial_url() do
-    :dala_nif.linking_initial_url()
+    Dala.Native.linking_initial_url()
   end
 end

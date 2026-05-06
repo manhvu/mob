@@ -256,6 +256,43 @@ pub fn platform_share_text(text: &str) {
 }
 
 // ============================================================================
+// Platform dispatch — linking
+// ============================================================================
+
+pub fn platform_linking_open_url(url: &str) {
+    #[cfg(target_os = "ios")]
+    ios::linking_open_url(url);
+
+    #[cfg(target_os = "android")]
+    super::android::linking_open_url(url);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    println!("[Dala] linking_open_url({}) stub", url);
+}
+
+pub fn platform_linking_can_open<'a>(_env: Env<'a>) -> Term<'a> {
+    #[cfg(target_os = "ios")]
+    return ios::linking_can_open(_env);
+
+    #[cfg(target_os = "android")]
+    return super::android::linking_can_open(_env);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    return atom(_env, "true");
+}
+
+pub fn platform_linking_initial_url<'a>(_env: Env<'a>) -> Term<'a> {
+    #[cfg(target_os = "ios")]
+    return ios::linking_initial_url(_env);
+
+    #[cfg(target_os = "android")]
+    return super::android::linking_initial_url(_env);
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    return atom(_env, "nil");
+}
+
+// ============================================================================
 // Platform dispatch — biometric / permissions
 // ============================================================================
 

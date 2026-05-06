@@ -1,5 +1,5 @@
 defmodule Dala.Permissions do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Request OS-level permissions from the user.
 
@@ -48,7 +48,7 @@ defmodule Dala.Permissions do
              :bluetooth,
              :wifi
            ] do
-    :dala_nif.request_permission(capability)
+    Dala.Native.request_permission(capability)
     socket
   end
 end

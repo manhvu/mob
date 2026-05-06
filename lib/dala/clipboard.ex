@@ -1,5 +1,5 @@
 defmodule Dala.Clipboard do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   System clipboard access. No permission required.
 
@@ -28,7 +28,7 @@ defmodule Dala.Clipboard do
   """
   @spec put(Dala.Socket.t(), binary()) :: Dala.Socket.t()
   def put(socket, text) when is_binary(text) do
-    :dala_nif.clipboard_put(text)
+    Dala.Native.clipboard_put(text)
     socket
   end
 
@@ -39,7 +39,7 @@ defmodule Dala.Clipboard do
   """
   @spec get(Dala.Socket.t()) :: {:clipboard, :ok, binary()} | {:clipboard, :empty}
   def get(_socket) do
-    case :dala_nif.clipboard_get() do
+    case Dala.Native.clipboard_get() do
       {:ok, text} -> {:clipboard, :ok, text}
       :empty -> {:clipboard, :empty}
     end

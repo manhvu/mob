@@ -1,5 +1,5 @@
 defmodule Dala.Notify do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Local and push notifications.
 
@@ -72,7 +72,7 @@ defmodule Dala.Notify do
         "data" => data_str
       })
 
-    :dala_nif.notify_schedule(opts_json)
+    Dala.Native.notify_schedule(opts_json)
     socket
   end
 
@@ -82,7 +82,7 @@ defmodule Dala.Notify do
   """
   @spec cancel(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def cancel(socket, id) do
-    :dala_nif.notify_cancel(id)
+    Dala.Native.notify_cancel(id)
     socket
   end
 
@@ -97,7 +97,7 @@ defmodule Dala.Notify do
   """
   @spec register_push(Dala.Socket.t()) :: Dala.Socket.t()
   def register_push(socket) do
-    :dala_nif.notify_register_push()
+    Dala.Native.notify_register_push()
     socket
   end
 end

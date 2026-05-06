@@ -4,12 +4,12 @@ defmodule Dala.MixProject do
   def project do
     [
       app: :dala,
-      version: "0.0.2",
+      version: "0.0.3",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      description: "Fork from Mob framework, a mobile framework for Elixir",
+      description: "An other mobile framework for Elixir, rework from Mob framework",
       source_url: "https://github.com/manhvu/dala",
       homepage_url: "https://hexdocs.pm/dala",
       package: package(),

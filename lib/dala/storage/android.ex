@@ -1,5 +1,5 @@
 defmodule Dala.Storage.Android do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   Android-specific storage locations and MediaStore integration.
 
@@ -36,7 +36,7 @@ defmodule Dala.Storage.Android do
   """
   @spec external_files_dir(atom()) :: String.t() | nil
   def external_files_dir(type \\ :documents) do
-    case :dala_nif.storage_external_files_dir(type) do
+    case Dala.Native.storage_external_files_dir(type) do
       nil -> nil
       path -> IO.iodata_to_binary(path)
     end
@@ -51,7 +51,7 @@ defmodule Dala.Storage.Android do
   """
   @spec save_to_media_store(Dala.Socket.t(), String.t(), atom()) :: Dala.Socket.t()
   def save_to_media_store(socket, path, type \\ :auto) do
-    :dala_nif.storage_save_to_media_store(path, type)
+    Dala.Native.storage_save_to_media_store(path, type)
     socket
   end
 end

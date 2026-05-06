@@ -1,5 +1,5 @@
 defmodule Dala.Files do
-  @compile {:nowarn_undefined, [:dala_nif, :Nx]}
+  @compile {:nowarn_undefined, [:Nx]}
   @moduledoc """
   System file picker. Opens the OS document picker (Files app on iOS, SAF on Android).
 
@@ -22,7 +22,7 @@ defmodule Dala.Files do
   def pick(socket, opts \\ []) do
     types = Keyword.get(opts, :types, ["*/*"])
     types_json = :json.encode(types)
-    :dala_nif.files_pick(types_json)
+    Dala.Native.files_pick(types_json)
     socket
   end
 end
