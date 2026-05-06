@@ -2,22 +2,12 @@
 
 ## Overview
 
-Dala's UI render pipeline uses a **custom binary protocol** to transfer UI trees and incremental patches from Elixir (BEAM) to the native side (Rust NIF → SwiftUI/Compose). This replaces the previous JSON-based approach.
-
-### Why Binary Instead of JSON?
-
-| Aspect | JSON (Old) | Binary Protocol (New) |
-|--------|-------------|----------------------|
-| Encoding | `:json.encode/1` | `Dala.Renderer.encode_tree/1` |
-| Decoding | Rust NIF decode | Direct binary read in Rust NIF |
-| Size | ~200-400 bytes per node | ~50-100 bytes per node |
-| Parsing | String parsing overhead | Zero-copy struct reads |
-| BEAM boundary | Binary (off-heap) | Binary (off-heap, zero-copy) |
+Dala's UI render pipeline uses a **custom binary protocol** to transfer UI trees and incremental patches from Elixir (BEAM) to the native side (Rust NIF → SwiftUI/Compose).
 
 ### Key Benefits
 
 1. **Zero-copy at boundary**: Rustler's `Binary<'a>` maps directly to BEAM off-heap binaries
-2. **No JSON parsing**: Rust NIF reads structured binary data directly
+2. **No parsing overhead**: Rust NIF reads structured binary data directly
 3. **Compact encoding**: Binary format is 3-5x smaller than JSON
 4. **Type-safe**: Well-defined format with versioning support
 
@@ -279,25 +269,6 @@ def render(tree, platform, nif \\ @default_nif, _transition \\ :none) do
   {:ok, :binary_tree}
 end
 ```
-
----
-
-## Migration from JSON
-
-### What Changed
-
-| Function | Old (JSON) | New (Binary) |
-|----------|-------------|--------------|
-| `render/4` | `set_root(json)` | `set_root_binary(binary)` |
-| `render_fast/4` | `set_root(json)` | `set_root_binary(binary)` |
-| `render_patches/5` | `set_root(json)` for full render | `set_root_binary(binary)` |
-| Encoding | `:json.encode/1` | `encode_tree/1` or `encode_frame/1` |
-
-### Backward Compatibility
-
-- `Dala.Native.set_root/1` (JSON) is still available for backward compatibility
-- `Dala.Native.set_root_binary/1` is the new preferred method
-- The Rust NIF implements both `set_root` (JSON) and `set_root_binary` (binary)
 
 ---
 

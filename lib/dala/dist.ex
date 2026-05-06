@@ -74,8 +74,8 @@ defmodule Dala.Dist do
         else
           # Log warning about atom creation (atoms are not GC'd)
           Dala.Native.log(
-                      "Dala.Dist: using cookie from " <> env_var <> " (atoms are not garbage collected)"
-                    )
+            "Dala.Dist: using cookie from " <> env_var <> " (atoms are not garbage collected)"
+          )
 
           String.to_atom(cookie_str)
         end
@@ -238,8 +238,8 @@ defmodule Dala.Dist do
 
       :timeout ->
         Dala.Native.log(
-                  "Dala.Dist: no EPMD on port 4369 after 10s -- skipping dist (run mix dala.connect to enable)"
-                )
+          "Dala.Dist: no EPMD on port 4369 after 10s -- skipping dist (run mix dala.connect to enable)"
+        )
     end
   end
 

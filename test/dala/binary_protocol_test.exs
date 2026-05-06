@@ -74,7 +74,8 @@ defmodule Dala.BinaryProtocolTest do
 
       binary = Renderer.encode_tree(node)
       <<2::little-16, 0::little-16, node_count::little-64, _rest::binary>> = binary
-      assert node_count == 4  # root + parent + child1 + child2
+      # root + parent + child1 + child2
+      assert node_count == 4
     end
 
     test "encodes all property types" do
@@ -130,7 +131,8 @@ defmodule Dala.BinaryProtocolTest do
       binary = Renderer.encode_frame(patches)
       assert is_binary(binary)
       <<1::little-16, 1::little-16, opcode::8, _rest::binary>> = binary
-      assert opcode == 0x01  # INSERT opcode
+      # INSERT opcode
+      assert opcode == 0x01
     end
 
     test "encodes REMOVE patch" do
@@ -138,7 +140,8 @@ defmodule Dala.BinaryProtocolTest do
       binary = Renderer.encode_frame(patches)
 
       <<1::little-16, 1::little-16, opcode::8, _rest::binary>> = binary
-      assert opcode == 0x02  # REMOVE opcode
+      # REMOVE opcode
+      assert opcode == 0x02
     end
 
     test "encodes UPDATE patch" do
@@ -146,7 +149,8 @@ defmodule Dala.BinaryProtocolTest do
       binary = Renderer.encode_frame(patches)
 
       <<1::little-16, 1::little-16, opcode::8, _rest::binary>> = binary
-      assert opcode == 0x03  # UPDATE opcode
+      # UPDATE opcode
+      assert opcode == 0x03
     end
 
     test "encodes empty patch list" do
@@ -169,7 +173,8 @@ defmodule Dala.BinaryProtocolTest do
       binary = Renderer.encode_tree(node)
       assert is_binary(binary)
       <<2::little-16, 0::little-16, node_count::little-64, _rest::binary>> = binary
-      assert node_count == 2  # root + text1
+      # root + text1
+      assert node_count == 2
     end
 
     test "diff produces valid patches" do
@@ -208,18 +213,20 @@ defmodule Dala.BinaryProtocolTest do
 
       assert is_binary(binary)
       <<2::little-16, 0::little-16, node_count::little-64, _rest::binary>> = binary
-      assert node_count == 6  # 5 levels + root
+      # 5 levels + root
+      assert node_count == 6
     end
 
     test "wide tree with many children (20+ nodes)" do
-      children = Enum.map(1..25, fn i ->
-        %Node{
-          id: "child_\#{i}",
-          type: :button,
-          props: %{text: "Button \#{i}", width: 80.0 + i, height: 44.0},
-          children: []
-        }
-      end)
+      children =
+        Enum.map(1..25, fn i ->
+          %Node{
+            id: "child_\#{i}",
+            type: :button,
+            props: %{text: "Button \#{i}", width: 80.0 + i, height: 44.0},
+            children: []
+          }
+        end)
 
       tree = %Node{
         id: "root",
@@ -231,8 +238,10 @@ defmodule Dala.BinaryProtocolTest do
       binary = Renderer.encode_tree(tree)
       assert is_binary(binary)
       <<2::little-16, 0::little-16, node_count::little-64, _rest::binary>> = binary
-      assert node_count == 26  # root + 25 children
-      assert byte_size(binary) > 1000  # Should be substantial
+      # root + 25 children
+      assert node_count == 26
+      # Should be substantial
+      assert byte_size(binary) > 1000
     end
 
     test "tree with all property types on multiple nodes" do
@@ -362,7 +371,8 @@ defmodule Dala.BinaryProtocolTest do
       binary = Renderer.encode_tree(tree)
       assert is_binary(binary)
       <<2::little-16, 0::little-16, node_count::little-64, _rest::binary>> = binary
-      assert node_count == 7  # root + 6 children
+      # root + 6 children
+      assert node_count == 7
       assert byte_size(binary) > 250
     end
 
@@ -403,15 +413,16 @@ defmodule Dala.BinaryProtocolTest do
       patches = [
         {:remove, "old_header"},
         {:update_props, "title", %{text: "New Title", color: "red", font_size: 24.0}},
-        {:insert, "main", 0, %Node{
-          id: "new_section",
-          type: :column,
-          props: %{padding: 16.0},
-          children: [
-            %Node{id: "item1", type: :text, props: %{text: "Item 1"}, children: []},
-            %Node{id: "item2", type: :text, props: %{text: "Item 2"}, children: []}
-          ]
-        }},
+        {:insert, "main", 0,
+         %Node{
+           id: "new_section",
+           type: :column,
+           props: %{padding: 16.0},
+           children: [
+             %Node{id: "item1", type: :text, props: %{text: "Item 1"}, children: []},
+             %Node{id: "item2", type: :text, props: %{text: "Item 2"}, children: []}
+           ]
+         }},
         {:update_props, "footer", %{background: "gray", height: 60.0}},
         {:remove, "old_banner"}
       ]
@@ -429,20 +440,22 @@ defmodule Dala.BinaryProtocolTest do
           id: "root_\#{i}",
           type: :column,
           props: %{padding: i * 1.0},
-          children: Enum.map(1..5, fn j ->
-            %Node{
-              id: "child_\#{i}_\#{j}",
-              type: :text,
-              props: %{text: "Node \#{i}-\#{j}"},
-              children: []
-            }
-          end)
+          children:
+            Enum.map(1..5, fn j ->
+              %Node{
+                id: "child_\#{i}_\#{j}",
+                type: :text,
+                props: %{text: "Node \#{i}-\#{j}"},
+                children: []
+              }
+            end)
         }
 
         binary = Renderer.encode_tree(tree)
         assert is_binary(binary)
         <<2::little-16, 0::little-16, node_count::little-64, _rest::binary>> = binary
-        assert node_count == 6  # root + 5 children
+        # root + 5 children
+        assert node_count == 6
       end
     end
   end

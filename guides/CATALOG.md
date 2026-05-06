@@ -92,7 +92,7 @@ Guides for building user interfaces with Dala.
 
 ### [UI Render Pipeline](ui_render_pipeline.md)
 **File**: `guides/ui_render_pipeline.md`  
-**Description**: End-to-end pipeline from Elixir UI trees to native rendering (Elixir → JSON/Binary → NIF → SwiftUI/Compose).
+**Description**: End-to-end pipeline from Elixir UI trees to native rendering (Elixir → binary protocol → NIF → SwiftUI/Compose).
 
 ---
 
@@ -216,22 +216,9 @@ Guides specific to iOS development and Rust NIF integration.
 
 ---
 
-### [Rustler in Mobile](rustler_in_mob.md)
-**File**: `guides/rustler_in_mob.md`  
-**Description**: Writing Rust NIFs for iOS and Android, platform-specific code, and calling ObjC/Java from Rust.
-
-**Key sections**:
-- When to use Rustler in Dala
-- Project structure
-- Creating NIF functions
-- Platform-specific code (iOS/Android)
-- Message delivery from native to Elixir
-
----
-
-### [Rustler Message Sending](rustler_message_sending.md)
-**File**: `guides/rustler_message_sending.md`  
-**Description**: How to send messages from Rust NIFs back to Elixir, including platform-specific dispatch mechanisms.
+### [Rustler in Mobile](rustler_complete.md)
+**File**: `guides/rustler_complete.md`  
+**Description**: Complete guide to using Rustler in Dala, including creating NIFs, platform-specific code, and message sending.
 
 ---
 
@@ -272,9 +259,9 @@ Advanced guides for specialized use cases.
 | Events & Interaction | 3 | Events, Event Model, Event Audit |
 | Data & Device APIs | 2 | Data & Persistence, Device Capabilities |
 | Testing & Development | 2 | Testing, Agentic Coding |
-| iOS & Rust | 5 | iOS Physical Device, iOS ML Support, EMLX iOS Summary, Rustler in Mobile, Rustler Message Sending |
+| iOS & Rust | 4 | iOS Physical Device, iOS ML Support, EMLX iOS Summary, Rustler in Mobile |
 | Advanced Topics | 4 | LiveView Integration, Publishing, Security, Troubleshooting |
-| **Total** | **28** | |
+| **Total** | **28** | ]
 
 ---
 

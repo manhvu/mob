@@ -674,7 +674,7 @@ bridge (SwiftUI / Android Compose).
 
 ### iOS (SwiftUI)
 
-The Rust NIF calls into ObjC: `DalaViewModel.setRootFromJSON()`
+The Rust NIF calls into ObjC: `DalaViewModel.setRootFromBinary()`
 or `DalaViewModel.applyPatches()`.
 
 SwiftUI views are created/updated based on the retained tree:
@@ -719,15 +719,13 @@ Similar flow via JNI → Kotlin/Compose.
 
 ## 6. Key Design Decisions
 
-### 6.1 Why binary protocol instead of JSON?
+### 6.1 Why binary protocol?
 
-| Aspect | JSON | Binary v2 |
-|--------|-----|----------|
-| Encoding speed | Slow (serialization) | Fast (direct binary) |
-| Decoding speed | Slow (parsing) | Fast (direct read) |
-| Size | ~200-500 bytes | ~50-150 bytes |
-| Allocation | Multiple allocations | Zero-copy (BEAM→Rust) |
-| Schema | Implicit (JS object) | Explicit (tags + types) |
+The binary protocol was chosen for:
+- **Zero-copy**: No allocation at BEAM→Rust boundary
+- **Compact**: 3-5x smaller than JSON
+- **Fast**: Direct binary reads, no parsing
+- **Type-safe**: Explicit tags and types
 
 ### 6.2 Why retained tree in Rust?
 

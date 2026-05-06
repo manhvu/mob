@@ -2,34 +2,35 @@
 
 ## Overview
 
-Dala's render engine transfers UI tree data from Elixir (BEAM) to native platforms (iOS/Android) using a JSON-based pipeline. This guide explains the complete flow, implementation details, and tradeoffs.
+Dala's render engine transfers UI tree data from Elixir (BEAM) to native platforms (iOS/Android) using a **custom binary protocol**. This guide explains the complete flow, implementation details, and performance characteristics.
 
 ## Architecture
 
 ```
 Elixir (Dala.Renderer)
-    ↓ 1. Build tree (Elixir structs)
+    ↓ 1. Build tree (Dala.Node structs)
     ↓ 2. Prepare + resolve tokens
-    ↓ 3. Encode to JSON
-    ↓ 4. Call NIF
+    ↓ 3. Encode to binary (encode_tree/1 or encode_frame/1)
+    ↓ 4. Call NIF with binary
     ↓
 Rust NIF (dala_nif)
-    ↓ 5. Receive JSON string
-    ↓ 6. Pass to ObjC/Java
+    ↓ 5. Receive binary (zero-copy via Rustler Binary<'a>)
+    ↓ 6. Parse binary directly
+    ↓ 7. Pass to ObjC/Java
     ↓
 Native Bridge (ObjC / Java)
-    ↓ 7. Parse JSON to native objects
-    ↓ 8. Update UI tree
+    ↓ 8. Convert binary data to native objects
+    ↓ 9. Update UI tree
     ↓
 SwiftUI / Jetpack Compose
-    ↓ 9. Render to screen
+    ↓ 10. Render to screen
 ```
 
 ## Step-by-Step Pipeline
 
 ### 1. Elixir UI Tree Construction
 
-Screens define UI using Elixir structs (or Spark DSL):
+Screens define UI using Elixir structs or Spark DSL:
 
 ```elixir
 # In your screen module
@@ -43,27 +44,29 @@ def render(_assigns, _socket) do
 end
 ```
 
-This produces a tree of `%Dala.Screen.Node{}` structs:
+This produces a tree of `%Dala.Node{}` structs with stable `:id` fields for reconciliation:
 
 ```elixir
-%Dala.Screen.Node{
+%Dala.Node{
+  id: "root",
   type: :column,
   props: %{},
   children: [
-    %Dala.Screen.Node{type: :text, props: %{text: "Hello World"}, children: []},
-    %Dala.Screen.Node{type: :button, props: %{text: "Tap me", on_tap: {pid, :tap}}, children: []}
+    %Dala.Node{id: "text1", type: :text, props: %{text: "Hello World"}, children: []},
+    %Dala.Node{id: "btn1", type: :button, props: %{text: "Tap me", on_tap: {pid, :tap}}, children: []}
   ]
 }
 ```
 
 ### 2. Prepare Phase (`Dala.Renderer.prepare/4`)
 
-The `prepare/4` function transforms the tree before JSON encoding:
+The `prepare/4` function transforms the tree before binary encoding:
 
 - **Resolves theme tokens**: Converts `@color.primary` → `"#007AFF"`
 - **Applies component defaults**: Adds default props for each component type
 - **Handles platform blocks**: Merges `:ios` or `:android` specific props
 - **Registers tap handlers**: Converts `{pid, :tag}` tuples to NIF tap handles
+- **Generates stable IDs**: Uses `hash_id/1` for deterministic node identification
 
 Key code in `lib/dala/renderer.ex`:
 
@@ -78,83 +81,79 @@ defp prepare(%{type: type, props: props, children: children}, nif, platform, ctx
 end
 ```
 
-### 3. JSON Encoding
+### 3. Binary Encoding
 
-The prepared tree is encoded to JSON using `:json.encode/1`:
+The prepared tree is encoded to a compact binary format using `encode_tree/1` or `encode_frame/1`:
+
+#### Full Tree Encoding
 
 ```elixir
-json =
-  tree
-  |> prepare(nif, platform, ctx)
-  |> :json.encode()
-  |> IO.iodata_to_binary()
+# In Dala.Renderer.render/4
+node = to_node(tree, "root")
+binary = encode_tree(node)
+nif.set_root_binary(binary)
 ```
 
-Example JSON output:
+Binary format (version 2):
+```
+[u16 version=2][u16 flags][u64 node_count][node1][node2]...[nodeN]
+```
 
-```json
-{
-  "type": "column",
-  "props": {},
-  "children": [
-    {
-      "type": "text",
-      "props": {"text": "Hello World"},
-      "children": []
-    },
-    {
-      "type": "button",
-      "props": {
-        "text": "Tap me",
-        "on_tap": "tap_handle_123",
-        "accessibility_id": "tap"
-      },
-      "children": []
-    }
-  ]
-}
+#### Incremental Patch Encoding
+
+```elixir
+# In Dala.Renderer.render_patches/5
+patches = Dala.Diff.diff(old_tree, new_tree)
+binary = encode_frame(patches)
+nif.apply_patches(binary)
+```
+
+Binary format (version 1):
+```
+[u16 version=1][u16 patch_count][patch1][patch2]...[patchN]
 ```
 
 ### 4. NIF Call (Rust)
 
-The JSON string is passed to the Rust NIF via `nif.set_root(json)`:
+The binary is passed to the Rust NIF via `set_root_binary/1` or `apply_patches/1`:
 
 ```rust
 // native/dala_nif/src/lib.rs
-fn set_root<'a>(env: Env<'a>, json: Term<'a>) -> NifResult<Term<'a>> {
-    let json_str: String = json.decode()?;
+fn set_root_binary(binary: Binary) -> NifResult<Atom> {
+    let bytes: &[u8] = binary.as_slice();  // Zero-copy access!
     let transition = get_transition_and_clear();
-    platform_set_root(&json_str, &transition);
+    platform_set_root_binary(bytes, &transition);
     ok(env)
 }
 ```
 
+**Key benefit**: Rustler's `Binary<'a>` maps directly to BEAM off-heap binaries — no copy occurs at the boundary.
+
 ### 5. Platform Bridge (iOS Example)
 
-The Rust NIF calls Objective-C to pass JSON to the iOS side:
+The Rust NIF calls Objective-C to pass binary data to the iOS side:
 
 ```rust
 // native/dala_nif/src/ios.rs
-pub fn set_root(json: &str, transition: &str) {
+pub fn set_root_binary(data: &[u8], transition: &str) {
     unsafe {
         let vm: *mut Object = msg_send![class!(DalaViewModel), shared];
-        let ns_json = ns_string_from_str(json);
+        let ns_data = NSData::dataWithBytes(data.as_ptr() as *const c_void, data.len());
         let ns_transition = ns_string_from_str(transition);
-        let _: () = msg_send![vm, setRootFromJSON: ns_json, transition: ns_transition];
+        let _: () = msg_send![vm, setRootFromBinary: ns_data, transition: ns_transition];
     }
 }
 ```
 
-### 6. SwiftUI Update
+### 6. Native UI Update
 
-`DalaViewModel` parses JSON and updates the `@Published` property:
+`DalaViewModel` parses the binary and updates the UI:
 
 ```swift
 // ios/DalaViewModel.swift
-@objc public func setRootFromJSON(_ json: String, transition: String) {
-    let data = json.data(using: .utf8)!
-    let obj = try JSONSerialization.jsonObject(with: data)
-    let node = DalaNode.fromDictionary(obj as! [String: Any])
+@objc public func setRootFromBinary(_ data: NSData, transition: String) {
+    let bytes = data.bytes.bindMemory(to: UInt8.self, capacity: data.length)
+    let node = DalaNode.fromBinary(bytes, length: data.length)
     setRoot(node, transition: transition)
 }
 ```
@@ -176,77 +175,136 @@ struct DalaRootView: View {
 }
 ```
 
-## Optimized Path: `render_fast/4`
+## Binary Protocol Specification
 
-An optimized version batches tap registrations to reduce NIF calls:
+For complete details on the binary format, see [Binary Protocol](binary_protocol.md).
+
+### Key Format Elements
+
+| Element | Size | Description |
+|---------|------|-------------|
+| Version | 2 bytes | `2` for full trees, `1` for patches |
+| Flags | 2 bytes | Reserved (currently `0`) |
+| Node Count | 8 bytes | Total nodes in tree (little-endian) |
+| Node ID | 8 bytes | 64-bit hashed identifier (from `hash_id/1`) |
+| Node Type | 1 byte | Enum (0=column, 1=row, 2=text, etc.) |
+| Property Count | 1 byte | Number of properties (0-255) |
+| Properties | Variable | Tagged values (see Binary Protocol guide) |
+| Child Count | 4 bytes | Number of children (little-endian) |
+| Child IDs | N×8 bytes | Array of child IDs |
+
+### Node Identity (hash_id/1)
+
+Stable node IDs are computed using `:erlang.phash2/2`:
+
+```elixir
+defp hash_id(id) do
+  id_str = to_string(id)
+  lo = :erlang.phash2(id_str, 0xFFFFFFFF)
+  hi = :erlang.phash2({id_str, :hi}, 0xFFFFFFFF)
+  Bitwise.bor(Bitwise.bsl(hi, 32), lo)
+end
+```
+
+This ensures deterministic IDs for diffing in `Dala.Diff.diff/2`.
+
+## Incremental Rendering with Diff Engine
+
+Dala supports patch-based UI updates instead of full tree re-renders.
+
+### Architecture
+
+- UI trees use `Dala.Node` struct with stable `:id` field
+- `Dala.Diff.diff(old, new)` compares two trees and produces patches
+- `Dala.Renderer.render_patches/5` sends only patches to native
+- `Dala.Screen` stores previous tree in `__dala__.last_tree`
+
+### Patch Types
+
+| Patch | Format | Description |
+|-------|--------|-------------|
+| `{:replace, id, node}` | Replace entire node |
+| `{:update_props, id, props}` | Update props on existing node |
+| `{:insert, parent_id, index, node}` | Insert new node |
+| `{:remove, id}` | Remove node |
+
+### Fallback Behavior
+
+If native doesn't support `apply_patches/1`, the system falls back to full render via `set_root_binary/1`.
+
+## Render Functions
+
+### render/4 (Full Render)
+
+```elixir
+def render(tree, platform, nif \\ @default_nif, _transition \\ :none) do
+  node = to_node(tree, "root")
+  binary = encode_tree(node)
+  nif.set_root_binary(binary)
+  {:ok, :binary_tree}
+end
+```
+
+### render_fast/4 (Optimized with Tap Batching)
 
 ```elixir
 def render_fast(tree, platform, nif \\ @default_nif, transition \\ :none) do
   nif.clear_taps()
   nif.set_transition(transition)
   
-  {prepared, taps} = prepare_with_taps(tree, nif, platform, ctx)
+  {prepared, taps} = encode_tree_with_taps(node, nif, platform, ctx)
   
-  # Batch register taps (single NIF call)
+  # Batch register taps
   nif.set_taps(taps)
   
-  json = prepared |> :json.encode() |> IO.iodata_to_binary()
-  nif.set_root(json)
+  nif.set_root_binary(prepared)
+  {:ok, :binary_tree}
 end
 ```
 
-**Benefit**: Reduces NIF calls from N+2 (clear + N register + set_root) to 3 (clear + set_taps + set_root).
+### render_patches/5 (Incremental Updates)
 
-## Data Transfer: Pros and Cons
-
-### ✅ Advantages of JSON-based Transfer
-
-1. **Simplicity**
-   - Easy to debug (print JSON string)
-   - Language-agnostic (any platform can parse JSON)
-   - No complex binary serialization
-
-2. **Interoperability**
-   - Works with any native platform (iOS, Android, desktop)
-   - No need for platform-specific binary formats
-   - Can use standard JSON libraries on native side
-
-3. **Inspectability**
-   - `Dala.Test.inspect(node)` returns readable tree
-   - Can log JSON before sending to NIF
-   - Easy to write tests against JSON structure
-
-4. **Flexibility**
-   - Easy to add new props (just add to JSON)
-   - Platform-specific props handled via `:ios`/`:android` blocks
-   - No need to recompile NIF for UI changes
-
-### ❌ Disadvantages of JSON-based Transfer
-
-1. **Performance Overhead**
-   - **Encoding**: Elixir → JSON string (CPU + allocation)
-   - **Decoding**: JSON → Native objects (CPU + allocation)
-   - **String parsing**: `DalaNode.fromDictionary` must parse every prop
-   - **Memory**: Intermediate JSON string allocation
-
-2. **Type Safety Loss**
-   - JSON is weakly typed (everything is string/number/array/object)
-   - Native side must validate and convert types (e.g., `props[@"text_size"]` to `double`)
-   - Runtime errors if JSON structure is wrong
-
-3. **No Incremental Updates**
-   - Entire tree is re-sent on every render
-   - Even if only one text value changed, whole tree is re-encoded
-   - SwiftUI's diffing helps, but JSON parsing still happens
-
-4. **NIF Call Overhead**
-   - Each `set_root` is a Rust NIF call (context switch)
-   - Rust → ObjC message sending (another context switch)
-   - Main thread dispatch for UI update
+```elixir
+def render_patches(old_tree, new_tree, platform, nif \\ @default_nif, transition \\ :none) do
+  old_node = to_node(old_tree, "old_root")
+  new_node = to_node(new_tree, "new_root")
+  
+  patches = Dala.Diff.diff(old_node, new_node)
+  
+  if patches == [] do
+    # No changes, skip render
+    {:ok, []}
+  else
+    send_patches(patches, new_node, platform, nif, ctx)
+    {:ok, patches}
+  end
+end
+```
 
 ## Performance Considerations
 
-### Throttling
+### Zero-Copy at BEAM↔Rust Boundary
+
+```
+Elixir BEAM (off-heap binary) → Rustler Binary<'a> → &[u8]
+```
+
+No copying occurs. The binary data is referenced directly via Rustler's `Binary` type.
+
+### Skip Unchanged Renders
+
+`Dala.Renderer` skips renders when nothing changed (see `AGENTS.md` rule 12):
+
+```elixir
+# In Dala.Screen.do_render/3
+if no_assigns_changed? && !navigation_occurred? do
+  # Skip render, but clear changed tracking
+  clear_changed(socket)
+  {:noreply, socket}
+end
+```
+
+### Throttling (Native Side)
 
 `DalaViewModel` throttles rapid updates (< 16ms) to prevent overwhelming SwiftUI:
 
@@ -268,69 +326,80 @@ SwiftUI uses `navVersion` (not `root` itself) as view identity:
 
 This prevents full view teardown on state updates (e.g., typing in text field).
 
-### Skip Unchanged Renders
+## Performance Considerations
 
-`Dala.Renderer` skips renders when nothing changed (see `AGENTS.md` rule 12):
+### Zero-Copy at BEAM↔Rust Boundary
 
-```elixir
-# In Dala.Screen.do_render/3
-if no_assigns_changed? && !navigation_occurred? do
-  # Skip render, but clear changed tracking
-  clear_changed(socket)
-  {:noreply, socket}
-end
+```
+Elixir BEAM (off-heap binary) → Rustler Binary<'a> → &[u8]
 ```
 
-## Alternative Approaches (Not Implemented)
+No copying occurs. The binary data is referenced directly via Rustler's `Binary` type.
 
-### 1. Binary Protocol (e.g., Protocol Buffers)
-- **Pros**: Faster encoding/decoding, smaller payload, type-safe
-- **Cons**: More complex, requires code generation, less inspectable
+### Skip Unchanged Renders
 
-### 2. Shared Memory
-- **Pros**: Zero-copy between BEAM and native
-- **Cons**: Extremely complex, platform-specific, safety issues
-
-### 3. Incremental Patches (like React Fiber)
-- **Pros**: Only send changes, not full tree
-- **Cons**: Complex diffing logic, need to track previous tree
+- Node IDs are 64-bit hashed values for stable reconciliation
+- Property tags use 1-byte identifiers (tags 1-12 defined, more can be added)
+- Enum values (flex_direction, justify_content, etc.) use 1-byte encoding
+- Floats (width, height, padding) use little-endian f32 encoding
 
 ## Debugging Tips
 
-1. **Log JSON before sending**:
-   ```elixir
-   json = tree |> prepare(...) |> :json.encode()
-   IO.puts("Sending JSON: #{inspect(json)}")
-   nif.set_root(json)
-   ```
-
-2. **Inspect native tree**:
+1. **Inspect the tree** (Elixir side):
    ```elixir
    Dala.Test.inspect(node)  # Returns full tree with assigns
    ```
 
-3. **Check NIF calls**:
+2. **Check binary size**:
+   ```elixir
+   binary = Dala.Renderer.encode_tree(node)
+   IO.puts("Binary size: #{byte_size(binary)} bytes")
+   ```
+
+3. **Verify NIF calls**:
    ```bash
    adb logcat | grep Dala  # Android
    tail -f ~/Library/Logs/.../app.log  # iOS simulator
    ```
 
-4. **Verify SwiftUI updates**:
-   ```swift
-   // Add to DalaViewModel.setRoot:
-   NSLog("[Dala] Setting root: %@", node?.description ?? "nil")
+4. **Test Diff engine**:
+   ```elixir
+   old = Dala.Node.from_map(old_map, "root")
+   new = Dala.Node.from_map(new_map, "root")
+   patches = Dala.Diff.diff(old, new)
+   IO.inspect(patches, label: "Patches")
    ```
+
+5. **Verify native patches** (iOS):
+   ```swift
+   // Add to DalaViewModel.setRootFromBinary:
+   NSLog("[Dala] Setting root from binary, size: %d bytes", data.length)
+   ```
+
+## Testing
+
+Test files:
+- `test/dala/binary_protocol_test.exs` — Binary encoding/decoding
+- `test/dala/diff_test.exs` — Diff engine tests
+
+Run tests:
+```bash
+mix test test/dala/binary_protocol_test.exs
+mix test test/dala/diff_test.exs
+```
 
 ## Summary
 
-Dala uses a JSON-based render pipeline that prioritizes simplicity and debuggability over raw performance. The tradeoff is acceptable because:
+Dala uses a **binary protocol** for UI transfer that prioritizes performance and type safety:
 
-- UI trees are typically small (< 100 nodes)
-- Updates are infrequent (user-driven, not 60fps animations)
-- SwiftUI's diffing minimizes actual view updates
-- Throttling prevents overwhelming the UI thread
+- **Full tree encoding** via `encode_tree/1` (version 2 format)
+- **Incremental patches** via `encode_frame/1` (version 1 format)
+- **Zero-copy** at BEAM↔Rust boundary using Rustler's `Binary<'a>`
+- **Stable node IDs** via `hash_id/1` for diffing
+- **Patch-based updates** via `Dala.Diff.diff/2`
 
-For most apps, this approach works well. If you hit performance issues with very large or rapidly updating UIs, consider:
-- Using `render_fast/4` for batched tap registration
-- Ensuring `Dala.Screen` skips unchanged renders
-- Profiling to identify actual bottlenecks (likely not JSON encoding)
+The binary protocol provides excellent performance with minimal payload sizes.
+
+## References
+
+- [Rustler in Mobile](rustler_complete.md) — Complete guide to Rustler in Dala

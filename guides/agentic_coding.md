@@ -330,7 +330,7 @@ in its props. The tag atom in `on_tap: {self(), :my_tag}` is what you pass to
 
 ## Further Reading
 
-- [Render Engine Deep Dive](render_engine.md) — Elixir → JSON → NIF → native pipeline
+- [Render Engine Deep Dive](render_engine.md) — Elixir → binary protocol → NIF → native pipeline
 - [Components](components.md) — Detailed sigil syntax and component reference
 - [Spark DSL](spark_dsl.md) — In-depth DSL documentation
 - [Theming](theming.md) — Colors, spacing, and typography tokens

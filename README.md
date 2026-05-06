@@ -16,7 +16,7 @@ Your Elixir app (GenServers, OTP supervision, pattern matching, pipes)
           ↓
      Dala.Screen  (GenServer — your logic lives here)
           ↓
-    Dala.Renderer  (component tree → JSON → NIF call)
+    Dala.Renderer  (component tree → binary protocol → NIF call)
           ↓
 Compose (Android)   SwiftUI (iOS)   ← native rendering, native gestures
 ```

@@ -4,12 +4,13 @@ defmodule Dala.MixProject do
   def project do
     [
       app: :dala,
-      version: "0.0.5",
+      version: "0.0.6",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      description: "An Elixir mobile framework powered by the BEAM, reworked from the Mob framework.",
+      description:
+        "An Elixir mobile framework powered by the BEAM, reworked from the Mob framework.",
       source_url: "https://github.com/manhvu/dala",
       homepage_url: "https://hexdocs.pm/dala",
       package: package(),
@@ -35,7 +36,7 @@ defmodule Dala.MixProject do
         "README.md": [title: "Dala"],
         "guides/getting_started.md": [title: "Getting Started"],
         "guides/architecture.md": [title: "Architecture & Prior Art"],
-              "guides/build_and_beam_loading.md": [title: "Build & BEAM Loading"],
+        "guides/build_and_beam_loading.md": [title: "Build & BEAM Loading"],
         "guides/screen_lifecycle.md": [title: "Screen Lifecycle"],
         "guides/components.md": [title: "Components"],
         "guides/styling.md": [title: "Styling & Native Rendering"],
@@ -55,8 +56,7 @@ defmodule Dala.MixProject do
         "guides/liveview.md": [title: "LiveView Integration"],
         "guides/ios_ml_support.md": [title: "iOS ML Support"],
         "guides/ios_physical_device.md": [title: "iOS Physical Device"],
-        "guides/rustler_in_dala.md": [title: "Rustler in Mobile"],
-        "guides/rustler_message_sending.md": [title: "Rustler Message Sending"],
+        "guides/rustler_complete.md": [title: "Rustler in Mobile"],
         "guides/emlx_ios_summary.md": [title: "EMLX iOS Summary"],
         "guides/publishing.md": [title: "Publishing to App Store / TestFlight"],
         "guides/troubleshooting.md": [title: "Troubleshooting"],
@@ -65,7 +65,8 @@ defmodule Dala.MixProject do
       ],
       groups_for_extras: [
         "Getting Started": ~r/guides\/(getting_started|architecture|build_and_beam_loading)\.md/,
-        "UI & Components": ~r/guides\/(components|styling|theming|ui_|render_engine|binary_protocol|spark_dsl|screen_lifecycle|navigation)\.md/,
+        "UI & Components":
+          ~r/guides\/(components|styling|theming|ui_|render_engine|binary_protocol|spark_dsl|screen_lifecycle|navigation)\.md/,
         "Events & Interaction": ~r/guides\/(events|event_)\.md/,
         "Data & Device APIs": ~r/guides\/(data|device_capabilities)\.md/,
         "Testing & Development": ~r/guides\/(testing|agentic_coding)\.md/,
@@ -129,7 +130,9 @@ defmodule Dala.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/onboarding", "test/onboarding/support", "dev_tools", "dev_tools/test"]
+  defp elixirc_paths(:test),
+    do: ["lib", "test/onboarding", "test/onboarding/support", "dev_tools", "dev_tools/test"]
+
   defp elixirc_paths(:dev), do: ["lib", "dev_tools", "dev_tools/test"]
   defp elixirc_paths(_), do: ["lib"]
 

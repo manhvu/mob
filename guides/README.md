@@ -15,7 +15,7 @@ Quick reference for all Dala documentation. Files are in `dala/guides/`.
 | Guide | Description |
 |-------|-------------|
 | [architecture.md](architecture.md) | System overview, native cocoon model |
-| [render_engine.md](render_engine.md) | Elixir → JSON → NIF → SwiftUI/Compose pipeline |
+| [render_engine.md](render_engine.md) | Elixir → binary protocol → NIF → SwiftUI/Compose pipeline |
 | [event_model.md](event_model.md) | Event envelope, addressing, routing, targets |
 | [event_audit.md](event_audit.md) | Event props audit: tap, swipe, long-press, etc. |
 | [screen_lifecycle.md](screen_lifecycle.md) | Screen start, stop, navigation lifecycle |

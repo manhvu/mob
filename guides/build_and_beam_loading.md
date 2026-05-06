@@ -36,7 +36,7 @@ Dala apps embed a full Erlang/OTP runtime (BEAM) directly in the mobile app. The
 │  ┌───────────────────────────────────────┐  │
 │  │  Native UI (SwiftUI / Jetpack Compose)│  │
 │  └───────────────┬───────────────────────┘  │
-│                  │ JSON/Binary                │
+│                  │ Binary                   │
 │  ┌───────────────▼───────────────────────┐  │
 │  │  Rust NIF (dala_nif, dala_beam)       │  │
 │  └───────────────┬───────────────────────┘  │

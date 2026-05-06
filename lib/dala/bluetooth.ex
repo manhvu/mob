@@ -116,7 +116,13 @@ defmodule Dala.Bluetooth do
   @spec write_characteristic(Dala.Socket.t(), device_id(), uuid(), uuid(), binary()) ::
           Dala.Socket.t()
   def write_characteristic(socket, device_id, service_uuid, characteristic_uuid, value) do
-    Dala.Native.bluetooth_write_characteristic(device_id, service_uuid, characteristic_uuid, value)
+    Dala.Native.bluetooth_write_characteristic(
+      device_id,
+      service_uuid,
+      characteristic_uuid,
+      value
+    )
+
     socket
   end
 

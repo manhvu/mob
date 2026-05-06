@@ -58,7 +58,7 @@ The two styles are fully interchangeable — you can mix them freely in the same
 
 ---
 
-`Dala.Renderer` serialises the component tree to JSON and passes it to the native side in a single NIF call. Compose (Android) and SwiftUI (iOS) handle diffing and rendering.
+`Dala.Renderer` serialises the component tree to binary via the custom binary protocol and passes it to the native side in a single NIF call. Compose (Android) and SwiftUI (iOS) handle diffing and rendering.
 
 ## Prop values
 

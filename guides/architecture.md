@@ -20,7 +20,7 @@ Dala takes an unusual position in the dalaile framework landscape. To understand
                    │   - render/4       │  standard render
                    │   - render_fast/4  │  batch tap registration (skip clear+re-register)
                    └─────────┬─────────┘
-                             │  JSON (set_root NIF call)
+                             │  binary protocol (set_root_binary NIF call)
               ┌──────────────┴──────────────┐
      ┌────────▼───────┐           ┌─────────▼───────┐
      │  Compose (JVM) │           │  SwiftUI (Swift) │
@@ -30,11 +30,11 @@ Dala takes an unusual position in the dalaile framework landscape. To understand
 
 BEAM and OTP run **on the device** — embedded inside the APK and the iOS app bundle. There is no server. Your screen logic, navigation state, and business logic all execute locally in the same BEAM node that the user has installed.
 
-The rendering layer is thin: `render/1` returns a plain Elixir map (the component tree), `Dala.Renderer` serialises it to JSON and passes it to the native side via a NIF call. Compose or SwiftUI diff and display it. UI events travel back as NIF callbacks that send messages to the screen GenServer. The BEAM owns state; the native UI is a thin view.
+The rendering layer is thin: `render/1` returns a plain Elixir map (the component tree), `Dala.Renderer` serialises it to binary via the custom binary protocol and passes it to the native side via a NIF call. Compose or SwiftUI diff and display it. UI events travel back as NIF callbacks that send messages to the screen GenServer. The BEAM owns state; the native UI is a thin view.
 
 ### Dala.Socket changes tracking
 
-`Dala.Socket` now tracks changed assign keys in `__dala__.changed` (initialized in the struct definition, not just in `new/2`). `Dala.Screen.do_render/3` skips rendering when nothing changed and no navigation occurred — avoids unnecessary JSON encoding + native diffing.
+`Dala.Socket` now tracks changed assign keys in `__dala__.changed` (initialized in the struct definition, not just in `new/2`). `Dala.Screen.do_render/3` skips rendering when nothing changed and no navigation occurred — avoids unnecessary binary encoding + native diffing.
 
 Use `Dala.Socket.changed?/2` to check if specific keys changed:
 
@@ -105,7 +105,7 @@ Compiles to native ARM code and ships its own rendering engine (Impeller / Skia)
 
 The trade-off is Dart: a capable language but a separate ecosystem from Elixir. Flutter also renders its own pixels rather than native UI components, so it can diverge from platform conventions.
 
-Dala renders native Compose and SwiftUI components, so the UI looks and behaves like platform-native apps. The rendering model is Elixir maps → JSON → native diff, not a custom canvas.
+Dala renders native Compose and SwiftUI components, so the UI looks and behaves like platform-native apps. The rendering model is Elixir maps → binary protocol → native diff, not a custom canvas.
 
 ### Elixir Desktop
 

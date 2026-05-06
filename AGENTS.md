@@ -186,7 +186,7 @@ These are the things we've burned ourselves on. Following them isn't optional.
     `Dala.Socket` struct properly initializes `changed` in the struct definition
     (not just in `new/2`) so pattern matching always works.
     `Dala.Screen.do_render/3` skips the render if no assigns changed
-    and no navigation occurred. This avoids unnecessary JSON encoding +
+    and no navigation occurred. This avoids unnecessary binary encoding +
     SwiftUI diffing for events that don't affect the UI.
     To force a render, use `Dala.Socket.changed?/2` to check if specific
     keys changed, or rely on navigation (push/pop/reset) which always renders.

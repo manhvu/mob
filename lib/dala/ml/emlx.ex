@@ -97,8 +97,8 @@ defmodule Dala.ML.EMLX do
   def ios_simulator? do
     try do
       Dala.Native.platform() == :ios and
-              (System.get_env("SIMULATOR_DEVICE_NAME") != nil or
-                 System.get_env("IPHONE_SIMULATOR_ROOT") != nil)
+        (System.get_env("SIMULATOR_DEVICE_NAME") != nil or
+           System.get_env("IPHONE_SIMULATOR_ROOT") != nil)
     rescue
       _ -> false
     end
