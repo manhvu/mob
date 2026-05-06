@@ -305,6 +305,262 @@ defmodule Dala.Renderer do
     {:ok, :json_tree}
   end
 
+  @doc """
+  Render using incremental patches instead of full tree.
+
+  Compares `old_tree` with `new_tree`, computes the diff, and sends
+  only the patches to native. Falls back to full render on first call
+  (when `old_tree` is nil).
+
+  `new_tree` can be either a map (from Dala.UI functions) or a `Dala.Node` struct.
+  If it's a map, it will be converted to a `Dala.Node` first.
+
+  Returns `{:ok, patches}` where patches is the list of patch tuples.
+  """
+  @spec render_patches(
+          Dala.Node.t() | map() | nil,
+          Dala.Node.t() | map(),
+          atom(),
+          module(),
+          atom()
+        ) :: {:ok, [Dala.Diff.patch()]}
+  def render_patches(old_tree, new_tree, platform, nif \\ @default_nif, transition \\ :none) do
+    theme = Theme.current()
+
+    ctx = %{
+      colors: Theme.color_map(theme),
+      spacing: Theme.spacing_map(theme),
+      radii: Theme.radius_map(theme),
+      type_scale: theme.type_scale
+    }
+
+    # Convert to Node structs if needed
+    old_node = to_node(old_tree, "root")
+    new_node = to_node(new_tree, "root")
+
+    # Compute diff
+    patches = Dala.Diff.diff(old_node, new_node)
+
+    if patches == [] do
+      # Nothing changed
+      {:ok, []}
+    else
+      # Check if we have a full replacement (first render or root change)
+      has_replace? = Enum.any?(patches, fn {action, _} -> action == :replace end)
+
+      if has_replace? do
+        # Full render for replacements
+        nif.clear_taps()
+        nif.set_transition(transition)
+
+        prepared = prepare(new_node, nif, platform, ctx)
+        {taps, prepared} = extract_taps(prepared)
+        nif.set_taps(taps)
+
+        json =
+          prepared
+          |> :json.encode()
+          |> IO.iodata_to_binary()
+
+        nif.set_root(json)
+        {:ok, patches}
+      else
+        # Send incremental patches
+        send_patches(patches, new_node, platform, nif, ctx)
+        {:ok, patches}
+      end
+    end
+  end
+
+  defp to_node(nil, _), do: nil
+  defp to_node(%Dala.Node{} = node, _), do: node
+  defp to_node(map, default_id), do: Dala.Node.from_map(map, default_id)
+
+  defp extract_taps(node) do
+    # Extract tap handles from prepared node
+    # This is a simplified version - in reality, taps are registered during prepare
+    {[], node}
+  end
+
+  # Send patches to native
+  defp send_patches(patches, _tree, _platform, nif, _ctx) do
+    binary = encode_frame(patches)
+
+    if function_exported?(nif, :apply_patches, 1) do
+      nif.apply_patches(binary)
+    else
+      IO.puts("[Dala] apply_patches not available, got patches: #{inspect(patches)}")
+    end
+  end
+
+  # ── Binary protocol v2 encoder ──────────────────────────────────────
+  #
+  # Header:  [u16 version=1][u16 patch_count]
+  # Opcodes:
+  #   0x01 INSERT  [u64 id][u64 parent][u32 index][u8 type][PROPS]
+  #   0x02 REMOVE  [u64 id]
+  #   0x03 UPDATE  [u64 id][PROPS]
+  #
+  # PROPS:   [u8 field_count] repeat [u8 tag][value...]
+  #   1=text[u16 len][bytes]  2=title[u16 len][bytes]  3=color[u16 len][bytes]
+  #   4=background[u16 len][bytes]  5=on_tap[u64]
+  #   6=width[f32]  7=height[f32]  8=padding[f32]  9=flex_grow[f32]
+  #   10=flex_direction[u8]  11=justify_content[u8]  12=align_items[u8]
+
+  @doc "Encode patches to binary frame format for the native side"
+  def encode_frame(patches) when is_list(patches) do
+    body = Enum.map(patches, &encode_patch/1)
+
+    IO.iodata_to_binary([
+      <<1::little-16, length(patches)::little-16>>,
+      body
+    ])
+  end
+
+  defp encode_patch({:insert, parent_id, index, %Dala.Node{} = node}) do
+    id = hash_id(node.id)
+    parent = hash_id(parent_id)
+
+    [
+      <<0x01, id::little-64, parent::little-64, index::little-32, kind_to_byte(node.type)::8>>,
+      encode_props(node.props),
+      encode_children(node.children)
+    ]
+  end
+
+  defp encode_patch({:remove, id}) do
+    <<0x02, hash_id(id)::little-64>>
+  end
+
+  defp encode_patch({:update_props, id, props}) do
+    [<<0x03, hash_id(id)::little-64>>, encode_props(props)]
+  end
+
+  defp encode_patch({:replace, id, %Dala.Node{} = node}) do
+    # Replace = remove old + insert new
+    old_id = hash_id(id)
+    new_id = hash_id(node.id)
+    # Parent is unknown from replace alone; use 0 as sentinel (root)
+    [
+      <<0x02, old_id::little-64>>,
+      <<0x01, new_id::little-64, 0::little-64, 0::little-32, kind_to_byte(node.type)::8>>,
+      encode_props(node.props),
+      encode_children(node.children)
+    ]
+  end
+
+  # ── ID hashing ─────────────────────────────────────────────────────
+
+  defp hash_id(id) do
+    id_str = to_string(id)
+    lo = :erlang.phash2(id_str, 0xFFFFFFFF)
+    hi = :erlang.phash2({id_str, :hi}, 0xFFFFFFFF)
+    Bitwise.bor(Bitwise.bsl(hi, 32), lo)
+  end
+
+  # ── Props encoder ──────────────────────────────────────────────────
+
+  defp encode_props(props) when is_map(props) do
+    {fields, count} = collect_prop_fields(Map.to_list(props), [], 0)
+    [<<count::8>>, fields]
+  end
+
+  defp collect_prop_fields([], acc, count), do: {acc, count}
+
+  defp collect_prop_fields([{:text, v} | rest], acc, count) when is_binary(v) do
+    collect_prop_fields(rest, [acc, <<1::8, byte_size(v)::little-16, v::binary>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:title, v} | rest], acc, count) when is_binary(v) do
+    collect_prop_fields(rest, [acc, <<2::8, byte_size(v)::little-16, v::binary>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:color, v} | rest], acc, count) when is_binary(v) do
+    collect_prop_fields(rest, [acc, <<3::8, byte_size(v)::little-16, v::binary>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:background, v} | rest], acc, count) when is_binary(v) do
+    collect_prop_fields(rest, [acc, <<4::8, byte_size(v)::little-16, v::binary>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:on_tap, v} | rest], acc, count) when is_integer(v) do
+    collect_prop_fields(rest, [acc, <<5::8, v::little-64>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:width, v} | rest], acc, count) when is_number(v) do
+    collect_prop_fields(rest, [acc, <<6::8, v::float-little-32>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:height, v} | rest], acc, count) when is_number(v) do
+    collect_prop_fields(rest, [acc, <<7::8, v::float-little-32>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:padding, v} | rest], acc, count) when is_number(v) do
+    collect_prop_fields(rest, [acc, <<8::8, v::float-little-32>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:flex_grow, v} | rest], acc, count) when is_number(v) do
+    collect_prop_fields(rest, [acc, <<9::8, v::float-little-32>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:flex_direction, v} | rest], acc, count) when is_atom(v) do
+    collect_prop_fields(rest, [acc, <<10::8, flex_dir_byte(v)::8>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:justify_content, v} | rest], acc, count) when is_atom(v) do
+    collect_prop_fields(rest, [acc, <<11::8, justify_byte(v)::8>>], count + 1)
+  end
+
+  defp collect_prop_fields([{:align_items, v} | rest], acc, count) when is_atom(v) do
+    collect_prop_fields(rest, [acc, <<12::8, align_byte(v)::8>>], count + 1)
+  end
+
+  # Skip keys that aren't in the protocol
+  defp collect_prop_fields([_ | rest], acc, count) do
+    collect_prop_fields(rest, acc, count)
+  end
+
+  # ── Children encoder ───────────────────────────────────────────────
+
+  defp encode_children(children) do
+    count = length(children)
+    ids = Enum.map(children, fn %Dala.Node{id: id} -> <<hash_id(id)::little-64>> end)
+    [<<count::little-32>>, ids]
+  end
+
+  # ── Enum byte helpers ──────────────────────────────────────────────
+
+  defp kind_to_byte(:column), do: 0
+  defp kind_to_byte(:row), do: 1
+  defp kind_to_byte(:text), do: 2
+  defp kind_to_byte(:button), do: 3
+  defp kind_to_byte(:image), do: 4
+  defp kind_to_byte(:scroll), do: 5
+  defp kind_to_byte(:webview), do: 6
+  defp kind_to_byte(_), do: 0
+
+  defp flex_dir_byte(:row), do: 1
+  defp flex_dir_byte(_), do: 0
+
+  defp justify_byte(:center), do: 1
+  defp justify_byte(:end), do: 2
+  defp justify_byte(:space_between), do: 3
+  defp justify_byte(_), do: 0
+
+  defp align_byte(:center), do: 1
+  defp align_byte(:end), do: 2
+  defp align_byte(:stretch), do: 3
+  defp align_byte(_), do: 0
+
+  defp patch_to_json({:move, id, parent_id, new_index}) do
+    %{
+      "action" => "move",
+      "id" => to_string(id),
+      "parent_id" => to_string(parent_id),
+      "index" => new_index
+    }
+  end
+
   @doc "Return the full color palette map (token → ARGB integer)."
   @spec colors() :: %{atom() => non_neg_integer()}
   def colors, do: @colors

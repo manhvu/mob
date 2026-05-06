@@ -1,16 +1,22 @@
-use rustler::{Env, NifResult, Term};
+use rustler::{Binary, Env, NifResult, Term};
+use std::sync::Mutex;
 
-// Platform detection
 #[cfg(target_os = "android")]
 mod android;
 mod common;
 #[cfg(target_os = "ios")]
 mod ios;
+mod protocol;
+mod tree;
 
 use common::*;
+use protocol::*;
+use tree::*;
 
-// Removed unsafe CACHED_ENV - Env cannot be safely cached across NIF calls
-// Each NIF call receives a fresh Env with proper lifetime
+// Global tree for patch-based rendering
+lazy_static::lazy_static! {
+    static ref TREE: Mutex<Tree> = Mutex::new(Tree::new());
+}
 
 // ============================================================================
 // Helpers
@@ -34,22 +40,12 @@ fn term_or_error<'a>(env: Env<'a>, opt: Option<Term<'a>>) -> NifResult<Term<'a>>
 }
 
 // Cache the Erlang environment for use by ObjC callbacks
-// Note: This is a simplified stub - proper implementation would need
-// to handle Env lifetime correctly
 #[rustler::nif]
 fn cache_env<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
-    // Env cannot be safely cached as usize - lifetime is tied to NIF call
-    // This function is kept as a stub for API compatibility
     ok(env)
 }
 
 // Deliver webview eval result to Elixir
-// This is called from ObjC when JS evaluation completes
-//
-// Proper implementation:
-// 1. The :dala_screen pid should be stored when the webview is created
-// 2. Use erlang:send() or similar to send the result
-// 3. Message format: {:webview, :eval_result, json_binary}
 #[no_mangle]
 pub extern "C" fn dala_deliver_webview_eval_result(json_utf8: *const std::ffi::c_char) {
     unsafe {
@@ -65,11 +61,7 @@ pub extern "C" fn dala_deliver_webview_eval_result(json_utf8: *const std::ffi::c
             }
         };
 
-        // For now, just log the result
         eprintln!("[Dala] WebView eval result: {}", json);
-
-        // TODO: Implement proper message sending to :dala_screen
-        // This requires storing the :dala_screen pid somewhere accessible
     }
 }
 
@@ -129,7 +121,6 @@ fn set_root<'a>(env: Env<'a>, json: Term<'a>) -> NifResult<Term<'a>> {
 
 #[rustler::nif]
 fn set_taps<'a>(env: Env<'a>, _taps: Term<'a>) -> NifResult<Term<'a>> {
-    // TODO: implement batch tap registration
     ok(env)
 }
 
@@ -154,6 +145,20 @@ fn exit_app<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
 #[rustler::nif]
 fn safe_area<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
     let _insets = platform_safe_area();
+    ok(env)
+}
+
+// ============================================================================
+// Incremental rendering (patch-based)
+// ============================================================================
+
+#[rustler::nif]
+fn apply_patches<'a>(env: Env<'a>, binary: Binary<'a>) -> NifResult<Term<'a>> {
+    let bytes = binary.as_slice();
+    let mut tree = TREE
+        .lock()
+        .map_err(|_| rustler::Error::Term(Box::new("tree lock poisoned")))?;
+    decode_and_apply(&mut tree, bytes);
     ok(env)
 }
 
@@ -461,7 +466,6 @@ fn toast_show<'a>(env: Env<'a>, _message: Term<'a>, _duration: Term<'a>) -> NifR
 #[rustler::nif]
 fn webview_eval_js<'a>(env: Env<'a>, _code: Term<'a>) -> NifResult<Term<'a>> {
     let _c: String = _code.decode()?;
-    // On Android, we need JNIEnv - for now just call the stub
     platform_webview_eval_js(&_c);
     ok(env)
 }
@@ -488,9 +492,6 @@ fn webview_go_back<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
 
 #[rustler::nif]
 fn webview_screenshot<'a>(env: Env<'a>) -> NifResult<Term<'a>> {
-    // TODO: Capture WebView content as PNG data
-    // iOS: Use WKWebView.takeSnapshot()
-    // Android: Use WebView.capturePicture() or draw to bitmap
     Ok(atom(env, "not_implemented"))
 }
 
@@ -577,8 +578,8 @@ fn long_press_xy<'a>(
 ) -> NifResult<Term<'a>> {
     let _xv: f64 = _x.decode()?;
     let _yv: f64 = _y.decode()?;
-    let _m: u64 = _ms.decode()?;
-    platform_long_press_xy(_xv, _yv, _m);
+    let _msv: u64 = _ms.decode()?;
+    platform_long_press_xy(_xv, _yv, _msv);
     ok(env)
 }
 

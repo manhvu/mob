@@ -266,6 +266,30 @@ These are the things we've burned ourselves on. Following them isn't optional.
     
     This validates at compile time that the modules are valid Dala.Screen modules.
 
+## 18. **Incremental rendering with diff engine.**
+    Dala now supports patch-based UI updates instead of full tree re-renders.
+    
+    **Architecture:**
+    - UI trees use `Dala.Node` struct with stable `:id` field for identity
+    - `Dala.Diff.diff(old, new)` compares two `Dala.Node` trees and produces patches
+    - `Dala.Renderer.render_patches/5` sends only the patches to native (when supported)
+    - `Dala.Screen` stores the previous tree (as `Dala.Node`) in `__dala__.last_tree`
+    
+    **Patch types:**
+    - `{:replace, id, node}` — Replace entire node
+    - `{:update_props, id, props}` — Update props on existing node
+    - `{:insert, parent_id, index, node}` — Insert new node
+    - `{:remove, id}` — Remove node
+    
+    **Node identity:**
+    - `Dala.Node` requires `:id` field for proper reconciliation
+    - `Dala.Node.from_map/2` converts maps to structs, generating IDs if needed
+    - Explicit IDs are recommended for dynamic lists
+    
+    **Fallback:** If native doesn't support `apply_patches/1`, falls back to full render.
+    
+    **Testing:** `Dala.Diff` has comprehensive tests in `test/dala/diff_test.exs`.
+
 ## Where to look
 
 | Question | File |

@@ -28,6 +28,9 @@ defmodule Dala.Native do
   @doc "Set the root UI tree from JSON"
   def set_root(_json), do: :erlang.nif_error(:nif_not_loaded)
 
+  @doc "Apply incremental patches (binary frame) to the retained tree"
+  def apply_patches(_binary), do: :erlang.nif_error(:nif_not_loaded)
+
   @doc "Batch register tap handlers (replaces clear_taps + individual register_tap)"
   def set_taps(_taps), do: :erlang.nif_error(:nif_not_loaded)
 

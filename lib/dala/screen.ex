@@ -553,8 +553,20 @@ defmodule Dala.Screen do
         |> Dala.List.expand(list_renderers, self())
         |> Dala.Component.expand(self(), platform)
 
+      # Convert to Dala.Node struct for proper diffing
+      new_node = Dala.Node.from_map(tree, "root")
+
       Dala.ComponentRegistry.reconcile(self(), active_component_keys)
-      {:ok, _token} = Dala.Renderer.render(tree, platform, :dala_nif, transition)
+
+      # Get previous tree from socket metadata
+      old_tree = Dala.Socket.get_dala(socket, :last_tree)
+
+      # Use patch-based rendering
+      {:ok, _patches} =
+        Dala.Renderer.render_patches(old_tree, new_node, platform, :dala_nif, transition)
+
+      # Store the new tree for next diff
+      socket = Dala.Socket.put_dala(socket, :last_tree, new_node)
       socket = Dala.Socket.clear_changed(socket)
       Dala.Socket.put_root_view(socket, :rendered)
     else
