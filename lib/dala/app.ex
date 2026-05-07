@@ -80,6 +80,7 @@ defmodule Dala.App do
         ensure_started(Dala.Nav.Registry, __MODULE__)
         ensure_started(Dala.State)
         ensure_started(Dala.ComponentRegistry)
+        ensure_started(Dala.Screen.Manager)
 
         # Platform modules must exist before Dala.Device starts
         ensure_started(Dala.Device.IOS)

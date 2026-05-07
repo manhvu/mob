@@ -14,11 +14,23 @@ defmodule Dala.RendererPerfTest do
     def reset, do: Agent.update(__MODULE__, fn _ -> %{calls: [], tap_next: 0} end)
     def calls, do: Agent.get(__MODULE__, & &1.calls)
 
-    def clear_taps, do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:clear_taps, []} | s.calls]} end)
-    def set_transition(t), do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_transition, [t]} | s.calls]} end)
-    def set_root(b), do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_root, [b]} | s.calls]} end)
-    def set_root_binary(b), do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_root_binary, [b]} | s.calls]} end)
-    def register_tap(pid), do: Agent.get_and_update(__MODULE__, fn s -> {s.tap_next, %{s | calls: [{:register_tap, [pid]} | s.calls], tap_next: s.tap_next + 1}} end)
+    def clear_taps,
+      do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:clear_taps, []} | s.calls]} end)
+
+    def set_transition(t),
+      do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_transition, [t]} | s.calls]} end)
+
+    def set_root(b),
+      do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_root, [b]} | s.calls]} end)
+
+    def set_root_binary(b),
+      do: Agent.update(__MODULE__, fn s -> %{s | calls: [{:set_root_binary, [b]} | s.calls]} end)
+
+    def register_tap(pid),
+      do:
+        Agent.get_and_update(__MODULE__, fn s ->
+          {s.tap_next, %{s | calls: [{:register_tap, [pid]} | s.calls], tap_next: s.tap_next + 1}}
+        end)
   end
 
   describe "Performance tests" do

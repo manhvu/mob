@@ -1023,10 +1023,16 @@ defmodule Dala.Spark.Dsl do
 
   use Spark.Dsl.Extension,
     sections: [@attributes, @screen],
-    transformers: [Dala.Spark.Transformers.GenerateMount, Dala.Spark.Transformers.Render],
+    transformers: [
+      Dala.Spark.Transformers.GenerateMount,
+      Dala.Spark.Transformers.Render,
+      Dala.Spark.Transformers.PubSub
+    ],
     verifiers: [__MODULE__.Verifier]
 
   use Spark.Dsl, default_extensions: [extensions: __MODULE__]
+
+  # PubSub extension is automatically available via sections
 
   # ── Verifier ────────────────────────────────────────────────────────────
 

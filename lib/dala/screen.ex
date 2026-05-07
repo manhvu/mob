@@ -92,6 +92,34 @@ defmodule Dala.Screen do
   end
 
   @doc """
+  Send a message to a screen identified by `identifier` (id, name, or pid).
+
+  Returns `:ok` if sent, `{:error, :not_found}` if identifier doesn't match any screen.
+
+  ## Examples
+
+      MyApp.MyScreen.dispatch(:my_screen, {:update, data})
+      MyApp.MyScreen.dispatch(123, {:update, data})
+      MyApp.MyScreen.dispatch(pid, {:update, data})
+  """
+  @spec dispatch(identifier :: pid | atom | integer, message :: term) ::
+          :ok | {:error, :not_found}
+  def dispatch(identifier, message) do
+    Dala.Screen.Manager.dispatch(identifier, message)
+  end
+
+  @doc """
+  List all registered screens.
+
+  Returns a list of maps with `:id`, `:name`, `:pid`, `:module`.
+  """
+  @spec list() :: [%{id: integer, name: atom | nil, pid: pid, module: module}]
+  def list do
+    Dala.Screen.Manager.list()
+  end
+
+  # ── Navigation ────────────────────────────────────────────────────────────
+  @doc """
   Start a screen as the root UI screen. Calls mount, renders the component tree
   via `Dala.Renderer`, and calls `set_root` on the resulting view.
 
@@ -145,7 +173,7 @@ defmodule Dala.Screen do
         socket =
           if render_mode == :render do
             # Check for a notification that launched the app from a killed state.
-            # Send it to self so it arrives via handle_info after init returns,
+            # Send it to self() so it arrives via handle_info after init returns,
             # consistent with foreground notification delivery.
             case Dala.Native.take_launch_notification() do
               :none -> :ok
@@ -157,7 +185,12 @@ defmodule Dala.Screen do
             mounted_socket
           end
 
-        {:ok, {screen_module, socket, [], render_mode}}
+        # Register with screen manager
+        screen_id = Dala.Screen.Manager.next_id()
+        screen_name = mounted_socket.assigns[:name]
+        Dala.Screen.Manager.register(screen_id, screen_name, self(), screen_module)
+
+        {:ok, {screen_module, mounted_socket, [], render_mode, screen_id}}
 
       {:error, reason} ->
         Dala.Native.log(
@@ -169,6 +202,51 @@ defmodule Dala.Screen do
   end
 
   @impl GenServer
+  def terminate(reason, {module, socket, nav_history, render_mode, screen_id}) do
+    Dala.Screen.Manager.unregister(self())
+    module.terminate(reason, socket)
+  end
+
+  @impl GenServer
+  def terminate(reason, {module, socket, nav_history, render_mode}) do
+    Dala.Screen.Manager.unregister(self())
+    module.terminate(reason, socket)
+  end
+
+  def handle_call(
+        {:event, event, params},
+        _from,
+        {module, socket, nav_history, render_mode, screen_id}
+      ) do
+    case module.handle_event(event, params, socket) do
+      {:noreply, new_socket} ->
+        {module, new_socket, nav_history, transition} =
+          apply_nav_action(module, new_socket, nav_history)
+
+        new_socket =
+          if render_mode == :render do
+            do_render(module, new_socket, transition)
+          else
+            new_socket
+          end
+
+        {:reply, :ok, {module, new_socket, nav_history, render_mode, screen_id}}
+
+      {:reply, _response, new_socket} ->
+        {module, new_socket, nav_history, transition} =
+          apply_nav_action(module, new_socket, nav_history)
+
+        new_socket =
+          if render_mode == :render do
+            do_render(module, new_socket, transition)
+          else
+            new_socket
+          end
+
+        {:reply, :ok, {module, new_socket, nav_history, render_mode, screen_id}}
+    end
+  end
+
   def handle_call({:event, event, params}, _from, {module, socket, nav_history, render_mode}) do
     case module.handle_event(event, params, socket) do
       {:noreply, new_socket} ->
@@ -211,6 +289,26 @@ defmodule Dala.Screen do
   - `{:pop_to_root}` — pop to the root of the current stack
   - `{:reset, dest, params}` — replace the entire nav stack
   """
+  def handle_call(
+        {:navigate, nav_action},
+        _from,
+        {module, socket, nav_history, render_mode, screen_id}
+      ) do
+    socket = Dala.Socket.put_dala(socket, :nav_action, nav_action)
+
+    {new_module, new_socket, new_history, transition} =
+      apply_nav_action(module, socket, nav_history)
+
+    new_socket =
+      if render_mode == :render do
+        do_render(new_module, new_socket, transition)
+      else
+        new_socket
+      end
+
+    {:reply, :ok, {new_module, new_socket, new_history, render_mode, screen_id}}
+  end
+
   def handle_call({:navigate, nav_action}, _from, {module, socket, nav_history, render_mode}) do
     socket = Dala.Socket.put_dala(socket, :nav_action, nav_action)
 
@@ -227,8 +325,25 @@ defmodule Dala.Screen do
     {:reply, :ok, {new_module, new_socket, new_history, render_mode}}
   end
 
+  def handle_call(:get_socket, _from, {_module, socket, _nav_history, _mode, screen_id} = state) do
+    {:reply, socket, state}
+  end
+
   def handle_call(:get_socket, _from, {_module, socket, _nav_history, _mode} = state) do
     {:reply, socket, state}
+  end
+
+  def handle_call(:inspect, _from, {module, socket, nav_history, _mode, screen_id} = state) do
+    tree = module.render(socket.assigns)
+
+    info = %{
+      screen: module,
+      assigns: socket.assigns,
+      nav_history: Enum.map(nav_history, fn {mod, _} -> mod end),
+      tree: tree
+    }
+
+    {:reply, info, state}
   end
 
   def handle_call(:inspect, _from, {module, socket, nav_history, _mode} = state) do
@@ -244,8 +359,24 @@ defmodule Dala.Screen do
     {:reply, info, state}
   end
 
+  def handle_call(
+        :get_current_module,
+        _from,
+        {module, _socket, _nav_history, _mode, screen_id} = state
+      ) do
+    {:reply, module, state}
+  end
+
   def handle_call(:get_current_module, _from, {module, _socket, _nav_history, _mode} = state) do
     {:reply, module, state}
+  end
+
+  def handle_call(
+        :get_nav_history,
+        _from,
+        {_module, _socket, nav_history, _mode, screen_id} = state
+      ) do
+    {:reply, nav_history, state}
   end
 
   def handle_call(:get_nav_history, _from, {_module, _socket, nav_history, _mode} = state) do
@@ -268,6 +399,14 @@ defmodule Dala.Screen do
   end
 
   @impl GenServer
+  def handle_info(
+        {:dala_launch_notification, json},
+        {module, socket, nav_history, render_mode, screen_id}
+      ) do
+    notif = decode_notification_json(json)
+    handle_info({:notification, notif}, {module, socket, nav_history, render_mode, screen_id})
+  end
+
   def handle_info({:dala_launch_notification, json}, {module, socket, nav_history, render_mode}) do
     notif = decode_notification_json(json)
     handle_info({:notification, notif}, {module, socket, nav_history, render_mode})
@@ -275,6 +414,59 @@ defmodule Dala.Screen do
 
   # Android file/camera/photo/scan results arrive as {:dala_file_result, event, sub, json_binary}.
   # Decode the JSON and re-dispatch as the user-facing event tuple.
+  def handle_info(
+        {:dala_file_result, event, sub, json_binary},
+        {module, socket, nav_history, render_mode, screen_id}
+      ) do
+    event_atom = String.to_existing_atom(event)
+    sub_atom = String.to_existing_atom(sub)
+
+    items =
+      case :json.decode(json_binary) do
+        list when is_list(list) ->
+          Enum.map(list, fn item when is_map(item) ->
+            Map.new(item, fn {k, v} -> {String.to_existing_atom(k), v} end)
+          end)
+
+        _ ->
+          []
+      end
+
+    msg =
+      case {event_atom, sub_atom} do
+        {:camera, :photo} ->
+          {:camera, :photo, List.first(items) || %{}}
+
+        {:camera, :video} ->
+          {:camera, :video, List.first(items) || %{}}
+
+        {:camera, :cancelled} ->
+          {:camera, :cancelled}
+
+        {:photos, :picked} ->
+          {:photos, :picked, items}
+
+        {:files, :picked} ->
+          {:files, :picked, items}
+
+        {:audio, :recorded} ->
+          {:audio, :recorded, List.first(items) || %{}}
+
+        {:storage, :saved_to_library} ->
+          item = List.first(items) || %{}
+          {:storage, :saved_to_library, item[:path]}
+
+        {:scan, :result} ->
+          item = List.first(items) || %{}
+          {:scan, :result, %{type: item[:type] |> to_atom_safe(), value: item[:value]}}
+
+        _ ->
+          {event_atom, sub_atom, items}
+      end
+
+    handle_info(msg, {module, socket, nav_history, render_mode, screen_id})
+  end
+
   def handle_info({:dala_file_result, event, sub, json_binary}, state) do
     event_atom = String.to_existing_atom(event)
     sub_atom = String.to_existing_atom(sub)
@@ -330,6 +522,30 @@ defmodule Dala.Screen do
   # navigation for free without implementing anything.
   # If a WebView is present and has internal history, navigate within it first
   # before popping the Dala nav stack.
+  def handle_info({:dala, :back}, {module, socket, nav_history, render_mode, screen_id}) do
+    if render_mode == :render && Dala.Native.webview_can_go_back() do
+      Dala.Native.webview_go_back()
+      {:noreply, {module, socket, nav_history, render_mode, screen_id}}
+    else
+      {module, new_socket, new_history, transition} =
+        if nav_history == [] do
+          if render_mode == :render, do: Dala.Native.exit_app()
+          {module, socket, [], :none}
+        else
+          apply_nav_action(module, Dala.Socket.put_dala(socket, :nav_action, {:pop}), nav_history)
+        end
+
+      new_socket =
+        if render_mode == :render do
+          do_render(module, new_socket, transition)
+        else
+          new_socket
+        end
+
+      {:noreply, {module, new_socket, new_history, render_mode, screen_id}}
+    end
+  end
+
   def handle_info({:dala, :back}, {module, socket, nav_history, render_mode}) do
     if render_mode == :render && Dala.Native.webview_can_go_back() do
       Dala.Native.webview_go_back()
@@ -357,6 +573,25 @@ defmodule Dala.Screen do
   # List row selected — intercept before the user's handle_info and convert to
   # a plain {:select, id, index} message so screens don't need to know about
   # the internal {:tap, {:list, ...}} tag format.
+  def handle_info(
+        {:tap, {:list, id, :select, index}},
+        {module, socket, nav_history, render_mode, screen_id}
+      ) do
+    {:noreply, new_socket} = module.handle_info({:select, id, index}, socket)
+
+    {module, new_socket, nav_history, transition} =
+      apply_nav_action(module, new_socket, nav_history)
+
+    new_socket =
+      if render_mode == :render do
+        do_render(module, new_socket, transition)
+      else
+        new_socket
+      end
+
+    {:noreply, {module, new_socket, nav_history, render_mode, screen_id}}
+  end
+
   def handle_info({:tap, {:list, id, :select, index}}, {module, socket, nav_history, render_mode}) do
     {:noreply, new_socket} = module.handle_info({:select, id, index}, socket)
 
@@ -374,6 +609,20 @@ defmodule Dala.Screen do
   end
 
   # A component's state changed — re-render so the native view gets fresh props.
+  def handle_info(
+        {:component_changed, _id, _module},
+        {module, socket, nav_history, render_mode, screen_id}
+      ) do
+    new_socket =
+      if render_mode == :render do
+        do_render(module, socket)
+      else
+        socket
+      end
+
+    {:noreply, {module, new_socket, nav_history, render_mode, screen_id}}
+  end
+
   def handle_info({:component_changed, _id, _module}, {module, socket, nav_history, render_mode}) do
     new_socket =
       if render_mode == :render do
@@ -383,6 +632,22 @@ defmodule Dala.Screen do
       end
 
     {:noreply, {module, new_socket, nav_history, render_mode}}
+  end
+
+  def handle_info(message, {module, socket, nav_history, render_mode, screen_id}) do
+    {:noreply, new_socket} = module.handle_info(message, socket)
+
+    {module, new_socket, nav_history, transition} =
+      apply_nav_action(module, new_socket, nav_history)
+
+    new_socket =
+      if render_mode == :render do
+        do_render(module, new_socket, transition)
+      else
+        new_socket
+      end
+
+    {:noreply, {module, new_socket, nav_history, render_mode, screen_id}}
   end
 
   def handle_info(message, {module, socket, nav_history, render_mode}) do

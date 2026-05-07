@@ -6,6 +6,7 @@ defmodule Dala.MixProject do
       app: :dala,
       version: "0.0.7",
       elixir: "~> 1.18",
+      erlang: ">= 27.0",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
