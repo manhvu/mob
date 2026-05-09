@@ -45,11 +45,11 @@ behaviour, distribution quirks, and platform-specific edge cases.
 
 Common issues encountered during development and how to resolve them.
 
-## Screen never renders — `Dala.Screen.start_root` silent failure
+## Screen never renders — `Dala.Screen.Screen.start_root` silent failure
 
 **Symptom:** App sits on "Starting BEAM…" splash forever. No crash, no progress.
 
-**Cause:** `Dala.Screen.start_root/1` returns `{:error, reason}` or crashes inside `init/1`.
+**Cause:** `Dala.Screen.Screen.start_root/1` returns `{:error, reason}` or crashes inside `init/1`.
 If you don't pattern-match the return value, the screen never renders and the failure is silent.
 (Agents.md rule 2)
 
@@ -239,7 +239,7 @@ config :dala_dev, epmd_port: 4380
 In your app's `application.ex`, pass the port when starting distribution:
 
 ```elixir
-Dala.Dist.ensure_started(
+Dala.Connectivity.Dist.ensure_started(
   node:      :"my_app_android@127.0.0.1",
   cookie:    :dala_secret,
   epmd_port: Application.get_env(:dala_dev, :epmd_port, 4369)
@@ -259,18 +259,18 @@ your Mac.
 
 ## Distribution in production
 
-In development, `Dala.Dist.ensure_started/1` runs so `mix dala.connect` can
+In development, `Dala.Connectivity.Dist.ensure_started/1` runs so `mix dala.connect` can
 reach the app. In production the picture is different but not simply "turn it
 off" — it depends on whether you want OTA BEAM updates.
 
 **No OTA updates:** gate distribution on environment and leave it off in prod.
-`Dala.Dist.ensure_started/1` is a no-op unless explicitly called, so production
+`Dala.Connectivity.Dist.ensure_started/1` is a no-op unless explicitly called, so production
 builds are safe by default:
 
 ```elixir
 # lib/my_app/application.ex
 if Application.get_env(:my_app, :env) == :dev do
-  Dala.Dist.ensure_started(node: :"my_app_ios@127.0.0.1", cookie: :dala_secret)
+  Dala.Connectivity.Dist.ensure_started(node: :"my_app_ios@127.0.0.1", cookie: :dala_secret)
 end
 ```
 
@@ -295,11 +295,11 @@ the cookie can be rotated per session via the manifest.
 
 2. **Did distribution start on the device?**
    Check the device log for `[dala] distribution started` — if absent, the
-   `Dala.Dist.ensure_started/1` call either wasn't reached or failed silently
+   the `Dala.Connectivity.Dist.ensure_started/1` call either wasn't reached or failed silently
    (often due to the EPMD port conflict above).
 
 3. **Do cookies match?**
-   The cookie in your app's `Dala.Dist.ensure_started/1` call must match the
+   The cookie in your app's `Dala.Connectivity.Dist.ensure_started/1` call must match
    `--cookie` flag passed to `mix dala.connect` (default: `dala_secret`).
 
 4. **iOS: is the simulator booted?**
@@ -327,7 +327,7 @@ Hot code loading in the BEAM takes effect on the *next function call* — if the
 screen is in the middle of a `handle_event/3` or `handle_info/2` call, it
 finishes with the old code first.
 
-**Fix:** Trigger any event on the screen (a tap, a `Dala.Test.tap/2`) to force
+Fix:** Trigger any event on the screen (a tap, a `Dala.Test.Test.tap/2`) to force
 the process to make a new function call, picking up the new code. For layout
 changes, navigate away and back so `render/1` is called fresh.
 
@@ -341,25 +341,25 @@ rather than hot-push.
 **Symptom:** App starts successfully, then crashes 3–5 seconds later. Logcat
 shows a signal abort or mutex error.
 
-**Cause:** On Android, starting Erlang distribution too early (before the hwui
+On Android, starting Erlang distribution too early (before the hwui
 thread pool is fully initialised) causes a `pthread_mutex_lock on destroyed
-mutex` SIGABRT. This is why `Dala.Dist.ensure_started/1` defers `Node.start/2`
+mutex` SIGABRT. This is why `Dala.Connectivity.Dist.ensure_started/1` defers `Node.start/2`
 by 3 seconds on Android.
 
-**Fix:** Make sure you are calling `Dala.Dist.ensure_started/1` and not calling
+**Fix:** Make sure you are calling `Dala.Connectivity.Dist.ensure_started/1` and not calling
 `Node.start/2` directly. If you need distribution earlier, increase the defer
 delay:
 
 ```elixir
-Dala.Dist.ensure_started(node: :"my_app_android@127.0.0.1", cookie: :dala_secret, delay: 5000)
+Dala.Connectivity.Dist.ensure_started(node: :"my_app_android@127.0.0.1", cookie: :dala_secret, delay: 5000)
 ```
 
 ---
 
 ## iOS: `Dala.Test.pop` / `pop_to_root` crashes the BEAM
 
-**Symptom:** Calling `Dala.Test.pop(node)`, `Dala.Test.pop_to(node, ...)`, or
-`Dala.Test.pop_to_root(node)` causes the iOS BEAM node to crash immediately.
+**Symptom:** Calling `Dala.Test.Test.pop(node)`, `Dala.Test.Test.pop_to(node, ...)`, or
+`Dala.Test.Test.pop_to_root(node)` causes the iOS BEAM node to crash immediately.
 Logcat shows a signal or the node goes offline.
 
 **Cause:** The pop NIF calls SwiftUI's navigation stack from an Erlang distribution
@@ -369,16 +369,16 @@ path is guarded correctly; the pop path is not yet.
 **Workaround:** Drive backward navigation using platform taps instead:
 
 ```elixir
-# Instead of: Dala.Test.pop_to_root(node)
+# Instead of: Dala.Test.Test.pop_to_root(node)
 
 # iOS — tap the native Back button via MCP:
 mcp__ios_simulator__ui_tap(x: 20, y: 60)
 
 # Or navigate forward to the desired screen and reset:
-Dala.Test.navigate(node, MyApp.HomeScreen)
+Dala.Test.Test.navigate(node, MyApp.HomeScreen)
 ```
 
-`Dala.Test.navigate/3` (push) is safe — it does not trigger the crash.
+`Dala.Test.Test.navigate/3` (push) is safe — it does not trigger the crash.
 
 ---
 
@@ -399,4 +399,4 @@ lsof -i :9101
 ```
 
 If something else is using it, configure a different dist port in
-`Dala.Dist.ensure_started/1` and update `dala.exs` accordingly.
+`Dala.Connectivity.Dist.ensure_started/1` and update `dala.exs` accordingly.

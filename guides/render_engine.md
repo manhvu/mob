@@ -11,7 +11,7 @@ Elixir (Dala.Renderer)
     ↓ 1. Build tree (Dala.Node structs)
     ↓ 2. Prepare + resolve tokens
     ↓ 3. Encode to binary (encode_tree/1 or encode_frame/1)
-    ↓ 4. Call NIF with binary
+    ↓ 4. Call Dala.Platform.Native with binary
     ↓
 Rust NIF (dala_nif)
     ↓ 5. Receive binary (zero-copy via Rustler Binary<'a>)
@@ -44,81 +44,82 @@ dala do
 end
 ```
 
-This produces a tree of `%Dala.Node{}` structs with stable `:id` fields for reconciliation:
+This produces a tree of `%Dala.Ui.Node{}` structs (via `Dala.Node.from_map/2`) with stable `:id` fields for reconciliation:
 
 ```elixir
-%Dala.Node{
+%Dala.Ui.Node{
   id: "root",
   type: :column,
   props: %{},
   children: [
-    %Dala.Node{id: "text1", type: :text, props: %{text: "Hello World"}, children: []},
-    %Dala.Node{id: "btn1", type: :button, props: %{text: "Tap me", on_tap: {pid, :tap}}, children: []}
+    %Dala.Ui.Node{id: "text1", type: :text, props: %{text: "Hello World"}, children: []},
+    %Dala.Ui.Node{id: "btn1", type: :button, props: %{text: "Tap me", on_tap: {pid, :tap}}, children: []}
   ]
 }
 ```
 
-### 2. Prepare Phase (`Dala.Renderer.prepare/4`)
+### 2. Prepare Phase (`Dala.Ui.Renderer`)
 
-The `prepare/4` function transforms the tree before binary encoding:
+The renderer transforms the tree before binary encoding — token resolution, component defaults, platform blocks, and tap registration.
 
-- **Resolves theme tokens**: Converts `@color.primary` → `"#007AFF"`
-- **Applies component defaults**: Adds default props for each component type
-- **Handles platform blocks**: Merges `:ios` or `:android` specific props
-- **Registers tap handlers**: Converts `{pid, :tag}` tuples to NIF tap handles
-- **Generates stable IDs**: Uses `hash_id/1` for deterministic node identification
-
-Key code in `lib/dala/renderer.ex`:
+Key code in `lib/dala/ui/renderer.ex`:
 
 ```elixir
-defp prepare(%{type: type, props: props, children: children}, nif, platform, ctx) do
-  defaults = Map.get(@component_defaults, type, %{})
-  with_defaults = Map.merge(defaults, props)
-  prepared_props = prepare_props(with_defaults, nif, platform, ctx)
-  prepared_children = Enum.map(children, &prepare(&1, nif, platform, ctx))
-  
-  %{type: type, props: prepared_props, children: prepared_children}
+def render(tree, _platform, nif \\ @default_nif, _transition \\ :none) do
+  theme = apply(Theme, :current, [])
+  ctx = %{
+    colors: apply(Theme, :color_map, [theme]),
+    spacing: apply(Theme, :spacing_map, [theme]),
+    radii: apply(Theme, :radius_map, [theme]),
+    type_scale: theme.type_scale
+  }
+  nif.clear_taps()
+  node = to_node(tree, "root")
+  binary = encode_tree(node)
+  nif.set_root_binary(binary)
+  {:ok, :binary_tree}
 end
 ```
 
 ### 3. Binary Encoding
 
-The prepared tree is encoded to a compact binary format using `encode_tree/1` or `encode_frame/1`:
+The tree is encoded to a compact binary format using `encode_tree/1` or `encode_frame/1`:
 
 #### Full Tree Encoding
 
 ```elixir
-# In Dala.Renderer.render/4
+# In Dala.Ui.Renderer.render/4
 node = to_node(tree, "root")
 binary = encode_tree(node)
 nif.set_root_binary(binary)
 ```
 
-Binary format (version 2):
+Binary format (version 3):
 ```
-[u16 version=2][u16 flags][u64 node_count][node1][node2]...[nodeN]
+[2 bytes magic 0xD100][2 bytes version=3][8 bytes node_count][node1][node2]...[nodeN]
 ```
 
 #### Incremental Patch Encoding
 
 ```elixir
-# In Dala.Renderer.render_patches/5
+# In Dala.Ui.Renderer.render_patches/5
 patches = Dala.Diff.diff(old_tree, new_tree)
 binary = encode_frame(patches)
 nif.apply_patches(binary)
 ```
 
-Binary format (version 1):
+Binary format (version 3):
 ```
-[u16 version=1][u16 patch_count][patch1][patch2]...[patchN]
+[2 bytes magic][2 bytes version=3][2 bytes flags][2 bytes patch_count][patch1]...[patchN]
 ```
 
 ### 4. NIF Call (Rust)
 
-The binary is passed to the Rust NIF via `set_root_binary/1` or `apply_patches/1`:
+The binary is passed to the Rust NIF via `Dala.Platform.Native.set_root_binary/1` or `Dala.Platform.Native.apply_patches/1`:
 
 ```rust
 // native/dala_nif/src/lib.rs
+#[rustler::nif]
 fn set_root_binary(binary: Binary) -> NifResult<Atom> {
     let bytes: &[u8] = binary.as_slice();  // Zero-copy access!
     let transition = get_transition_and_clear();
@@ -164,7 +165,7 @@ SwiftUI observes `root` changes and re-renders:
 // ios/DalaRootView.swift
 struct DalaRootView: View {
     @StateObject private var viewModel = DalaViewModel.shared
-    
+
     var body: some View {
         if let root = viewModel.root {
             DalaNodeView(node: root)
@@ -183,7 +184,8 @@ For complete details on the binary format, see [Binary Protocol](binary_protocol
 
 | Element | Size | Description |
 |---------|------|-------------|
-| Version | 2 bytes | `2` for full trees, `1` for patches |
+| Magic | 2 bytes | `0xD1, 0x00` — identifies Dala protocol |
+| Version | 2 bytes | `3` for full trees and patches |
 | Flags | 2 bytes | Reserved (currently `0`) |
 | Node Count | 8 bytes | Total nodes in tree (little-endian) |
 | Node ID | 8 bytes | 64-bit hashed identifier (from `hash_id/1`) |
@@ -195,14 +197,13 @@ For complete details on the binary format, see [Binary Protocol](binary_protocol
 
 ### Node Identity (hash_id/1)
 
-Stable node IDs are computed using `:erlang.phash2/2`:
+Stable node IDs are computed using SHA-256:
 
 ```elixir
 defp hash_id(id) do
   id_str = to_string(id)
-  lo = :erlang.phash2(id_str, 0xFFFFFFFF)
-  hi = :erlang.phash2({id_str, :hi}, 0xFFFFFFFF)
-  Bitwise.bor(Bitwise.bsl(hi, 32), lo)
+  <<hash::unsigned-64-big, _rest::binary>> = :crypto.hash(:sha256, id_str)
+  hash
 end
 ```
 
@@ -214,9 +215,9 @@ Dala supports patch-based UI updates instead of full tree re-renders.
 
 ### Architecture
 
-- UI trees use `Dala.Node` struct with stable `:id` field
+- UI trees use `Dala.Ui.Node` struct with stable `:id` field
 - `Dala.Diff.diff(old, new)` compares two trees and produces patches
-- `Dala.Renderer.render_patches/5` sends only patches to native
+- `Dala.Ui.Renderer.render_patches/5` sends only patches to native
 - `Dala.Screen` stores previous tree in `__dala__.last_tree`
 
 ### Patch Types
@@ -227,6 +228,7 @@ Dala supports patch-based UI updates instead of full tree re-renders.
 | `{:update_props, id, props}` | Update props on existing node |
 | `{:insert, parent_id, index, node}` | Insert new node |
 | `{:remove, id}` | Remove node |
+| `{:patch_node, id, field_mask, props}` | Update specific fields by mask |
 
 ### Fallback Behavior
 
@@ -237,7 +239,7 @@ If native doesn't support `apply_patches/1`, the system falls back to full rende
 ### render/4 (Full Render)
 
 ```elixir
-def render(tree, platform, nif \\ @default_nif, _transition \\ :none) do
+def render(tree, platform, nif \\ Dala.Platform.Native, _transition \\ :none) do
   node = to_node(tree, "root")
   binary = encode_tree(node)
   nif.set_root_binary(binary)
@@ -248,15 +250,12 @@ end
 ### render_fast/4 (Optimized with Tap Batching)
 
 ```elixir
-def render_fast(tree, platform, nif \\ @default_nif, transition \\ :none) do
+def render_fast(tree, platform, nif \\ Dala.Platform.Native, transition \\ :none) do
   nif.clear_taps()
   nif.set_transition(transition)
-  
+
   {prepared, taps} = encode_tree_with_taps(node, nif, platform, ctx)
-  
-  # Batch register taps
-  nif.set_taps(taps)
-  
+
   nif.set_root_binary(prepared)
   {:ok, :binary_tree}
 end
@@ -265,14 +264,13 @@ end
 ### render_patches/5 (Incremental Updates)
 
 ```elixir
-def render_patches(old_tree, new_tree, platform, nif \\ @default_nif, transition \\ :none) do
+def render_patches(old_tree, new_tree, platform, nif \\ Dala.Platform.Native, transition \\ :none) do
   old_node = to_node(old_tree, "old_root")
   new_node = to_node(new_tree, "new_root")
-  
+
   patches = Dala.Diff.diff(old_node, new_node)
-  
+
   if patches == [] do
-    # No changes, skip render
     {:ok, []}
   else
     send_patches(patches, new_node, platform, nif, ctx)
@@ -293,12 +291,11 @@ No copying occurs. The binary data is referenced directly via Rustler's `Binary`
 
 ### Skip Unchanged Renders
 
-`Dala.Renderer` skips renders when nothing changed (see `AGENTS.md` rule 12):
+`Dala.Ui.Renderer` skips renders when nothing changed:
 
 ```elixir
 # In Dala.Screen.do_render/3
 if no_assigns_changed? && !navigation_occurred? do
-  # Skip render, but clear changed tracking
   clear_changed(socket)
   {:noreply, socket}
 end
@@ -326,33 +323,16 @@ SwiftUI uses `navVersion` (not `root` itself) as view identity:
 
 This prevents full view teardown on state updates (e.g., typing in text field).
 
-## Performance Considerations
-
-### Zero-Copy at BEAM↔Rust Boundary
-
-```
-Elixir BEAM (off-heap binary) → Rustler Binary<'a> → &[u8]
-```
-
-No copying occurs. The binary data is referenced directly via Rustler's `Binary` type.
-
-### Skip Unchanged Renders
-
-- Node IDs are 64-bit hashed values for stable reconciliation
-- Property tags use 1-byte identifiers (tags 1-12 defined, more can be added)
-- Enum values (flex_direction, justify_content, etc.) use 1-byte encoding
-- Floats (width, height, padding) use little-endian f32 encoding
-
 ## Debugging Tips
 
 1. **Inspect the tree** (Elixir side):
    ```elixir
-   Dala.Test.inspect(node)  # Returns full tree with assigns
+   Dala.Test.Test.inspect(node)  # Returns full tree with assigns
    ```
 
 2. **Check binary size**:
    ```elixir
-   binary = Dala.Renderer.encode_tree(node)
+   binary = Dala.Ui.Renderer.encode_tree(node)
    IO.puts("Binary size: #{byte_size(binary)} bytes")
    ```
 
@@ -364,15 +344,14 @@ No copying occurs. The binary data is referenced directly via Rustler's `Binary`
 
 4. **Test Diff engine**:
    ```elixir
-   old = Dala.Node.from_map(old_map, "root")
-   new = Dala.Node.from_map(new_map, "root")
+   old = Dala.Ui.Node.from_map(old_map, "root")
+   new = Dala.Ui.Node.from_map(new_map, "root")
    patches = Dala.Diff.diff(old, new)
    IO.inspect(patches, label: "Patches")
    ```
 
 5. **Verify native patches** (iOS):
    ```swift
-   // Add to DalaViewModel.setRootFromBinary:
    NSLog("[Dala] Setting root from binary, size: %d bytes", data.length)
    ```
 
@@ -392,14 +371,18 @@ mix test test/dala/diff_test.exs
 
 Dala uses a **binary protocol** for UI transfer that prioritizes performance and type safety:
 
-- **Full tree encoding** via `encode_tree/1` (version 2 format)
-- **Incremental patches** via `encode_frame/1` (version 1 format)
+- **Full tree encoding** via `encode_tree/1` (version 3 format with magic bytes)
+- **Incremental patches** via `encode_frame/1` (version 3 format)
 - **Zero-copy** at BEAM↔Rust boundary using Rustler's `Binary<'a>`
-- **Stable node IDs** via `hash_id/1` for diffing
+- **Stable node IDs** via SHA-256 `hash_id/1` for diffing
 - **Patch-based updates** via `Dala.Diff.diff/2`
 
 The binary protocol provides excellent performance with minimal payload sizes.
 
 ## References
 
+- Implementation: `lib/dala/ui/renderer.ex` (functions `encode_tree`, `encode_frame`, `hash_id`)
+- NIF declarations: `lib/dala/platform/native.ex` (`set_root_binary/1`, `apply_patches/1`)
+- Tests: `test/dala/binary_protocol_test.exs` (Elixir) and `native/dala_nif/src/protocol.rs` (Rust)
+- Rust NIF decoder: `native/dala_nif/src/protocol.rs` (fully implemented with 21+ tests)
 - [Rustler in Mobile](rustler_complete.md) — Complete guide to Rustler in Dala

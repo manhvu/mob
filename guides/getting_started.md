@@ -108,7 +108,7 @@ This generates a small Xcode project stub, uses it to register your bundle ID wi
 Apple, and downloads a development provisioning profile — all from the command line.
 You won't need to build or launch anything in Xcode.
 
-> **If `mix dala.provision` fails:** open Xcode, select your phone from the device
+> If `mix dala.provision` fails: open Xcode, select your phone from the device
 > picker at the top, and wait for it to finish "Preparing device for development".
 > Then re-run `mix dala.provision`.
 
@@ -467,7 +467,7 @@ BEAM on the device. You can inspect state, call functions, and push code live.
 Node.list()
 #=> [:"my_app_ios@127.0.0.1"]
 
-Dala.Test.assigns(:"my_app_ios@127.0.0.1")
+Dala.Test.Test.assigns(:"my_app_ios@127.0.0.1")
 #=> %{count: 0, safe_area: %{top: 62.0, ...}}
 ```
 
@@ -672,7 +672,7 @@ side effects. The `changed` map is tracked automatically — no manual bookkeepi
 - [Components](components.md) — full component reference
 - [Navigation](navigation.md) — stack, tab bar, drawer, push/pop
 - [Theming](theming.md) — color tokens, named themes, runtime switching
-- [Data & Persistence](data.md) — `Dala.State` for preferences, Ecto + SQLite for structured data
+- [Data & Persistence](data.md) — Ecto + SQLite for structured data
 - [Device Capabilities](device_capabilities.md) — camera, location, haptics, notifications
 - [LiveView Mode](liveview.md) — full Phoenix LiveView app inside a native WebView (the two-bridge architecture, `mix dala.enable liveview`)
 - [Testing](testing.md) — unit tests and live device inspection

@@ -36,7 +36,7 @@ Point your agent at the relevant `AGENTS.md` for the repo it's working in:
 
 - **[`dala/AGENTS.md`](https://github.com/GenericJam/dala/blob/main/AGENTS.md)** —
   runtime library. The "what is Dala", three-repo topology, and the full
-  "driving apps from your session" reference (Dala.Test, MCP fallbacks,
+  "driving apps from your session" reference (Dala.Test.Test, MCP fallbacks,
   round-trip workflow).
 - **[`dala_dev/AGENTS.md`](https://github.com/GenericJam/dala_dev/blob/main/AGENTS.md)** —
   build/deploy/devices toolkit. TDD policy and the public-but-undocumented
@@ -138,25 +138,25 @@ Use these in order. Only go deeper if the layer above doesn't answer your questi
 
 ### Layer 1 — Erlang distribution (always try this first)
 
-`Dala.Test` gives the agent exact knowledge of what's happening inside the running app.
+`Dala.Test.Test` gives the agent exact knowledge of what's happening inside the running app.
 No image parsing, no heuristics, no guessing.
 
 ```elixir
 node = :"dala_demo_ios@127.0.0.1"
 
-Dala.Test.screen(node)
+Dala.Test.Test.screen(node)
 #=> dalaDemo.CounterScreen
 
-Dala.Test.assigns(node)
+Dala.Test.Test.assigns(node)
 #=> %{count: 3, safe_area: %{top: 62.0, bottom: 34.0, left: 0.0, right: 0.0}}
 
-Dala.Test.find(node, "Increment")
+Dala.Test.Test.find(node, "Increment")
 #=> [{[0, 1], %{"type" => "button", "on_tap_tag" => "increment"}}]
 
-Dala.Test.tap(node, :increment)
+Dala.Test.Test.tap(node, :increment)
 #=> :ok
 
-Dala.Test.inspect(node)
+Dala.Test.Test.inspect(node)
 #=> %{screen: dalaDemo.CounterScreen, assigns: %{count: 4}, nav_history: [], tree: ...}
 ```
 
@@ -164,7 +164,7 @@ This is available via `iex -S mix` (after `mix dala.connect` has set up the tunn
 or directly from an agent that can run shell commands, using:
 
 ```bash
-iex -S mix --eval 'IO.inspect Dala.Test.assigns(:"dala_demo_ios@127.0.0.1")'
+iex -S mix --eval 'IO.inspect Dala.Test.Test.assigns(:"dala_demo_ios@127.0.0.1")'
 ```
 
 ### Layer 2 — MCP platform tools (for rendering and layout)
@@ -208,10 +208,10 @@ or a specific low-level query has no higher-level equivalent.
 ```
 1. Edit Elixir source
 2. mix dala.push                      ← push changed BEAMs (no restart needed)
-3. Dala.Test.screen(node)             ← confirm which screen is active
-4. Dala.Test.assigns(node)            ← confirm data state is what you expect
-5. Dala.Test.tap(node, :some_tag)     ← drive an interaction
-6. Dala.Test.assigns(node)            ← confirm state updated
+3. Dala.Test.Test.screen(node)        ← confirm which screen is active
+4. Dala.Test.Test.assigns(node)       ← confirm data state is what you expect
+5. Dala.Test.Test.tap(node, :some_tag) ← drive an interaction
+6. Dala.Test.Test.assigns(node)       ← confirm state updated
 7. mcp__ios-simulator__screenshot    ← visual check only if layout matters
 8. repeat from 1
 ```
@@ -242,11 +242,11 @@ screenshots or adb screencap as your primary inspection method.
 
 Instead:
 1. Run `mix dala.connect --no-iex` to establish distribution tunnels (if not already running)
-2. Use `Dala.Test` from IEx to query exact state:
-   - `Dala.Test.screen(node)` — what screen is active?
-   - `Dala.Test.assigns(node)` — what is the live data?
-   - `Dala.Test.tap(node, :tag)` — drive a tap by tag atom
-   - `Dala.Test.find(node, "text")` — locate a widget by visible text
+2. Use `Dala.Test.Test` from IEx to query exact state:
+   - `Dala.Test.Test.screen(node)` — what screen is active?
+   - `Dala.Test.Test.assigns(node)` — what is the live data?
+   - `Dala.Test.Test.tap(node, :tag)` — drive a tap by tag atom
+   - `Dala.Test.Test.find(node, "text")` — locate a widget by visible text
 3. Only reach for `mcp__ios-simulator__screenshot` or `mcp__adb__dump_image` when
    you need to verify rendering or layout — not to check app state.
 
@@ -257,9 +257,9 @@ Node names:
 
 Replace `dala_demo` with your actual app name.
 
-## Why Dala.Test beats screenshots for state inspection
+## Why Dala.Test.Test beats screenshots for state inspection
 
-| | Dala.Test | Screenshot |
+| | Dala.Test.Test | Screenshot |
 |---|---|---|
 | Screen module | Exact atom | OCR guess |
 | Assigns | Full Elixir map | Not available |
@@ -295,17 +295,17 @@ iex -S mix
 node = :"dala_demo_ios@127.0.0.1"
 
 # Before
-Dala.Test.assigns(node)
+Dala.Test.Test.assigns(node)
 #=> %{count: 0}
 
-Dala.Test.tap(node, :increment)
+Dala.Test.Test.tap(node, :increment)
 
 # After — immediate, exact
-Dala.Test.assigns(node)
+Dala.Test.Test.assigns(node)
 #=> %{count: 1}
 
 # If it's still 0, the handle_event clause isn't matching — check the tag name
-Dala.Test.find(node, "Increment")
+Dala.Test.Test.find(node, "Increment")
 #=> [{[0, 1], %{"type" => "button", "on_tap_tag" => "inc"}}]
 # Ah — the tag is :inc, not :increment
 ```
@@ -320,13 +320,13 @@ and their tags on the current screen, use the full snapshot:
 
 ```elixir
 node = :"dala_demo_ios@127.0.0.1"
-Dala.Test.inspect(node)
+Dala.Test.Test.inspect(node)
 # %{screen: ..., assigns: ..., tree: %{"type" => "column", "children" => [...]}}
 ```
 
 Or just read the screen's DSL block — every interactive widget has a tag
 in its props. The tag atom in `on_tap: :my_tag` is what you pass to
-`Dala.Test.tap(node, :my_tag)`.
+`Dala.Test.Test.tap(node, :my_tag)`.
 
 ## Further Reading
 

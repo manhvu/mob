@@ -19,25 +19,26 @@ Dala's UI render pipeline uses a **custom binary protocol** to transfer UI trees
 
 | Version | Used For | Description |
 |---------|----------|-------------|
-| 1 | Patches | Incremental patch frames |
-| 2 | Full Trees | Complete UI tree encoding |
+| 3 | Full Trees & Patches | Current format — magic header, SHA-256 node IDs, extended tags |
+
+> **Note:** Versions 1 and 2 are deprecated. All current tooling uses version 3.
 
 ---
 
-## Full Tree Format (Version 2)
+## Full Tree Format (Version 3)
 
-Used by `Dala.Renderer.encode_tree/1` and `Dala.Native.set_root_binary/1`.
+Used by `Dala.Ui.Renderer.encode_tree/1` and `Dala.Platform.Native.set_root_binary/1`.
 
 ### Header
 
 ```
-[u16 version=2][u16 flags][u64 node_count]
+[2 bytes magic 0xD100][2 bytes version=3][8 bytes node_count]
 ```
 
 | Field | Size | Description |
 |-------|------|-------------|
-| version | 2 bytes | Always `2` (little-endian) |
-| flags | 2 bytes | Reserved for future use (currently `0`) |
+| magic | 2 bytes | `0xD1, 0x00` — identifies Dala protocol |
+| version | 2 bytes | Always `3` (little-endian) |
 | node_count | 8 bytes | Total number of nodes in the tree (little-endian) |
 
 ### Node Encoding
@@ -49,18 +50,17 @@ Each node is encoded as:
 ```
 
 #### Node ID (8 bytes)
-A 64-bit hashed identifier for the node, computed by `Dala.Renderer.hash_id/1`:
+A 64-bit hashed identifier for the node, computed by `Dala.Ui.Renderer.hash_id/1`:
 
 ```elixir
 defp hash_id(id) do
   id_str = to_string(id)
-  lo = :erlang.phash2(id_str, 0xFFFFFFFF)
-  hi = :erlang.phash2({id_str, :hi}, 0xFFFFFFFF)
-  Bitwise.bor(Bitwise.bsl(hi, 32), lo)
+  <<hash::unsigned-64-big, _rest::binary>> = :crypto.hash(:sha256, id_str)
+  hash
 end
 ```
 
-This ensures stable, deterministic IDs for diffing.
+This ensures stable, deterministic IDs for diffing using SHA-256 hashing.
 
 #### Node Type (1 byte)
 
@@ -73,6 +73,7 @@ This ensures stable, deterministic IDs for diffing.
 | 4 | `:image` |
 | 5 | `:scroll` |
 | 6 | `:webview` |
+| 7+ | Custom / plugin types |
 | 0 (default) | Unknown types default to 0 |
 
 #### Property Count (1 byte)
@@ -85,7 +86,7 @@ Each property is encoded as:
 [u8 tag][value...]
 ```
 
-See **Property Encoding** section below.
+See **Property Encoding** section below. Tags now extend to 16+ for new component properties.
 
 #### Child Count (4 bytes)
 Number of children this node has (little-endian u32).
@@ -95,22 +96,80 @@ Array of `child_count × 8 bytes`, each child ID is a u64 (little-endian).
 
 ---
 
-## Patch Frame Format (Version 1)
+## Patch Frame Format (Version 3)
 
-Used by `Dala.Renderer.encode_frame/1` and `Dala.Native.apply_patches/1`.
+Used by `Dala.Ui.Renderer.encode_frame/1` and `Dala.Platform.Native.apply_patches/1`.
 
 ### Header
 
 ```
-[u16 version=1][u16 patch_count]
+[2 bytes magic 0xD100][2 bytes version=3][2 bytes flags][2 bytes patch_count]
 ```
 
 | Field | Size | Description |
 |-------|------|-------------|
-| version | 2 bytes | Always `1` (little-endian) |
+| magic | 2 bytes | `0xD1, 0x00` — identifies Dala protocol |
+| version | 2 bytes | Always `3` (little-endian) |
+| flags | 2 bytes | Reserved (currently `0`) |
 | patch_count | 2 bytes | Number of patches in this frame (little-endian) |
 
 ### Patch Opcodes
+
+#### `op_patch_node` (0x04)
+
+```
+[u8 opcode=0x04][u64 id][u8 field_mask][props...]
+```
+
+Update specific fields on a node by bitmask. More efficient than a full property update.
+
+#### `op_set_text` (0x05)
+
+```
+[u8 opcode=0x05][u64 id][u16 len][bytes]
+```
+
+Fast-path for text-only updates on `:text` and `:button` nodes.
+
+#### `op_set_style` (0x06)
+
+```
+[u8 opcode=0x06][u64 id][u8 style_tag][u8 style_value]
+```
+
+Update a single style property (e.g., color, padding) without a full props map.
+
+#### `op_register_string` (0x07)
+
+```
+[u8 opcode=0x07][u64 id][u16 len][bytes]
+```
+
+Pre-register a string with the native side for faster subsequent references.
+
+#### `op_event` (0x08)
+
+```
+[u8 opcode=0x08][u64 id][u8 event_type][payload...]
+```
+
+Event delivery from native to Elixir (reverse direction).
+
+#### `op_frame_begin` (0x09)
+
+```
+[u8 opcode=0x09]
+```
+
+Delimits the start of a frame. Used for frame boundary detection.
+
+#### `op_frame_end` (0x0A)
+
+```
+[u8 opcode=0x0A]
+```
+
+Delimits the end of a frame.
 
 #### INSERT (0x01)
 
@@ -158,6 +217,7 @@ Properties are encoded as tagged values. The `field_count` byte in the node head
 | 10 | `:flex_direction` | `[u8]` | byte (0=column, 1=row) |
 | 11 | `:justify_content` | `[u8]` | byte (0=start, 1=center, 2=end, 3=space_between) |
 | 12 | `:align_items` | `[u8]` | byte (0=start, 1=center, 2=end, 3=stretch) |
+| 13+ | *(extended)* | *varies* | Reserved for new component properties |
 
 ### Enum Encoding
 
@@ -192,17 +252,17 @@ Properties are encoded as tagged values. The `field_count` byte in the node head
 
 ### Elixir Side (Encoder)
 
-Located in `lib/dala/renderer.ex`:
+Located in `lib/dala/ui/renderer.ex`:
 
 ```elixir
 # Full tree encoding
-Dala.Renderer.encode_tree(%Dala.Node{} = node)
+Dala.Ui.Renderer.encode_tree(%Dala.Ui.Node{} = node)
 
 # Patch frame encoding
-Dala.Renderer.encode_frame([patch1, patch2, ...])
+Dala.Ui.Renderer.encode_frame([patch1, patch2, ...])
 
-# Hash function for stable node IDs
-Dala.Renderer.hash_id(id)  # returns u64 integer
+# Hash function for stable node IDs (SHA-256)
+Dala.Ui.Renderer.hash_id(id)  # returns u64 integer
 ```
 
 ### Rust NIF Side (Decoder)
@@ -213,7 +273,7 @@ The Rust NIF (`native/dala_nif/src/protocol.rs`) receives binaries via Rustler:
 #[rustler::nif]
 fn set_root_binary(binary: Binary) -> NifResult<Atom> {
     let bytes: &[u8] = binary.as_slice();
-    // Parse header: version, flags, node_count
+    // Parse header: magic (0xD100), version (3), node_count
     // Then parse each node...
 }
 ```
@@ -227,12 +287,12 @@ Rustler's `Binary` type provides zero-copy access to BEAM off-heap binaries.
 ### Encoding a Full Tree
 
 ```elixir
-node = %Dala.Node{
+node = %Dala.Ui.Node{
   id: "root",
   type: :column,
   props: %{padding: 10, background: "blue"},
   children: [
-    %Dala.Node{
+    %Dala.Ui.Node{
       id: "text1",
       type: :text,
       props: %{text: "Hello World"},
@@ -241,8 +301,8 @@ node = %Dala.Node{
   ]
 }
 
-binary = Dala.Renderer.encode_tree(node)
-# => <<2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, ...>>
+binary = Dala.Ui.Renderer.encode_tree(node)
+# => <<209, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, ...>>
 ```
 
 ### Encoding Patches
@@ -251,17 +311,17 @@ binary = Dala.Renderer.encode_tree(node)
 patches = [
   {:remove, "old_node"},
   {:update_props, "node1", %{text: "Updated"}},
-  {:insert, "parent", 0, %Dala.Node{...}}
+  {:insert, "parent", 0, %Dala.Ui.Node{...}}
 ]
 
-binary = Dala.Renderer.encode_frame(patches)
-# => <<1, 0, 3, 0, ...>>
+binary = Dala.Ui.Renderer.encode_frame(patches)
+# => <<209, 0, 3, 0, 2, 0, ...>>
 ```
 
 ### In Render Functions
 
 ```elixir
-# Dala.Renderer.render/4 now uses binary protocol
+# Dala.Ui.Renderer.render/4 now uses binary protocol
 def render(tree, platform, nif \\ @default_nif, _transition \\ :none) do
   node = to_node(tree, "root")
   binary = encode_tree(node)
@@ -279,14 +339,14 @@ Test file: `test/dala/binary_protocol_test.exs`
 ```elixir
 # Example test
 test "encodes a simple text node" do
-  node = %Node{
+  node = %Dala.Ui.Node{
     id: "text1",
     type: :text,
     props: %{text: "Hello"},
     children: []
   }
 
-  binary = Renderer.encode_tree(node)
+  binary = Dala.Ui.Renderer.encode_tree(node)
   assert is_binary(binary)
   assert byte_size(binary) > 10
 end
@@ -315,7 +375,7 @@ The encoder uses Elixir's iodata to build the binary efficiently:
 
 ```elixir
 IO.iodata_to_binary([
-  <<version::little-16, flags::little-16, node_count::little-64>>,
+  <<209, 0, version::little-16, flags::little-16, node_count::little-64>>,
   node_binaries
 ])
 ```
@@ -332,21 +392,25 @@ The `node_count` field in the header allows the Rust side to pre-allocate memory
 
 ### Flags Field
 
-The 16-bit `flags` field in version 2 header is reserved for:
+The 16-bit `flags` field in version 3 header is reserved for:
 
 - Compression indication
 - Encryption indication
 - Custom extensions
 
+### Additional Opcodes
+
+New opcodes (0x0B+) can be added for custom patch operations without breaking backward compatibility.
+
 ### Additional Property Types
 
-New property tags can be added (13, 14, 15, ...) without breaking backward compatibility.
+New property tags can be added (14, 15, 16, ...) without breaking backward compatibility.
 
 ---
 
 ## References
 
-- Implementation: `lib/dala/renderer.ex` (functions `encode_tree`, `encode_frame`, `hash_id`)
-- NIF declarations: `lib/dala/native.ex` (`set_root_binary/1`)
+- Implementation: `lib/dala/ui/renderer.ex` (functions `encode_tree`, `encode_frame`, `hash_id`)
+- NIF declarations: `lib/dala/platform/native.ex` (`set_root_binary/1`, `apply_patches/1`)
 - Tests: `test/dala/binary_protocol_test.exs` (Elixir) and `native/dala_nif/src/protocol.rs` (Rust)
 - Rust NIF decoder: `native/dala_nif/src/protocol.rs` (fully implemented with 21+ tests)

@@ -8,10 +8,10 @@ This document summarizes the EMLX integration for iOS in the Dala framework.
 
 | Module | Purpose |
 |--------|---------|
-| `Dala.ML.EMLX` | iOS-specific EMLX configuration and helpers |
-| `Dala.ML.Nx` | Nx integration helpers and backend selection |
-| `Dala.ML.Example` | Practical examples of using EMLX on iOS |
-| `Dala.ML.ConfigHelper` | Configuration snippets for mix.exs |
+| `Dala.Ml.Emlx` | iOS-specific EMLX configuration and helpers |
+| `Dala.Ml.Nx` | Nx integration helpers and backend selection |
+| `Dala.Ml.Example` | Practical examples of using EMLX on iOS |
+| `Dala.Ml.ConfigHelper` | Configuration snippets for mix.exs |
 
 ### 2. Documentation
 
@@ -27,22 +27,22 @@ This document summarizes the EMLX integration for iOS in the Dala framework.
 
 ### Platform Detection
 ```elixir
-Dala.ML.EMLX.ios_device?()    # true for real iOS device
-Dala.ML.EMLX.ios_simulator?() # true for simulator
-Dala.ML.EMLX.platform_config() # returns appropriate config
+Dala.Ml.Emlx.ios_device?()    # true for real iOS device
+Dala.Ml.Emlx.ios_simulator?() # true for simulator
+Dala.Ml.Emlx.platform_config() # returns appropriate config
 ```
 
 ### Automatic Backend Selection
 ```elixir
-Dala.ML.Nx.init_for_ios()
+Dala.Ml.Nx.init_for_ios()
 # Automatically selects EMLX (if available) or falls back to Nx.BinaryBackend
 ```
 
 ### Verification
 ```elixir
-Dala.ML.EMLX.available?()           # check if EMLX is working
-Dala.ML.EMLX.verify_installation()  # test with a simple tensor operation
-Dala.ML.EMLX.benchmark()           # run a simple performance test
+Dala.Ml.Emlx.available?()           # check if EMLX is working
+Dala.Ml.Emlx.verify_installation()  # test with a simple tensor operation
+Dala.Ml.Emlx.benchmark()           # run a simple performance test
 ```
 
 ## Usage in a Dala iOS App
@@ -79,7 +79,7 @@ defmodule MyApp.App do
   use Dala.App
 
   def start(_type, _args) do
-    Dala.ML.Nx.init_for_ios()
+    Dala.Ml.Nx.init_for_ios()
     # ... rest of app
   end
 end
@@ -103,6 +103,8 @@ result = Nx.dot(a, b)  # Runs on GPU via EMLX
 2. **Metal GPU available** - EMLX uses MLX with Metal on iOS devices and simulator.
 3. **Unified memory** - Apple Silicon's shared CPU/GPU memory makes EMLX efficient.
 4. **No 64-bit floats** - Metal doesn't support them. Use 32-bit floats.
+result = Nx.dot(a, b)  # Runs on GPU via EMLX
+```
 
 ## Repository Analysis Summary
 

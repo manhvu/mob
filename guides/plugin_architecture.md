@@ -253,7 +253,7 @@ defmodule MyApp do
     MyApp.ChartPlugin.register()
 
     # Start your root screen
-    Dala.Screen.start_root(MyApp.HomeScreen)
+    Dala.Screen.Screen.start_root(MyApp.HomeScreen)
   end
 end
 ```

@@ -6,7 +6,7 @@ Quick reference for all Dala documentation. Files are in `dala/guides/`.
 
 | Guide | Description |
 |-------|-------------|
-| [agentic_coding.md](agentic_coding.md) | AI agent workflow: Dala.Test, MCP tools, round-trip loop |
+| [agentic_coding.md](agentic_coding.md) | AI agent workflow: Dala.Test.Test, MCP tools, round-trip loop |
 | [why_beam.md](why_beam.md) | BEAM-on-mobile pitch: concurrency, hot-code, distribution |
 | [getting_started.md](getting_started.md) | First app setup, REPL, basic screen |
 
@@ -35,7 +35,7 @@ Quick reference for all Dala documentation. Files are in `dala/guides/`.
 
 | Guide | Description |
 |-------|-------------|
-| [data.md](data.md) | `Dala.State` (dets) + Ecto/SQLite layers |
+| [data.md](data.md) | Ecto/SQLite layers |
 | [events.md](events.md) | Event system and message passing |
 
 ## Platform-Specific
@@ -59,7 +59,7 @@ Quick reference for all Dala documentation. Files are in `dala/guides/`.
 | Guide | Description |
 |-------|-------------|
 | [publishing.md](publishing.md) | App Store / TestFlight (links to dala_dev detailed guide) |
-| [testing.md](testing.md) | `Dala.Test` module, writing tests |
+| [testing.md](testing.md) | `Dala.Test.Test` module, writing tests |
 | [security.md](security.md) | Security considerations |
 | [troubleshooting.md](troubleshooting.md) | Common issues, AGENTS.md pre-empt rules |
 | [liveview.md](liveview.md) | Phoenix LiveView wrapper mode |

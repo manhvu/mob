@@ -118,6 +118,14 @@ Dala.ML.EMLX.platform_config()
 # Returns %{device: :gpu, jit_enabled: false, metal_jit: false} for device
 ```
 
+### Default Device
+
+```elixir
+# Returns the default EMLX device
+Dala.ML.EMLX.default_device()
+# :gpu on iOS, :cpu on other platforms
+```
+
 ## CoreML on iOS
 
 ### Loading and Running Models
@@ -236,6 +244,29 @@ defmodule MyApp.Model do
 end
 ```
 
+## Nx Integration
+
+`Dala.Ml.Nx` provides helpers for backend selection and inference:
+
+```elixir
+# Initialize Nx with the best available backend
+Dala.Ml.Nx.init()
+
+# Create a tensor with the default backend
+tensor = Dala.Ml.Nx.tensor([1.0, 2.0, 3.0])
+
+# Run inference with an Axon model
+{:ok, output} = Dala.Ml.Nx.inference(model, params, input_tensor)
+
+# Check if Axon is available
+Dala.Ml.Nx.axon_available?()
+```
+
+### Backend Priority
+
+1. **EMLX** (if available) — best for Apple Silicon
+2. **Nx.BinaryBackend** — pure Elixir fallback
+
 ## Building for iOS
 
 ### Native Build with EMLX
@@ -262,6 +293,18 @@ export LIBMLX_VERSION=0.31.2
 # Cache directory for downloaded binaries
 export LIBMLX_CACHE=~/.cache/libmlx
 ```
+
+## Dependencies
+
+The following dependencies are included in `mix.exs` for ML support:
+
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| `:nx` | `~> 0.10` | Core tensor library |
+| `:polaris` | `~> 0.1` | Nx compiler |
+| `:scholar` | `~> 0.4.0` | Traditional ML algorithms |
+| `:nx_signal` | `~> 0.3.0` | Digital signal processing |
+| `:axon` | `~> 0.8.0` | Neural network library |
 
 ## Limitations
 

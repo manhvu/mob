@@ -1,44 +1,20 @@
 # Data & Persistence
 
-Every generated Dala app ships with two persistence layers ready to use. They serve different purposes and work well together.
+Every generated Dala app ships with Ecto and SQLite for structured data persistence.
 
-| | `Dala.State` | Ecto Repo |
-|---|---|---|
-| Backed by | `:dets` (OTP stdlib) | SQLite3 via `ecto_sqlite3` |
-| Best for | App preferences, UI state | User records, structured data |
-| API | `get/put/delete` | Schemas, queries, migrations |
-| Setup | None — auto-started | `mix ecto.migrate` |
-| Capacity | O(dozens) of keys | Millions of rows |
-
-## Dala.State — app preferences
-
-`Dala.State` is a key-value store for small amounts of app state that should survive kills and restarts. It is backed by [`:dets`](https://www.erlang.org/doc/apps/stdlib/dets.html) — Erlang's disk-based term storage from the OTP stdlib. No extra dependencies, no migrations, no setup. It is started automatically by the framework before `on_start/0` runs.
-
-```elixir
-# Persist any Elixir term
-Dala.State.put(:theme, :citrus)
-Dala.State.put(:onboarded, true)
-Dala.State.put(:last_tab, :settings)
-
-# Read back on next launch — returns default if not yet set
-Dala.State.get(:theme, :obsidian)   #=> :citrus
-Dala.State.get(:missing, 0)         #=> 0
-
-# Remove a key
-Dala.State.delete(:theme)
-```
-
-Writes call `:dets.sync/1` before returning, so data is on disk before the function returns — safe against `SIGKILL`.
-
-Good candidates for `Dala.State`: selected theme, onboarding completion flag, last-opened tab, cached user ID, notification preferences. If you find yourself storing hundreds of keys or wanting to query across them, move that data to Ecto.
-
-See `Dala.State` for the full API reference.
+| | Ecto Repo |
+|---|---|
+| Backed by | SQLite3 via `ecto_sqlite3` |
+| Best for | User records, structured data |
+| API | Schemas, queries, migrations |
+| Setup | `mix ecto.migrate` |
+| Capacity | Millions of rows |
 
 ## Ecto — structured data
 
 Every generated app includes [Ecto](https://hexdocs.pm/ecto) and [ecto_sqlite3](https://hexdocs.pm/ecto_sqlite3), giving you the full Ecto experience on-device backed by SQLite. If you have used Ecto with PostgreSQL in Phoenix, the API is identical for day-to-day use.
 
-Your app's Repo is generated at `lib/my_app/repo.ex`. It is started in `on_start/0` and reads `dala_DATA_DIR` (set by the native launcher) to place the database file in the platform's correct persistent storage directory — `getFilesDir()` on Android, `NSDocumentDirectory` on iOS.
+Your app's Repo is generated at `lib/my_app/repo.ex`. It is started in the generated `on_start/0` and reads `dala_DATA_DIR` (set by the native launcher) to place the database file in the platform's correct persistent storage directory — `getFilesDir()` on Android, `NSDocumentDirectory` on iOS.
 
 ### Defining a schema
 
@@ -128,5 +104,7 @@ def on_start do
   Dala.Screen.Screen.start_root(MyApp.HomeScreen)
 end
 ```
+
+For small amounts of app state that should survive restarts, store it in your app's supervision tree or use `:dets` / `:ets` directly.
 
 The migration modules are compiled into your app's `.beam` files and copied to the device by the build scripts, so `Ecto.Migrator` finds them at the correct path via `:code.priv_dir/1`.

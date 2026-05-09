@@ -7,8 +7,8 @@ A Dala screen is a GenServer wrapped by `Dala.Screen`. Each screen in the naviga
 ### `mount/3`
 
 ```elixir
-@callback mount(params :: map(), session :: map(), socket :: Dala.Socket.t()) ::
-  {:ok, Dala.Socket.t()} | {:error, term()}
+@callback mount(params :: map(), session :: map(), socket :: Dala.Ui.Socket.t()) ::
+  {:ok, Dala.Ui.Socket.t()} | {:error, term()}
 ```
 
 Called once when the screen process starts. Initialize your assigns here.
@@ -17,12 +17,12 @@ Called once when the screen process starts. Initialize your assigns here.
 
 ```elixir
 # Screen A navigates to Screen B with params:
-Dala.Socket.push_screen(socket, MyApp.DetailScreen, %{id: 42})
+Dala.Ui.Socket.push_screen(socket, MyApp.DetailScreen, %{id: 42})
 
 # Screen B receives them in mount:
 def mount(%{id: id}, _session, socket) do
   item = fetch_item(id)
-  {:ok, Dala.Socket.assign(socket, :item, item)}
+  {:ok, Dala.Ui.Socket.assign(socket, :item, item)}
 end
 ```
 
@@ -56,8 +56,8 @@ Keep `render/1` pure. No side effects, no process sends. It may be called more t
 ### `handle_info/2`
 
 ```elixir
-@callback handle_info(message :: term(), socket :: Dala.Socket.t()) ::
-  {:noreply, Dala.Socket.t()}
+@callback handle_info(message :: term(), socket :: Dala.Ui.Socket.t()) ::
+  {:noreply, Dala.Ui.Socket.t()}
 ```
 
 The primary callback for responding to user interaction and async results. All UI events — taps, text changes, list selections — arrive here as messages sent by the NIF directly to the screen process.
@@ -83,7 +83,7 @@ text_field text: @name, on_change: :name_changed
 
 # In handle_event:
 def handle_event({:change, :name_changed, value}, _params, socket) do
-  {:noreply, Dala.Socket.assign(socket, :name, value)}
+  {:noreply, Dala.Ui.Socket.assign(socket, :name, value)}
 end
 ```
 
@@ -91,7 +91,7 @@ end
 
 ```elixir
 def handle_info({:camera, :photo, %{path: path}}, socket) do
-  {:noreply, Dala.Socket.assign(socket, :photo_path, path)}
+  {:noreply, Dala.Ui.Socket.assign(socket, :photo_path, path)}
 end
 
 def handle_info({:camera, :cancelled}, socket) do
@@ -103,7 +103,7 @@ Navigation is triggered by returning a modified socket:
 
 ```elixir
 def handle_event(:open_detail, _params, socket) do
-  {:noreply, Dala.Socket.push_screen(socket, MyApp.DetailScreen, %{id: socket.assigns.id})}
+  {:noreply, Dala.Ui.Socket.push_screen(socket, MyApp.DetailScreen, %{id: socket.assigns.id})}
 end
 ```
 
@@ -112,8 +112,8 @@ The default implementation (from `use Dala.Spark.Dsl`) is a no-op that returns t
 ### `handle_event/3`
 
 ```elixir
-@callback handle_event(event :: term(), params :: map(), socket :: Dala.Socket.t()) ::
-  {:noreply, Dala.Socket.t()} | {:reply, map(), socket :: Dala.Socket.t()}
+@callback handle_event(event :: term(), params :: map(), socket :: Dala.Ui.Socket.t()) ::
+  {:noreply, Dala.Ui.Socket.t()} | {:reply, map(), Dala.Ui.Socket.t()}
 ```
 
 The primary callback for responding to user interaction in DSL-style screens. All UI events — taps, text changes, list selections — arrive here.
@@ -127,7 +127,7 @@ end
 
 # Change event with value:
 def handle_event({:change, :name_changed, value}, _params, socket) do
-  {:noreply, Dala.Socket.assign(socket, :name, value)}
+  {:noreply, Dala.Ui.Socket.assign(socket, :name, value)}
 end
 ```
 
@@ -140,7 +140,7 @@ Dala.Screen.Screen.dispatch(pid, :increment, %{})
 ### `terminate/2`
 
 ```elixir
-@callback terminate(reason :: term(), socket :: Dala.Socket.t()) :: term()
+@callback terminate(reason :: term(), socket :: Dala.Ui.Socket.t()) :: term()
 ```
 
 Called when the screen process is about to stop. Use it for cleanup — cancel timers, release resources. The return value is ignored.
@@ -149,7 +149,7 @@ The default is a no-op. Most screens don't need to implement this.
 
 ## Starting screens
 
-### `Dala.Screen.start_root/3`
+### `Dala.Screen.Screen.start_root/3`
 
 Called by `Dala.App` to start the root screen of the navigation stack. This is the entry point for your app's UI. If it returns `{:error, reason}`, the app crashes loudly (see AGENTS.md rule #2).
 
@@ -157,17 +157,11 @@ Called by `Dala.App` to start the root screen of the navigation stack. This is t
 {:ok, pid} = Dala.Screen.Screen.start_root(MyApp.HomeScreen, %{}, nil)
 ```
 
-### `Dala.Screen.start_link/3`
-
-Starts a screen in `:no_render` mode for testing. Skips NIF calls but runs all Elixir callbacks. Used in `ExUnit` tests:
+`Dala.Screen.start_link/3` is for testing — it starts the screen in `:no_render` mode, skipping NIF calls but running all Elixir callbacks:
 
 ```elixir
 {:ok, pid} = Dala.Screen.start_link(MyApp.CounterScreen, %{})
 ```
-
-### `Dala.Screen.start_link/2` (with `:test` option)
-
-Equivalent to `start_link/3` with `nil` as the third argument. Convenience for tests.
 
 ## Event handling: handle_event vs handle_info
 
@@ -188,7 +182,7 @@ Device API results (camera, location, etc.) and other raw messages still arrive 
 
 ```elixir
 def handle_info({:camera, :photo, %{path: path}}, socket) do
-  {:noreply, Dala.Socket.assign(socket, :photo_path, path)}
+  {:noreply, Dala.Ui.Socket.assign(socket, :photo_path, path)}
 end
 ```
 
@@ -234,18 +228,18 @@ The default is a no-op. Most screens don't need it.
 
 ## The socket
 
-All callbacks receive and return a `Dala.Socket.t()`. Think of it as a struct carrying your screen's state:
+All callbacks receive and return a `Dala.Ui.Socket.t()`. Think of it as a struct carrying your screen's state:
 
 - `socket.assigns` — your data (`:count`, `:user`, `:items`, etc.)
 - `socket.__dala__` — internal framework state; do not touch directly
 
-Use `Dala.Socket.assign/2,3` to update assigns. Use the navigation functions (`push_screen`, `pop_screen`, etc.) to queue navigation actions. Both return a new socket; they never mutate in place.
+Use `Dala.Ui.Socket.assign/2,3` to update assigns. Use the navigation functions (`push_screen`, `pop_screen`, etc.) to queue navigation actions. Both return a new socket; they never mutate in place.
 
 ```elixir
 socket
-|> Dala.Socket.assign(:loading, false)
-|> Dala.Socket.assign(:items, items)
-|> Dala.Socket.push_screen(MyApp.DetailScreen, %{id: id})
+|> Dala.Ui.Socket.assign(:loading, false)
+|> Dala.Ui.Socket.assign(:items, items)
+|> Dala.Ui.Socket.push_screen(MyApp.DetailScreen, %{id: id})
 ```
 
 ## Safe area

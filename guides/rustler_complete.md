@@ -36,7 +36,7 @@ fn my_custom_function<'a>(env: Env<'a>, input: Term<'a>) -> NifResult<Term<'a>> 
     // Your Rust implementation here
     let input_str: String = input.decode()?;
     let result = format!("Processed: {}", input_str);
-    
+
     // Return the result
     Ok(rustler::types::binary::Binary::from_bytes(result.as_bytes())
         .to_term(env)
@@ -45,7 +45,7 @@ fn my_custom_function<'a>(env: Env<'a>, input: Term<'a>) -> NifResult<Term<'a>> 
 
 // Register the function in the rustler::init! macro at the bottom of the file:
 rustler::init!(
-    "Elixir.Dala.Native",
+    "Elixir.Dala.Platform.Native",
     [
         // ... existing functions ...
         my_custom_function,
@@ -55,12 +55,12 @@ rustler::init!(
 
 ### 2. Add the Elixir wrapper
 
-Edit `dala/lib/dala/native.ex`:
+Edit `dala/lib/dala/platform/native.ex`:
 
 ```elixir
-defmodule Dala.Native do
+defmodule Dala.Platform.Native do
   # ... existing functions ...
-  
+
   @doc "My custom function"
   def my_custom_function(_input), do: :erlang.nif_error(:nif_not_loaded)
 end
@@ -104,10 +104,10 @@ mod android {
 pub fn get_platform_info() -> String {
     #[cfg(target_os = "ios")]
     return ios::platform_specific().to_string();
-    
+
     #[cfg(target_os = "android")]
     return android::platform_specific().to_string();
-    
+
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     return "Unknown platform".to_string();
 }
@@ -221,7 +221,7 @@ Message sending from ObjC/Java callbacks uses platform-specific dispatch, not a 
 #[cfg(test)]
 mod tests {
     use super::*;
-       
+
     #[test]
     fn test_my_function() {
         // Test your Rust code
@@ -233,7 +233,7 @@ mod tests {
 
 ```elixir
 test "my custom function works" do
-  assert {:ok, result} = Dala.Native.my_custom_function("test")
+  assert {:ok, result} = Dala.Platform.Native.my_custom_function("test")
 end
 ```
 
@@ -246,7 +246,7 @@ end
 
 2. **Check NIF loading:**
    ```elixir
-   :code.is_loaded(Dala.Native)
+   :code.is_loaded(Dala.Platform.Native)
    ```
 
 3. **Test NIF functions directly:**
@@ -276,3 +276,4 @@ end
 - [JNI Documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/)
 - [Objective-C Runtime](https://developer.apple.com/documentation/objectivec/objective-c_runtime)
 - [Erlang NIF C API](http://erlang.org/doc/man/erl_nif.html)
+- [Dala Platform.Native API](guides/render_engine.md)

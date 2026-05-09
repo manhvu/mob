@@ -16,7 +16,7 @@ Dala takes an unusual position in the dalaile framework landscape. To understand
                    └─────────┬─────────┘
                              │  render/1 → component tree
                    ┌─────────▼─────────┐
-                   │   Dala.Renderer     │  serialise + token resolution
+                   │   Dala.Ui.Renderer     │  serialise + token resolution
                    │   - render/4       │  standard render
                    │   - render_fast/4  │  batch tap registration (skip clear+re-register)
                    └─────────┬─────────┘
@@ -30,7 +30,7 @@ Dala takes an unusual position in the dalaile framework landscape. To understand
 
 BEAM and OTP run **on the device** — embedded inside the APK and the iOS app bundle. There is no server. Your screen logic, navigation state, and business logic all execute locally in the same BEAM node that the user has installed.
 
-The rendering layer is thin: `render/1` returns a plain Elixir map (the component tree), `Dala.Renderer` serialises it to binary via the custom binary protocol and passes it to the native side via a NIF call. Compose or SwiftUI diff and display it. UI events travel back as NIF callbacks that send messages to the screen GenServer. The BEAM owns state; the native UI is a thin view.
+The rendering layer is thin: `render/1` returns a plain Elixir map (the component tree), `Dala.Ui.Renderer` serialises it to binary via the custom binary protocol and passes it to the native side via a NIF call. Compose or SwiftUI diff and display it. UI events travel back as NIF callbacks that send messages to the screen GenServer. The BEAM owns state; the native UI is a thin view.
 
 ### Dala.Socket changes tracking
 
@@ -55,7 +55,7 @@ The `changed` map is cleared after each render (even when skipping), preventing 
 `Dala.App` is the entry point macro. It defines:
 - `navigation/1` callback — declares stack/tab/drawer structure
 - `screens/1` helper — registers screen modules with compile-time validation
-- `otp/1` callback — configures OTP apps to start (e.g., `Ecto.Repo`, `Phoenix.PubSub`)
+- `on_start/0` callback — app-specific startup after framework initialization
 
 ```elixir
 defmodule MyApp do
@@ -66,11 +66,16 @@ defmodule MyApp do
     stack(:home, root: MyApp.HomeScreen)
   end
 
-  def otp(_platform) do
-    [MyApp.Repo, MyApp.PubSub]
+  def on_start do
+    {:ok, _pid} = Dala.Screen.Screen.start_root(MyApp.HomeScreen)
+    # ⚠️ Use secure cookies - never hardcode in production!
+    cookie = Dala.Connectivity.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+    Dala.Connectivity.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
   end
 end
 ```
+
+`use Dala.App` generates a `start/0` function that initializes the framework (native logger, navigation registry, device modules, theme, plugin registry) before calling `on_start/0`.
 
 ## Erlang distribution for development
 

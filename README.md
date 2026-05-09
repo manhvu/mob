@@ -8,6 +8,7 @@ Mobile framework for Elixir. OTP runs inside your iOS and Android apps — embed
 > **Status:** Early development. Not yet ready for production use.
 
 original repo [mob](https://github.com/GenericJam/mob)
+
 **Dual licensed under:**
 - **MIT License** (for original Mob project portions) - see [LICENSE](LICENSE)
 - **Apache License 2.0** (for new contributions) - see [LICENSE-APACHE](LICENSE-APACHE)

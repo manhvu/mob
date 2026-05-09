@@ -37,7 +37,7 @@ defmodule MyApp.CounterScreen do
   end
 
   def handle_event(:increment, _params, socket) do
-    new_count = Dala.Socket.get_assign(socket, :count) + 1
+    new_count = Dala.Socket.get(socket, :count) + 1
     socket = Dala.Socket.assign(socket, :count, new_count)
     {:noreply, socket}
   end
@@ -77,7 +77,7 @@ defmodule MyApp.CounterScreen do
   end
 
   def handle_event(:increment, _params, socket) do
-    new_count = Dala.Socket.get_assign(socket, :count) + 1
+    new_count = Dala.Socket.get(socket, :count) + 1
     socket = Dala.Socket.assign(socket, :count, new_count)
     {:noreply, socket}
   end

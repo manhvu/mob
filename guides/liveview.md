@@ -21,7 +21,7 @@ This does four things:
    registers it with `LiveSocket`
 3. **Patches `root.html.heex`** — adds a hidden `<div id="dala-bridge">` that the hook
    mounts on (see [why this is required](#why-the-hidden-div-is-required))
-4. **Creates or updates `dala.exs`** — sets `liveview_port` so `Dala.LiveView.local_url/1`
+4. **Creates or updates `dala.exs`** — sets `liveview_port` so `Dala.Platform.LiveUview.local_url/1`
    knows which port Phoenix is listening on
 
 After running, wire up the screen in your app:
@@ -57,7 +57,7 @@ JS → window.dala.send(data)
 ```
 
 ```
-Elixir → Dala.WebView.post_message(socket, data)
+Elixir → Dala.Ui.Embedded.Webview.post_message(socket, data)
        → NIF (webview_post_message)
        → evaluateJavascript("window.dala._dispatch(...)")
        → all window.dala.onMessage handlers in JS
@@ -158,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
 ```elixir
 defmodule MyAppWeb.HomeLive do
   use MyAppWeb, :live_view
-  use Dala.LiveView  # optional — see below
+  use Dala.Platform.LiveUview  # optional — see below
 
   def handle_event("dala_message", %{"event" => "button_tapped", "id" => id}, socket) do
     {:noreply, assign(socket, :last_tap, id)}
@@ -166,7 +166,7 @@ defmodule MyAppWeb.HomeLive do
 end
 ```
 
-`use Dala.LiveView` is optional. It adds a catch-all `handle_event("dala_message", ...)`
+`use Dala.Platform.LiveUview` is optional. It adds a catch-all `handle_event("dala_message", ...)`
 clause that returns `{:noreply, socket}`, so unhandled native events do not crash
 your LiveView.
 
@@ -213,11 +213,11 @@ The WebView loads `http://127.0.0.1:PORT/`. Set the port in `dala.exs`:
 config :dala, liveview_port: 4000
 ```
 
-`Dala.LiveView.local_url/1` reads this value:
+`Dala.Platform.LiveUview.local_url/1` reads this value:
 
 ```elixir
-Dala.Ui.Widgets.webview(url: Dala.LiveView.local_url("/"))           # http://127.0.0.1:4000/
-Dala.Ui.Widgets.webview(url: Dala.LiveView.local_url("/dashboard"))  # http://127.0.0.1:4000/dashboard
+Dala.Ui.Widgets.webview(url: Dala.Platform.LiveUview.local_url("/"))           # http://127.0.0.1:4000/
+Dala.Ui.Widgets.webview(url: Dala.Platform.LiveUview.local_url("/dashboard"))  # http://127.0.0.1:4000/dashboard
 ```
 
 Use `127.0.0.1` explicitly — not `localhost`. On Android, `localhost` may resolve to the host machine rather than the device's own loopback interface.

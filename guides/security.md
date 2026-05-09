@@ -13,7 +13,7 @@ misconfigured in production.
 If an attacker learns your distribution cookie, they can:
 
 - Connect to your app's Erlang node from anywhere on the network
-- Call any exported function, including `Dala.Diag` helpers
+- Call any exported function, including `Dala.Platform.Diag` helpers
 - Load and execute arbitrary code via `:code.load_binary/3`
 - Access sensitive data in application state
 
@@ -23,8 +23,8 @@ If an attacker learns your distribution cookie, they can:
 
 ```elixir
 # ❌ NEVER DO THIS
-Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
-Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :dala_secret)
+Dala.Connectivity.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
+Dala.Connectivity.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :dala_secret)
 ```
 
 **Generate strong cookies per app:**
@@ -35,25 +35,25 @@ Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :dala_secret)
 #   openssl rand -hex 32
 #   9f3a7b2c8d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f
 
-# Option 1: Use Dala.Dist.cookie_from_env/2 (recommended)
+# Option 1: Use Dala.Connectivity.Dist.cookie_from_env/2 (recommended)
 def on_start do
   # Reads from env var, falls back to a default for development
-  cookie = Dala.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app_dev")
-  Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
+  cookie = Dala.Connectivity.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app_dev")
+  Dala.Connectivity.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
 end
 
 # Option 2: Manual env var handling
 def on_start do
   cookie = System.get_env("MY_APP_DIST_COOKIE", "my_app_dev")
            |> String.to_atom()
-  Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
+  Dala.Connectivity.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
 end
 
 # Set the env var at deploy time:
 MY_APP_DIST_COOKIE=9f3a... mix dala.deploy --device <udid>
 ```
 
-`Dala.Dist.cookie_from_env/2` is the **recommended approach** — it handles secure cookie retrieval from environment variables with a development fallback, and converts to atom safely.
+`Dala.Connectivity.Dist.cookie_from_env/2` is the **recommended approach** — it handles secure cookie retrieval from environment variables with a development fallback, and converts to atom safely.
 
 **Rotate cookies periodically:**
 
@@ -74,14 +74,14 @@ Node.set_cookie(new_secure_cookie)
 - Consider running without distribution in production apps that don't need it
 - Set `DALA_RELEASE=1` to disable distribution at the C layer
 
-### The `Dala.Diag` Module
+### The `Dala.Platform.Diag` Module
 
-`Dala.Diag` is shipped in every Dala app and provides introspection capabilities.
+`Dala.Platform.Diag` is shipped in every Dala app and provides introspection capabilities.
 If distribution credentials leak, it becomes a target for information disclosure.
 
 **Mitigation:**
 1. Use strong, unique cookies (see above)
-2. Strip `Dala.Diag` in release builds (code trimming / dead code elimination)
+2. Strip `Dala.Platform.Diag` in release builds (code trimming / dead code elimination)
 3. Monitor and alert on unexpected node connections
 4. Consider disabling distribution entirely for apps that don't need remote access
 
@@ -202,4 +202,4 @@ Before shipping your Dala app:
 - [ ] Dependencies audited with `mix hex.audit`
 - [ ] Distribution ports (9100, 4369) firewalled in production
 - [ ] Monitoring/alerting on unexpected node connections (if distribution enabled)
-- [ ] `Dala.Diag` considered for removal in production builds
+- [ ] `Dala.Platform.Diag` considered for removal in production builds
