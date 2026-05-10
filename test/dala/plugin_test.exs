@@ -918,4 +918,161 @@ defmodule Dala.PluginTest do
       assert manifest["status"] == "registered"
     end
   end
+
+  describe "Plugin with capabilities from use opts" do
+    defmodule CapabilitiesFromOptsPlugin do
+      use Dala.Plugin,
+        capabilities: [:overlay, :textures],
+        metadata: %{author: "test", license: "MIT"}
+
+      import Dala.Plugin
+
+      component "canvas" do
+        prop("width", :f32)
+        capability(:gestures)
+      end
+    end
+
+    test "capabilities from use opts are merged with component capabilities" do
+      info = CapabilitiesFromOptsPlugin.__plugin_info__()
+      assert :overlay in info.capabilities
+      assert :textures in info.capabilities
+      assert :gestures in info.capabilities
+    end
+
+    test "metadata from use opts is passed through" do
+      info = CapabilitiesFromOptsPlugin.__plugin_info__()
+      assert info.metadata["author"] == "test"
+      assert info.metadata["license"] == "MIT"
+    end
+
+    test "metadata defaults to empty map when not provided" do
+      info = LifecyclePlugin.__plugin_info__()
+      assert info.metadata == %{}
+    end
+  end
+
+  describe "Plugin name from use opts" do
+    defmodule NamedPlugin do
+      use Dala.Plugin, name: :my_custom_name
+
+      import Dala.Plugin
+
+      component "widget" do
+        prop("label", :string)
+      end
+    end
+
+    test "plugin name can be overridden via use opts" do
+      info = NamedPlugin.__plugin_info__()
+      assert info.name == :my_custom_name
+    end
+  end
+
+  describe "Plugin version from use opts" do
+    defmodule VersionedPlugin do
+      use Dala.Plugin, version: "1.2.3"
+
+      import Dala.Plugin
+
+      component "widget" do
+        prop("label", :string)
+      end
+    end
+
+    test "plugin version is set from use opts" do
+      info = VersionedPlugin.__plugin_info__()
+      assert info.plugin_version == "1.2.3"
+    end
+  end
+
+  describe "Plugin dala_requires from use opts" do
+    defmodule DalaRequiresPlugin do
+      use Dala.Plugin, dala_requires: ">= 0.3.0"
+
+      import Dala.Plugin
+
+      component "widget" do
+        prop("label", :string)
+      end
+    end
+
+    test "dala_requires is set from use opts" do
+      info = DalaRequiresPlugin.__plugin_info__()
+      assert info.dala_requires == ">= 0.3.0"
+    end
+  end
+
+  describe "Platforms from use opts" do
+    defmodule PlatformsFromOptsPlugin do
+      use Dala.Plugin, platforms: [:ios]
+
+      import Dala.Plugin
+
+      component "sensor" do
+        prop("rate", :f32)
+      end
+    end
+
+    test "platforms from use opts are merged with DSL platforms" do
+      info = PlatformsFromOptsPlugin.__plugin_info__()
+      assert :ios in info.platforms
+    end
+  end
+
+  describe "Mix task dala.plugin.new" do
+    test "generates plugin scaffold files" do
+      Mix.shell(Mix.Shell.Process)
+      send(self(), {:mix_shell_input, :yes})
+
+      Mix.Tasks.Dala.Plugin.New.run(["dala_test_plugin"])
+
+      assert File.exists?("dala_test_plugin/mix.exs")
+      assert File.exists?("dala_test_plugin/lib/test_plugin.ex")
+      assert File.exists?("dala_test_plugin/native/rust/src/lib.rs")
+      assert File.exists?("dala_test_plugin/ios/test_plugin.h")
+      assert File.exists?("dala_test_plugin/android/src/main/java/com/dala/test_plugin.java")
+      assert File.exists?("dala_test_plugin/test/test_plugin_test.exs")
+      assert File.exists?("dala_test_plugin/README.md")
+
+      # Verify mix.exs contains correct app name
+      mix_content = File.read!("dala_test_plugin/mix.exs")
+      assert mix_content =~ ":dala_test_plugin"
+
+      # Verify lib module compiles
+      lib_content = File.read!("dala_test_plugin/lib/test_plugin.ex")
+      assert lib_content =~ "use Dala.Plugin"
+      assert lib_content =~ "component \"test_plugin\""
+
+      # Cleanup
+      File.rm_rf!("dala_test_plugin")
+    after
+      File.rm_rf!("dala_test_plugin")
+    end
+
+    test "generates plugin with custom name prefix" do
+      Mix.Tasks.Dala.Plugin.New.run(["my_chart"])
+
+      assert File.exists?("dala_my_chart/mix.exs")
+      assert File.exists?("dala_my_chart/lib/my_chart.ex")
+
+      lib_content = File.read!("dala_my_chart/lib/my_chart.ex")
+      assert lib_content =~ "defmodule MyChart"
+      assert lib_content =~ "component \"my_chart\""
+
+      # Cleanup
+      File.rm_rf!("dala_my_chart")
+    after
+      File.rm_rf!("dala_my_chart")
+    end
+
+    test "shows usage when no name provided" do
+      output =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          Mix.Tasks.Dala.Plugin.New.run([])
+        end)
+
+      assert output =~ "Usage:"
+    end
+  end
 end

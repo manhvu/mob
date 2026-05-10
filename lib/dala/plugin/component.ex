@@ -15,11 +15,13 @@ defmodule Dala.Plugin.Component do
           plugin: Plugin.plugin_name(),
           props: [prop()],
           events: [event()],
+          event_structs: %{atom() => module()},
           natives: %{String.t() => String.t()},
           capabilities: [Plugin.capability()],
           optional_capabilities: [atom()],
           lifecycle: [lifecycle_event()],
-          doc: String.t() | nil
+          doc: String.t() | nil,
+          metadata: map()
         }
 
   @type prop :: %{
@@ -41,11 +43,13 @@ defmodule Dala.Plugin.Component do
     :plugin,
     props: [],
     events: [],
+    event_structs: %{},
     natives: %{},
     capabilities: [],
     optional_capabilities: [],
     lifecycle: [:create, :update, :layout, :event, :dispose],
-    doc: nil
+    doc: nil,
+    metadata: %{}
   ]
 
   @doc """

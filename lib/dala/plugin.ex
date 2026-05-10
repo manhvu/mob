@@ -171,6 +171,7 @@ defmodule Dala.Plugin do
     :name,
     :description,
     :schema_version,
+    :plugin_version,
     :protocol_version,
     :native_api_version,
     components: %{},
@@ -178,9 +179,12 @@ defmodule Dala.Plugin do
     dependencies: [],
     platforms: [],
     capabilities: [],
+    events: %{},
+    dala_requires: nil,
     state: nil,
     status: :registered,
-    native_modules: %{}
+    native_modules: %{},
+    metadata: %{}
   ]
 
   # ── Behaviour ──────────────────────────────────────────────────────────────
@@ -242,9 +246,27 @@ defmodule Dala.Plugin do
     * `:schema_version` - Plugin schema version (default: "1.0.0")
     * `:protocol_version` - Binary protocol version (default: 3)
     * `:native_api_version` - Native API version (default: "2.0.0")
+    * `:platforms` - List of supported platforms (e.g. [:ios, :android])
+    * `:capabilities` - List of plugin-level capabilities
+    * `:dala_requires` - Dala version requirement string
+    * `:metadata` - Arbitrary metadata map
   """
   defmacro __using__(opts \\ []) do
-    quote bind_quoted: [opts: opts] do
+    plugin_name = opts[:name]
+    plugin_version = opts[:version]
+    plugin_platforms = opts[:platforms] || []
+    plugin_dala_requires = opts[:dala_requires]
+    plugin_capabilities = opts[:capabilities] || []
+    plugin_metadata = opts[:metadata] || %{}
+
+    quote bind_quoted: [
+            plugin_name: plugin_name,
+            plugin_version: plugin_version,
+            plugin_platforms: plugin_platforms,
+            plugin_dala_requires: plugin_dala_requires,
+            plugin_capabilities: plugin_capabilities,
+            plugin_metadata: plugin_metadata
+          ] do
       @behaviour Dala.Plugin
 
       import Dala.Plugin
@@ -252,7 +274,7 @@ defmodule Dala.Plugin do
 
       @before_compile Dala.Plugin
 
-      @plugin_opts opts
+      @plugin_opts []
       Module.register_attribute(__MODULE__, :plugin_components, accumulate: true)
       Module.register_attribute(__MODULE__, :plugin_schema_version, accumulate: false)
       Module.register_attribute(__MODULE__, :plugin_protocol_version, accumulate: false)
@@ -263,6 +285,7 @@ defmodule Dala.Plugin do
       Module.register_attribute(__MODULE__, :plugin_platforms, accumulate: true)
       Module.register_attribute(__MODULE__, :plugin_native_module_decls, accumulate: true)
       Module.register_attribute(__MODULE__, :plugin_block_used, accumulate: false)
+      Module.register_attribute(__MODULE__, :plugin_events, accumulate: true)
 
       # Plugin block declarations (from `plugin do ... end`)
       Module.register_attribute(__MODULE__, :plugin_block_components, accumulate: true)
@@ -272,6 +295,15 @@ defmodule Dala.Plugin do
       Module.register_attribute(__MODULE__, :plugin_block_dependencies, accumulate: true)
       Module.register_attribute(__MODULE__, :plugin_block_platforms, accumulate: true)
       Module.register_attribute(__MODULE__, :plugin_block_description, accumulate: false)
+      Module.register_attribute(__MODULE__, :plugin_inline_events, accumulate: true)
+
+      # Metadata from use options (always set with defaults)
+      @plugin_name plugin_name
+      @plugin_version plugin_version
+      @plugin_platforms_from_opts plugin_platforms
+      @plugin_dala_requires plugin_dala_requires
+      @plugin_capabilities_from_opts plugin_capabilities
+      @plugin_metadata plugin_metadata
 
       schema_version("1.0.0")
       protocol_version(3)
@@ -460,9 +492,19 @@ defmodule Dala.Plugin do
   end
 
   @doc false
-  defmacro plugin_event(name, module) when is_atom(name) do
+  defmacro plugin_event(name, module) when is_atom(name) and is_atom(module) do
     quote do
       @plugin_block_events {unquote(name), unquote(module)}
+    end
+  end
+
+  @doc false
+  defmacro plugin_event(name, payload) when is_atom(name) and is_map(payload) do
+    event_mod = Dala.Plugin.Event.event_module_name(name, __MODULE__)
+
+    quote do
+      @plugin_block_events {unquote(name), unquote(event_mod)}
+      @plugin_inline_events {unquote(name), unquote(Macro.escape(payload))}
     end
   end
 
@@ -515,6 +557,36 @@ defmodule Dala.Plugin do
   defmacro __before_compile__(_env) do
     quote do
       # ── Compute and store all derived values as module attributes ────────
+
+      _plugin_name =
+        if Module.get_attribute(__MODULE__, :plugin_name) do
+          Module.get_attribute(__MODULE__, :plugin_name)
+        else
+          __MODULE__
+        end
+
+      Module.register_attribute(__MODULE__, :__dala_plugin_name, accumulate: false)
+      Module.put_attribute(__MODULE__, :__dala_plugin_name, _plugin_name)
+
+      _plugin_version =
+        if Module.get_attribute(__MODULE__, :plugin_version) do
+          Module.get_attribute(__MODULE__, :plugin_version)
+        else
+          nil
+        end
+
+      Module.register_attribute(__MODULE__, :__dala_plugin_version, accumulate: false)
+      Module.put_attribute(__MODULE__, :__dala_plugin_version, _plugin_version)
+
+      _dala_requires =
+        if Module.get_attribute(__MODULE__, :plugin_dala_requires) do
+          Module.get_attribute(__MODULE__, :plugin_dala_requires)
+        else
+          nil
+        end
+
+      Module.register_attribute(__MODULE__, :__dala_requires, accumulate: false)
+      Module.put_attribute(__MODULE__, :__dala_dala_requires, _dala_requires)
 
       _native_modules_map =
         case Module.get_attribute(__MODULE__, :plugin_block_used) do
@@ -571,8 +643,9 @@ defmodule Dala.Plugin do
             Enum.reverse(block_platforms)
 
           _ ->
-            top_platforms = Module.get_attribute(__MODULE__, :plugin_platforms) || []
-            Enum.reverse(top_platforms)
+            raw = Module.get_attribute(__MODULE__, :plugin_platforms) || []
+            opts_platforms = Module.get_attribute(__MODULE__, :plugin_platforms_from_opts) || []
+            Enum.uniq(raw ++ opts_platforms)
         end
 
       Module.register_attribute(__MODULE__, :__dala_platforms_list, accumulate: false)
@@ -587,6 +660,9 @@ defmodule Dala.Plugin do
       Module.register_attribute(__MODULE__, :__dala_description_val, accumulate: false)
       Module.put_attribute(__MODULE__, :__dala_description_val, _description_val)
 
+      _capabilities_from_opts =
+        Module.get_attribute(__MODULE__, :plugin_capabilities_from_opts) || []
+
       _components_map =
         case Module.get_attribute(__MODULE__, :plugin_components) do
           nil -> %{}
@@ -599,18 +675,85 @@ defmodule Dala.Plugin do
       _all_capabilities =
         _components_map
         |> Enum.flat_map(fn {_name, comp} -> comp.capabilities end)
+        |> Enum.concat(_capabilities_from_opts)
         |> Enum.uniq()
 
       Module.register_attribute(__MODULE__, :__dala_all_capabilities, accumulate: false)
       Module.put_attribute(__MODULE__, :__dala_all_capabilities, _all_capabilities)
 
+      _metadata = Module.get_attribute(__MODULE__, :plugin_metadata) || %{}
+
+      Module.register_attribute(__MODULE__, :__dala_metadata, accumulate: false)
+      Module.put_attribute(__MODULE__, :__dala_metadata, _metadata)
+
+      # ── Generate event struct modules ─────────────────────────────────────
+      _events_map =
+        case Module.get_attribute(__MODULE__, :plugin_components) do
+          nil ->
+            %{}
+
+          comps ->
+            Enum.reduce(comps, %{}, fn comp, acc ->
+              Enum.reduce(comp.events, acc, fn evt, inner_acc ->
+                if evt.payload != %{} do
+                  event_atom = String.to_atom(evt.name)
+                  mod = Dala.Plugin.Event.event_module_name(event_atom, __MODULE__)
+
+                  quote do
+                    Dala.Plugin.Event.expand(
+                      unquote(event_atom),
+                      unquote(Macro.escape(evt.payload)),
+                      __MODULE__
+                    )
+                  end
+                  |> Code.eval_quoted([], __ENV__)
+
+                  Map.put(inner_acc, event_atom, mod)
+                else
+                  inner_acc
+                end
+              end)
+            end)
+        end
+
+      # Generate event struct modules for inline events from plugin do block
+      _inline_events_map =
+        case Module.get_attribute(__MODULE__, :plugin_inline_events) do
+          nil ->
+            %{}
+
+          inline_events ->
+            Enum.reduce(inline_events, %{}, fn {evt_name, payload}, acc ->
+              event_atom = evt_name
+              mod = Dala.Plugin.Event.event_module_name(event_atom, __MODULE__)
+
+              quote do
+                Dala.Plugin.Event.expand(
+                  unquote(event_atom),
+                  unquote(Macro.escape(payload)),
+                  __MODULE__
+                )
+              end
+              |> Code.eval_quoted([], __ENV__)
+
+              Map.put(acc, event_atom, mod)
+            end)
+        end
+
+      # Merge component events and inline events
+      _merged_events_map = Map.merge(_events_map, _inline_events_map)
+
+      Module.register_attribute(__MODULE__, :__dala_events_map, accumulate: false)
+      Module.put_attribute(__MODULE__, :__dala_events_map, _merged_events_map)
+
       # ── Plugin info struct ────────────────────────────────────────────────
       @doc false
       def __plugin_info__ do
         %Dala.Plugin{
-          name: __MODULE__,
+          name: @__dala_plugin_name,
           description: @__dala_description_val,
           schema_version: @plugin_schema_version,
+          plugin_version: @__dala_plugin_version,
           protocol_version: @plugin_protocol_version,
           native_api_version: @plugin_native_api_version,
           components: @__dala_components_map,
@@ -618,9 +761,12 @@ defmodule Dala.Plugin do
           dependencies: @__dala_dependencies_list,
           platforms: @__dala_platforms_list,
           capabilities: @__dala_all_capabilities,
+          events: @__dala_events_map,
+          dala_requires: @__dala_dala_requires,
           state: nil,
           status: :registered,
-          native_modules: @__dala_native_modules_map
+          native_modules: @__dala_native_modules_map,
+          metadata: @__dala_metadata
         }
       end
 

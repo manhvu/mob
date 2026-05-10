@@ -107,9 +107,10 @@ defmodule Dala.Plugin.Protocol do
           # map
           | 0x0A
 
-  # Lifecycle opcodes
+  # Opcodes
   @lifecycle_opcode 0xF0
   @capability_opcode 0xF1
+  @event_opcode 0xF2
 
   @doc """
   Generates protocol specification for a plugin.
@@ -285,6 +286,104 @@ defmodule Dala.Plugin.Protocol do
 
     <<@lifecycle_opcode, byte_size(event_name)::16, event_name::binary,
       byte_size(payload_json)::32, payload_json::binary>>
+  end
+
+  @doc """
+  Encodes a typed event message for the native bridge.
+
+  The binary format is:
+    - 1 byte: event opcode (0xF2)
+    - 2 bytes: event name length
+    - N bytes: event name (UTF-8)
+    - 2 bytes: field count
+    - For each field:
+      - 2 bytes: field name length
+      - N bytes: field name (UTF-8)
+      - 1 byte: type tag
+      - N bytes: value
+  """
+  @spec encode_event(atom(), map()) :: binary()
+  def encode_event(event, payload) when is_atom(event) and is_map(payload) do
+    event_name = Atom.to_string(event)
+
+    fields =
+      Enum.flat_map(payload, fn {key, value} ->
+        key_str = Atom.to_string(key)
+        type_tag = type_to_tag(guess_type(value))
+        value_data = encode_value(type_tag, value)
+        [<<byte_size(key_str)::16, key_str::binary, type_tag>>, value_data]
+      end)
+
+    <<@event_opcode, byte_size(event_name)::16, event_name::binary,
+      length(payload)::16, fields::binary>>
+  end
+
+  @doc """
+  Decodes a binary event message back to a map.
+  """
+  @spec decode_event(binary()) :: {atom(), map()}
+  def decode_event(<<@event_opcode, name_len::16, name::binary-size(name_len),
+                     field_count::16, rest::binary>>) do
+    {fields, _} =
+      Enum.reduce(1..field_count, {%{}, rest}, fn _, {acc, data} ->
+        <<key_len::16, key::binary-size(key_len), type_tag, value_data::binary>> = data
+        key_atom = String.to_atom(key)
+        {value, _} = decode_value(type_tag, value_data)
+        {Map.put(acc, key_atom, value), value_data}
+      end)
+
+    {String.to_atom(name), fields}
+  end
+
+  @doc false
+  def guess_type(value) when is_binary(value), do: :string
+  def guess_type(value) when is_boolean(value), do: :bool
+  def guess_type(value) when is_integer(value), do: :integer
+  def guess_type(value) when is_float(value), do: :float
+  def guess_type(value) when is_list(value), do: :list
+  def guess_type(value) when is_map(value), do: :map
+
+  @doc false
+  def decode_value(0x01, <<len::16, value::binary-size(len), rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x02, <<value, rest::binary>>),
+    do: {value == 1, rest}
+
+  def decode_value(0x03, <<value::signed-64, rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x04, <<value::float-64, rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x05, <<value::float-32, rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x06, <<value::float-64, rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x07, <<value::unsigned-32, rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x08, <<len::32, value::binary-size(len), rest::binary>>),
+    do: {value, rest}
+
+  def decode_value(0x09, <<len::32, _rest::binary>> = data) do
+    <<0x09, len::32, items::binary-size(len), rest::binary>> = data
+    values = for <<_s::16, item::binary>> <- items, do: item
+    {values, rest}
+  end
+
+  def decode_value(0x0A, <<len::32, _rest::binary>> = data) do
+    <<0x0A, len::32, items::binary-size(len), rest::binary>> = data
+    map =
+      Enum.reduce(1..div(len, 2), %{}, fn _, acc ->
+        <<klen::16, key::binary-size(klen), vlen::16, val::binary-size(vlen), remaining::binary>> =
+          items
+        Map.put(acc, key, val)
+      end)
+
+    {map, rest}
   end
 
   @doc """

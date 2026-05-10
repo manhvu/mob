@@ -75,6 +75,16 @@ defmodule Dala.Plugin.Manifest do
         Map.put(acc, to_string(platform), Enum.map(modules, &to_string/1))
       end)
 
+    plugin_version = if plugin.plugin_version, do: plugin.plugin_version, else: "0.0.0"
+
+    events =
+      Enum.map(plugin.events, fn {name, mod} ->
+        %{
+          "name" => Atom.to_string(name),
+          "module" => to_string(mod)
+        }
+      end)
+
     %{
       "schema_version" => plugin.schema_version,
       "protocol_version" => plugin.protocol_version,
@@ -88,6 +98,9 @@ defmodule Dala.Plugin.Manifest do
       "status" => to_string(plugin.status),
       "components" => components,
       "capabilities_by_component" => capabilities,
+      "plugin_version" => plugin_version,
+      "events" => events,
+      "dala_requires" => plugin.dala_requires,
       "metadata" => %{
         "plugin" => to_string(plugin.name),
         "generated_at" => DateTime.utc_now() |> DateTime.to_iso8601()
