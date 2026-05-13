@@ -312,7 +312,7 @@ defmodule Dala.DiffTest do
     end
   end
 
-  describe "Dala.Ui.Node.stable_id/1" do
+  describe "Dala.Node.stable_id/1" do
     test "produces a stable u64 hash for string IDs" do
       id = Dala.Node.stable_id("my_node")
       assert is_integer(id)
@@ -336,74 +336,8 @@ defmodule Dala.DiffTest do
     end
   end
 
-  describe "Dala.Ui.Node.compute_layout_hash/1" do
-    test "computes a stable hash based on type and layout props" do
-      node = %Dala.Ui.Node{
-        id: "root",
-        type: :column,
-        props: %{padding: 16.0, flex_direction: :row},
-        children: []
-      }
-
-      hash = Dala.Ui.Renderer.compute_layout_hash(node)
-      assert is_integer(hash)
-      assert hash > 0
-    end
-
-    test "same node produces same layout hash" do
-      node = %Dala.Ui.Node{
-        id: "root",
-        type: :text,
-        props: %{text: "Hello"},
-        children: []
-      }
-
-      hash1 = Dala.Ui.Renderer.compute_layout_hash(node)
-      hash2 = Dala.Ui.Renderer.compute_layout_hash(node)
-      assert hash1 == hash2
-    end
-
-    test "different layout props produce different hashes" do
-      node_a = %Dala.Ui.Node{
-        id: "root",
-        type: :column,
-        props: %{padding: 10.0},
-        children: []
-      }
-
-      node_b = %Dala.Ui.Node{
-        id: "root",
-        type: :column,
-        props: %{padding: 20.0},
-        children: []
-      }
-
-      assert Dala.Ui.Renderer.compute_layout_hash(node_a) !=
-               Dala.Ui.Renderer.compute_layout_hash(node_b)
-    end
-
-    test "different child counts produce different hashes" do
-      node_a = %Dala.Ui.Node{
-        id: "root",
-        type: :column,
-        props: %{},
-        children: []
-      }
-
-      node_b = %Dala.Ui.Node{
-        id: "root",
-        type: :column,
-        props: %{},
-        children: [%Dala.Ui.Node{id: "c1", type: :text, props: %{}, children: []}]
-      }
-
-      assert Dala.Ui.Renderer.compute_layout_hash(node_a) !=
-               Dala.Ui.Renderer.compute_layout_hash(node_b)
-    end
-  end
-
   describe "Dala.Node.compute_layout_hash/1" do
-    test "computes a stable hash for Dala.Node struct" do
+    test "computes a stable hash based on type and layout props" do
       node = %Dala.Node{
         id: "root",
         type: :column,
@@ -416,7 +350,7 @@ defmodule Dala.DiffTest do
       assert hash > 0
     end
 
-    test "same Dala.Node produces same layout hash" do
+    test "same node produces same layout hash" do
       node = %Dala.Node{
         id: "root",
         type: :text,
@@ -427,6 +361,44 @@ defmodule Dala.DiffTest do
       hash1 = Dala.Node.compute_layout_hash(node)
       hash2 = Dala.Node.compute_layout_hash(node)
       assert hash1 == hash2
+    end
+
+    test "different layout props produce different hashes" do
+      node_a = %Dala.Node{
+        id: "root",
+        type: :column,
+        props: %{padding: 10.0},
+        children: []
+      }
+
+      node_b = %Dala.Node{
+        id: "root",
+        type: :column,
+        props: %{padding: 20.0},
+        children: []
+      }
+
+      assert Dala.Node.compute_layout_hash(node_a) !=
+               Dala.Node.compute_layout_hash(node_b)
+    end
+
+    test "different child counts produce different hashes" do
+      node_a = %Dala.Node{
+        id: "root",
+        type: :column,
+        props: %{},
+        children: []
+      }
+
+      node_b = %Dala.Node{
+        id: "root",
+        type: :column,
+        props: %{},
+        children: [%Dala.Node{id: "c1", type: :text, props: %{}, children: []}]
+      }
+
+      assert Dala.Node.compute_layout_hash(node_a) !=
+               Dala.Ui.Renderer.compute_layout_hash(node_b)
     end
   end
 
@@ -683,9 +655,9 @@ defmodule Dala.DiffTest do
     end
   end
 
-  describe "Dala.Renderer.compute_layout_hash/1" do
-    test "computes stable hash for Ui.Node" do
-      node = %Dala.Ui.Node{
+  describe "Dala.Ui.Renderer.compute_layout_hash/1" do
+    test "computes stable hash for Dala.Node" do
+      node = %Dala.Node{
         id: "root",
         type: :column,
         props: %{padding: 16.0},
@@ -698,8 +670,8 @@ defmodule Dala.DiffTest do
     end
 
     test "different types produce different hashes" do
-      node_a = %Dala.Ui.Node{id: "r", type: :column, props: %{}, children: []}
-      node_b = %Dala.Ui.Node{id: "r", type: :row, props: %{}, children: []}
+      node_a = %Dala.Node{id: "r", type: :column, props: %{}, children: []}
+      node_b = %Dala.Node{id: "r", type: :row, props: %{}, children: []}
 
       assert Dala.Ui.Renderer.compute_layout_hash(node_a) !=
                Dala.Ui.Renderer.compute_layout_hash(node_b)

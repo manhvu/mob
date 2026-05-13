@@ -16,8 +16,8 @@ defmodule Dala.List do
   Call this from `mount/3` or `handle_info/2` — it is stored in `socket.__dala__`
   and picked up at render time.
   """
-  @spec put_renderer(Dala.Ui.Socket.t(), atom(), (term() -> map())) :: Dala.Ui.Socket.t()
-  defdelegate put_renderer(socket, id, renderer), to: List
+  @spec put_renderer(Dala.Socket.t(), atom(), (term() -> map())) :: Dala.Socket.t()
+  defdelegate put_renderer(socket, id, renderer), to: Dala.Ui.List
 
   @doc """
   The default item renderer.

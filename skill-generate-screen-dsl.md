@@ -118,7 +118,42 @@ button "Save @item_name"       # → "Save " <> to_string(assigns[:item_name])
 - `@safe_area` is always available (populated by the framework).
 - Use `@safe_area.top`, `@safe_area.bottom` etc. for safe-area insets.
 
-## 3.5 Control Flow (Coming Soon)
+## 3.5 PubSub Section
+
+The `pubsub` section declares topic subscriptions for the screen. Topics are subscribed when the screen mounts and unsubscribed when it terminates.
+
+```elixir
+pubsub do
+  subscribe "chat:room:123", on_message: :handle_chat
+  subscribe "user:456", on_message: :handle_user_event
+end
+```
+
+- `topic` (string, required) — the PubSub topic to subscribe to
+- `on_message` (atom, required) — the handler function name in the screen module
+
+The handler receives the published message as its first argument:
+
+```elixir
+def handle_chat({:message, text}, socket) do
+  messages = socket.assigns.messages ++ [text]
+  {:noreply, Dala.Socket.assign(socket, :messages, messages)}
+end
+```
+
+Use `Dala.PubSub` to set up a PubSub instance and broadcast messages:
+
+```elixir
+# In your app supervision tree:
+children = [
+  {Dala.PubSub, name: MyApp.PubSub}
+]
+
+# Broadcast a message:
+Dala.PubSub.broadcast(MyApp.PubSub, "chat:room:123", {:message, "Hello!"})
+```
+
+## 3.6 Control Flow (Coming Soon)
 
 Control flow (`if`/`for`) is NOT currently supported in the DSL.
 Spark DSL entities are structs, not arbitrary Elixir AST.
@@ -527,9 +562,8 @@ text_field placeholder: "Enter name", on_change: :name_changed
 
 # Handler:
 def handle_event({:change, :name_changed, value}, _params, socket) do
-  {:noreply, Dala.Ui.Socket.assign(socket, :name, value)}
+  {:noreply, Dala.Socket.assign(socket, :name, value)}
 end
-```
 
 ### `handle_info/2` — Device API results and raw messages
 
@@ -538,7 +572,7 @@ Device results (camera, location, etc.) and other process messages arrive via
 
 ```elixir
 def handle_info({:camera, :photo, %{path: path}}, socket) do
-  {:noreply, Dala.Ui.Socket.assign(socket, :photo_path, path)}
+  {:noreply, Dala.Socket.assign(socket, :photo_path, path)}
 end
 ```
 
@@ -546,11 +580,11 @@ end
 
 ```elixir
 def handle_event(:open_detail, _params, socket) do
-  {:noreply, Dala.Ui.Socket.push_screen(socket, MyApp.DetailScreen, %{id: socket.assigns.id})}
+  {:noreply, Dala.Socket.push_screen(socket, MyApp.DetailScreen, %{id: socket.assigns.id})}
 end
 
 def handle_event(:go_back, _params, socket) do
-  {:noreply, Dala.Ui.Socket.pop_screen(socket)}
+  {:noreply, Dala.Socket.pop_screen(socket)}
 end
 ```
 
@@ -585,11 +619,11 @@ defmodule MyApp.CounterScreen do
   end
 
   def handle_event(:increment, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :count, socket.assigns.count + 1)}
+    {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
   end
 
   def handle_event(:decrement, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :count, socket.assigns.count - 1)}
+    {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count - 1)}
   end
 end
 ```
@@ -621,16 +655,16 @@ defmodule MyApp.FormScreen do
   end
 
   def handle_event({:change, :name_changed, value}, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :name, value)}
+    {:noreply, Dala.Socket.assign(socket, :name, value)}
   end
 
   def handle_event({:change, :email_changed, value}, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :email, value)}
+    {:noreply, Dala.Socket.assign(socket, :email, value)}
   end
 
   def handle_event(:submit, _params, socket) do
     # ... submit logic ...
-    {:noreply, Dala.Ui.Socket.assign(socket, :submitting, true)}
+    {:noreply, Dala.Socket.assign(socket, :submitting, true)}
   end
 end
 ```
@@ -700,15 +734,15 @@ defmodule MyApp.ModalScreen do
   end
 
   def handle_event(:open_modal, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :show_modal, true)}
+    {:noreply, Dala.Socket.assign(socket, :show_modal, true)}
   end
 
   def handle_event(:close_modal, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :show_modal, false)}
+    {:noreply, Dala.Socket.assign(socket, :show_modal, false)}
   end
 
   def handle_event(:dismissed, _params, socket) do
-    {:noreply, Dala.Ui.Socket.assign(socket, :show_modal, false)}
+    {:noreply, Dala.Socket.assign(socket, :show_modal, false)}
   end
 end
 ```
@@ -782,8 +816,8 @@ when using the DSL:
 
 ```elixir
 def mount(_params, _session, socket) do
-  socket = Dala.Ui.Socket.assign(socket, :count, 0)
-  socket = Dala.Ui.Socket.assign(socket, :message, "Hello")
+  socket = Dala.Socket.assign(socket, :count, 0)
+  socket = Dala.Socket.assign(socket, :message, "Hello")
   {:ok, socket}
 end
 ```

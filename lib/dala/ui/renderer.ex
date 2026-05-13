@@ -64,8 +64,6 @@ defmodule Dala.Ui.Renderer do
       Dala.Ui.Renderer.render(tree, :android, MockNIF)
   """
 
-  alias Dala.Theme.Theme
-
   @default_nif Dala.Platform.Native
 
   # ── Protocol v3 constants ─────────────────────────────────────────────
@@ -198,12 +196,12 @@ defmodule Dala.Ui.Renderer do
   @spec render(map(), atom(), module() | atom(), atom()) ::
           {:ok, :binary_tree} | {:error, term()}
   def render(tree, _platform, nif \\ @default_nif, _transition \\ :none) do
-    theme = apply(Theme, :current, [])
+    theme = Dala.Theme.Theme.current()
 
     _ctx = %{
-      colors: apply(Theme, :color_map, [theme]),
-      spacing: apply(Theme, :spacing_map, [theme]),
-      radii: apply(Theme, :radius_map, [theme]),
+      colors: Dala.Theme.Theme.color_map(theme),
+      spacing: Dala.Theme.Theme.spacing_map(theme),
+      radii: Dala.Theme.Theme.radius_map(theme),
       type_scale: theme.type_scale
     }
 
@@ -218,14 +216,14 @@ defmodule Dala.Ui.Renderer do
   end
 
   # Optimized version that batches tap registrations
-  @spec render_fast(Dala.Screen.t(), atom(), module(), atom()) :: {:ok, :binary_tree}
+  @spec render_fast(Dala.Node.t() | map(), atom(), module(), atom()) :: {:ok, :binary_tree}
   def render_fast(tree, platform, nif \\ @default_nif, transition \\ :none) do
-    theme = apply(Theme, :current, [])
+    theme = Dala.Theme.Theme.current()
 
     ctx = %{
-      colors: apply(Theme, :color_map, [theme]),
-      spacing: apply(Theme, :spacing_map, [theme]),
-      radii: apply(Theme, :radius_map, [theme]),
+      colors: Dala.Theme.Theme.color_map(theme),
+      spacing: Dala.Theme.Theme.spacing_map(theme),
+      radii: Dala.Theme.Theme.radius_map(theme),
       type_scale: theme.type_scale
     }
 
@@ -251,25 +249,25 @@ defmodule Dala.Ui.Renderer do
   only the patches to native. Falls back to full render on first call
   (when `old_tree` is nil).
 
-  `new_tree` can be either a map (from Dala.Ui.Widgets functions) or a `Dala.Ui.Node` struct.
-  If it's a map, it will be converted to a `Dala.Ui.Node` first.
+  `new_tree` can be either a map (from Dala.Ui.Widgets functions) or a `Dala.Node` struct.
+  If it's a map, it will be converted to a `Dala.Node` first.
 
   Returns `{:ok, patches}` where patches is the list of patch tuples.
   """
   @spec render_patches(
-          Dala.Ui.Node.t() | map() | nil,
-          Dala.Ui.Node.t() | map(),
+          Dala.Node.t() | map() | nil,
+          Dala.Node.t() | map(),
           atom(),
           module(),
           atom()
         ) :: {:ok, [Dala.Ui.Diff.patch()]}
   def render_patches(old_tree, new_tree, platform, nif \\ @default_nif, transition \\ :none) do
-    theme = apply(Theme, :current, [])
+    theme = Dala.Theme.Theme.current()
 
     ctx = %{
-      colors: apply(Theme, :color_map, [theme]),
-      spacing: apply(Theme, :spacing_map, [theme]),
-      radii: apply(Theme, :radius_map, [theme]),
+      colors: Dala.Theme.Theme.color_map(theme),
+      spacing: Dala.Theme.Theme.spacing_map(theme),
+      radii: Dala.Theme.Theme.radius_map(theme),
       type_scale: theme.type_scale
     }
 
@@ -284,59 +282,18 @@ defmodule Dala.Ui.Renderer do
       # Nothing changed
       {:ok, []}
     else
-      # Check if we have a full replacement (first render or root change)
-      has_replace? = Enum.any?(patches, fn patch -> elem(patch, 0) == :replace end)
-
-      if has_replace? do
-        # Full render for replacements — use binary protocol
-        nif.clear_taps()
-        nif.set_transition(transition)
-
-        binary = encode_tree(new_node)
-
-        try do
-          nif.set_root_binary(binary)
-        rescue
-          e ->
-            Dala.Platform.Native.log("Dala.Ui.Renderer: set_root_binary failed: #{inspect(e)}")
-        end
-
-        {:ok, patches}
-      else
-        # Check if patches contain inserts/removes (which may carry new tap
-        # targets). The binary protocol encodes on_tap as a NIF handle, but
-        # Dala.Ui.Node props still have raw {pid, tag} tuples. Until the patch
-        # encoder resolves these, fall back to full render for structural changes.
-        has_structural? = Enum.any?(patches, fn patch -> elem(patch, 0) in [:insert, :remove] end)
-
-        if has_structural? do
-          # Structural change — full render with binary protocol
-          nif.clear_taps()
-          nif.set_transition(transition)
-
-          binary = encode_tree(new_node)
-
-          try do
-            nif.set_root_binary(binary)
-          rescue
-            e ->
-              Dala.Platform.Native.log("Dala.Ui.Renderer: set_root_binary failed: #{inspect(e)}")
-          end
-
-          {:ok, patches}
-        else
-          # Pure prop updates — safe to send as patches (no new tap targets)
-          nif.set_transition(transition)
-          send_patches(patches, new_node, platform, nif, ctx)
-          {:ok, patches}
-        end
-      end
+      # Send all patches via the binary patch frame.
+      # encode_patch handles :replace (remove+create), :insert, :remove,
+      # :update_props, and :patch_node.
+      nif.set_transition(transition)
+      send_patches(patches, new_node, platform, nif, ctx)
+      {:ok, patches}
     end
   end
 
   defp to_node(nil, _), do: nil
-  defp to_node(%Dala.Ui.Node{} = node, _), do: node
-  defp to_node(map, default_id), do: Dala.Ui.Node.from_map(map, default_id)
+  defp to_node(%Dala.Node{} = node, _), do: node
+  defp to_node(map, default_id), do: Dala.Node.from_map(map, default_id)
 
   # Send patches to native
   defp send_patches(patches, _tree, _platform, nif, _ctx) do
@@ -384,8 +341,8 @@ defmodule Dala.Ui.Renderer do
   #   13=text_interned[u16 string_id]  14=title_interned[u16 string_id]
   #   15=color_interned[u16 string_id]  16=background_interned[u16 string_id]
 
-  @doc "Encode a full Dala.Ui.Node tree to binary format (v3)"
-  def encode_tree(%Dala.Ui.Node{} = node) do
+  @doc "Encode a full Dala.Node tree to binary format (v3)"
+  def encode_tree(%Dala.Node{} = node) do
     {binary, node_count} = encode_tree_node(node)
 
     IO.iodata_to_binary([
@@ -395,7 +352,7 @@ defmodule Dala.Ui.Renderer do
     ])
   end
 
-  defp encode_tree_node(%Dala.Ui.Node{id: id, type: type, props: props, children: children}) do
+  defp encode_tree_node(%Dala.Node{id: id, type: type, props: props, children: children}) do
     node_id = hash_id(id)
 
     {child_binaries, child_ids, total_count} =
@@ -418,7 +375,7 @@ defmodule Dala.Ui.Renderer do
   end
 
   @doc "Encode tree with tap handles for render_fast"
-  def encode_tree_with_taps(%Dala.Ui.Node{} = node, nif, platform, ctx) do
+  def encode_tree_with_taps(%Dala.Node{} = node, nif, platform, ctx) do
     {binary, taps} = encode_tree_node_with_taps(node, nif, platform, ctx)
     node_count = count_nodes(node)
 
@@ -430,7 +387,7 @@ defmodule Dala.Ui.Renderer do
   end
 
   defp encode_tree_node_with_taps(
-         %Dala.Ui.Node{id: id, type: type, props: props, children: children},
+         %Dala.Node{id: id, type: type, props: props, children: children},
          nif,
          platform,
          ctx
@@ -459,7 +416,7 @@ defmodule Dala.Ui.Renderer do
     {[node_binary | Enum.reverse(child_binaries)], all_taps}
   end
 
-  defp count_nodes(%Dala.Ui.Node{children: children}) do
+  defp count_nodes(%Dala.Node{children: children}) do
     1 + Enum.sum(Enum.map(children, &count_nodes/1))
   end
 
@@ -476,7 +433,7 @@ defmodule Dala.Ui.Renderer do
     ])
   end
 
-  defp encode_patch({:insert, parent_id, index, %Dala.Ui.Node{} = node}) do
+  defp encode_patch({:insert, parent_id, index, %Dala.Node{} = node}) do
     id = hash_id(node.id)
     parent = hash_id(parent_id)
     layout_hash = compute_layout_hash(node)
@@ -497,7 +454,7 @@ defmodule Dala.Ui.Renderer do
     [<<@op_update::8, hash_id(id)::little-64>>, encode_props(props)]
   end
 
-  defp encode_patch({:replace, id, %Dala.Ui.Node{} = node}) do
+  defp encode_patch({:replace, id, %Dala.Node{} = node}) do
     # Replace = remove old + create new
     old_id = hash_id(id)
     new_id = hash_id(node.id)
@@ -567,8 +524,8 @@ defmodule Dala.Ui.Renderer do
   end
 
   @doc "Compute the layout hash for a node"
-  @spec compute_layout_hash(Dala.Ui.Node.t()) :: non_neg_integer()
-  def compute_layout_hash(%Dala.Ui.Node{type: type, props: props, children: children}) do
+  @spec compute_layout_hash(Dala.Node.t()) :: non_neg_integer()
+  def compute_layout_hash(%Dala.Node{type: type, props: props, children: children}) do
     # Gather layout-relevant props in a deterministic order
     layout_props = [
       to_string(type),
@@ -770,7 +727,7 @@ defmodule Dala.Ui.Renderer do
 
   defp encode_children(children) do
     count = length(children)
-    ids = Enum.map(children, fn %Dala.Ui.Node{id: id} -> <<hash_id(id)::little-64>> end)
+    ids = Enum.map(children, fn %Dala.Node{id: id} -> <<hash_id(id)::little-64>> end)
     [<<count::little-32>>, ids]
   end
 

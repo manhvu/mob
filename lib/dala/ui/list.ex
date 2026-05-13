@@ -20,7 +20,7 @@ defmodule Dala.Ui.List do
 
       def handle_info({:select, :my_list, index}, socket) do
         item = Enum.at(socket.assigns.names, index)
-        {:noreply, Dala.Ui.Socket.assign(socket, :selected, item)}
+        {:noreply, Dala.Socket.assign(socket, :selected, item)}
       end
 
   ## Custom renderer
@@ -30,7 +30,7 @@ defmodule Dala.Ui.List do
       def mount(_params, _session, socket) do
         socket =
           socket
-          |> Dala.Ui.Socket.assign(:items, load_items())
+          |> Dala.Socket.assign(:items, load_items())
           |> Dala.Ui.List.put_renderer(:my_list, fn %{name: name, subtitle: sub} ->
             %{
               type: :column,
@@ -65,7 +65,7 @@ defmodule Dala.Ui.List do
   @spec put_renderer(Dala.Ui.Socket.t(), atom(), (term() -> map())) :: Dala.Ui.Socket.t()
   def put_renderer(socket, id, renderer) when is_atom(id) and is_function(renderer, 1) do
     existing = Map.get(socket.__dala__, :list_renderers, %{})
-    Dala.Ui.Socket.put_dala(socket, :list_renderers, Map.put(existing, id, renderer))
+    Dala.Socket.put_dala(socket, :list_renderers, Map.put(existing, id, renderer))
   end
 
   @doc """

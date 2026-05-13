@@ -2,9 +2,10 @@ defmodule Dala.Node do
   @moduledoc """
   Structured representation of a UI node in the Dala framework.
 
-  This is a public API wrapper around `Dala.Ui.Node`. The struct definition
-  mirrors `Dala.Ui.Node` so that `%Dala.Node{}` and `%Dala.Ui.Node{}`
-  are compatible.
+  Using a struct instead of raw maps provides:
+  - Compile-time verification of field names
+  - Default values for optional fields
+  - Clear documentation of the node structure
 
   ## Fields
 
@@ -41,35 +42,62 @@ defmodule Dala.Node do
   ]
 
   @doc """
-  Creates a node struct from a map representation.
+  Create a new Node struct from a map.
 
-  The map should have `:type` and `:props` keys. Optionally `:id` and `:children`.
-  If `:id` is not provided, it will be generated from the parent id and child index.
+  Converts the map representation (used by Dala.Ui.Widgets functions) to a proper Node struct.
+  Generates an ID if not present.
+
+  ## Example
+
+      Dala.Node.from_map(%{
+        type: :text,
+        props: %{text: "Hello"},
+        children: []
+      }, "parent:0")
+
   """
   @spec from_map(map(), String.t()) :: t()
-  def from_map(map, default_id) do
-    Dala.Ui.Node.from_map(map, default_id)
+  def from_map(%{type: type} = map, default_id) do
+    id = map[:id] || Map.get(map, :props, %{})[:id] || default_id
+
+    children =
+      Map.get(map, :children, [])
+      |> Enum.with_index()
+      |> Enum.map(fn {child, idx} ->
+        from_map(child, "#{id}:#{idx}")
+      end)
+
+    %__MODULE__{
+      id: id,
+      type: type,
+      props: Map.get(map, :props, %{}),
+      children: children
+    }
   end
 
   @doc """
-  Convert a node struct back to a map representation.
+  Convert a Node struct back to a map representation.
+
+  This is used before sending to the renderer/native side.
   """
   @spec to_map(t()) :: map()
-  def to_map(node) do
-    Dala.Ui.Node.to_map(node)
+  def to_map(%__MODULE__{id: id, type: type, props: props, children: children}) do
+    %{
+      type: type,
+      props: Map.put(props, :id, id),
+      children: Enum.map(children, &to_map/1)
+    }
   end
 
   @doc """
   Compute a stable numeric u64 ID by hashing the string/atom ID.
 
   Uses SHA-256 and takes the first 8 bytes as a big-endian unsigned 64-bit integer.
-  This matches the `hash_id` function in `Dala.Ui.Renderer`.
+  Delegates to `Dala.Ui.Renderer.hash_id/1`.
   """
   @spec stable_id(String.t() | atom()) :: non_neg_integer()
   def stable_id(id) do
-    id_str = to_string(id)
-    <<hash::unsigned-64-big, _rest::binary>> = :crypto.hash(:sha256, id_str)
-    hash
+    Dala.Ui.Renderer.hash_id(id)
   end
 
   @doc """
@@ -81,28 +109,7 @@ defmodule Dala.Node do
   a big-endian unsigned 64-bit integer.
   """
   @spec compute_layout_hash(t()) :: non_neg_integer()
-  def compute_layout_hash(%__MODULE__{type: type, props: props, children: children}) do
-    layout_props = [
-      to_string(type),
-      format_layout_prop(:width, props),
-      format_layout_prop(:height, props),
-      format_layout_prop(:padding, props),
-      format_layout_prop(:flex_grow, props),
-      format_layout_prop(:flex_direction, props),
-      format_layout_prop(:justify_content, props),
-      format_layout_prop(:align_items, props),
-      to_string(length(children))
-    ]
-
-    data = Enum.join(layout_props, "|")
-    <<hash::unsigned-64-big, _rest::binary>> = :crypto.hash(:sha256, data)
-    hash
-  end
-
-  defp format_layout_prop(key, props) do
-    case Map.get(props, key) do
-      nil -> ""
-      val -> to_string(val)
-    end
+  def compute_layout_hash(%__MODULE__{} = node) do
+    Dala.Ui.Renderer.compute_layout_hash(node)
   end
 end

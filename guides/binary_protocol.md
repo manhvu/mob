@@ -256,7 +256,7 @@ Located in `lib/dala/ui/renderer.ex`:
 
 ```elixir
 # Full tree encoding
-Dala.Ui.Renderer.encode_tree(%Dala.Ui.Node{} = node)
+Dala.Ui.Renderer.encode_tree(%Dala.Node{} = node)
 
 # Patch frame encoding
 Dala.Ui.Renderer.encode_frame([patch1, patch2, ...])
@@ -287,12 +287,12 @@ Rustler's `Binary` type provides zero-copy access to BEAM off-heap binaries.
 ### Encoding a Full Tree
 
 ```elixir
-node = %Dala.Ui.Node{
+node = %Dala.Node{
   id: "root",
   type: :column,
   props: %{padding: 10, background: "blue"},
   children: [
-    %Dala.Ui.Node{
+    %Dala.Node{
       id: "text1",
       type: :text,
       props: %{text: "Hello World"},
@@ -311,7 +311,7 @@ binary = Dala.Ui.Renderer.encode_tree(node)
 patches = [
   {:remove, "old_node"},
   {:update_props, "node1", %{text: "Updated"}},
-  {:insert, "parent", 0, %Dala.Ui.Node{...}}
+  {:insert, "parent", 0, %Dala.Node{...}}
 ]
 
 binary = Dala.Ui.Renderer.encode_frame(patches)
@@ -339,7 +339,7 @@ Test file: `test/dala/binary_protocol_test.exs`
 ```elixir
 # Example test
 test "encodes a simple text node" do
-  node = %Dala.Ui.Node{
+  node = %Dala.Node{
     id: "text1",
     type: :text,
     props: %{text: "Hello"},

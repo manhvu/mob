@@ -2,7 +2,7 @@ defmodule Dala.Theme.Adaptive do
   @moduledoc """
   Theme that follows the OS-level light / dark setting.
 
-  At call time `theme/0` reads `Dala.Theme.color_scheme/0` and returns
+  At call time `theme/0` reads `Dala.Theme.Theme.color_scheme/0` and returns
   `Dala.Theme.Light.theme/0` or `Dala.Theme.Dark.theme/0`. Built for
   outdoor working users — sun-readable in daytime, eye-friendly at night.
 

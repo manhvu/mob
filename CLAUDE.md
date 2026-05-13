@@ -502,14 +502,32 @@ User alias "Nova" = macOS + Nix-managed toolchain throughout.
 - `lib/dala/screen.ex` — GenServer wrapper, lifecycle callbacks
 - `lib/dala/socket.ex` — assigns + internal dala state
 - `lib/dala/renderer.ex` — walks component tree, issues NIF calls
-- `lib/dala/dist.ex` — platform-aware distribution startup
-- `src/dala_nif.erl` — Erlang NIF stub (declares all NIF functions)
+- `lib/dala/connectivity/dist.ex` — platform-aware distribution startup
+- `native/dala_nif/src/lib.rs` — Rust NIF implementation (via Rustler)
 - `ios/dala_nif.m` — iOS NIF implementation (SwiftUI bridge + test harness)
 - `android/jni/dala_nif.c` — Android NIF implementation (JNI bridge)
 - `ios/dala_beam.m` — iOS BEAM launcher
 - `android/jni/dala_beam.c` — Android BEAM launcher
 
-## Extenal documents
+- `lib/dala/permissions.ex` — Permission management
+- `lib/dala/platform/native.ex` — Rustler NIF declarations
+- `lib/dala/platform/native_logger.ex` — Native logger (NSLog/logcat)
+- `lib/dala/hardware/bluetooth.ex` — BLE support
+- `lib/dala/connectivity/wifi.ex` — WiFi network info
+- `lib/dala/storage/storage.ex` — App-local file storage
+- `lib/dala/storage/blob.ex` — Binary blob handling
+- `lib/dala/hardware/wakelock.ex` — Screen wakelock
+- `lib/dala/ui/native_view.ex` — NativeView component behaviour
+- `lib/dala/ui/feedback/alert.ex` — Alerts, action sheets, toasts
+- `lib/dala/ui/embedded/webview.ex` — WebView JS bridge
+- `lib/dala/ui/sensor/motion.ex` — Accelerometer/gyroscope
+- `lib/dala/event/event.ex` — Unified event system
+- `lib/dala/plugin.ex` — Plugin behaviour and DSL
+- `lib/dala/ml.ex` — ML public API
+- `lib/dala/list.ex` — List rendering
+- `lib/dala/pubsub.ex` — Local PubSub
+
+## External documents
 
 - `spark`  - https://hexdocs.pm/spark/Spark.html
 - `spark repo` - https://github.com/ash-project/spark

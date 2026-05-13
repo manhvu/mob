@@ -24,7 +24,7 @@ defmodule Dala.Spark.Dsl do
         end
 
         def handle_event(:increment, _params, socket) do
-          {:noreply, Dala.Ui.Socket.assign(socket, :count, socket.assigns.count + 1)}
+          {:noreply, Dala.Socket.assign(socket, :count, socket.assigns.count + 1)}
         end
       end
   """

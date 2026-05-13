@@ -44,16 +44,16 @@ dala do
 end
 ```
 
-This produces a tree of `%Dala.Ui.Node{}` structs (via `Dala.Node.from_map/2`) with stable `:id` fields for reconciliation:
+This produces a tree of `%Dala.Node{}` structs (via `Dala.Node.from_map/2`) with stable `:id` fields for reconciliation:
 
 ```elixir
-%Dala.Ui.Node{
+%Dala.Node{
   id: "root",
   type: :column,
   props: %{},
   children: [
-    %Dala.Ui.Node{id: "text1", type: :text, props: %{text: "Hello World"}, children: []},
-    %Dala.Ui.Node{id: "btn1", type: :button, props: %{text: "Tap me", on_tap: {pid, :tap}}, children: []}
+    %Dala.Node{id: "text1", type: :text, props: %{text: "Hello World"}, children: []},
+    %Dala.Node{id: "btn1", type: :button, props: %{text: "Tap me", on_tap: {pid, :tap}}, children: []}
   ]
 }
 ```
@@ -196,7 +196,7 @@ Dala supports patch-based UI updates instead of full tree re-renders.
 
 ### Architecture
 
-- UI trees use `Dala.Ui.Node` struct with stable `:id` field
+- UI trees use `Dala.Node` struct with stable `:id` field
 - `Dala.Diff.diff(old, new)` compares two trees and produces patches
 - `Dala.Ui.Renderer.render_patches/5` sends only patches to native
 - `Dala.Screen` stores previous tree in `__dala__.last_tree`
@@ -325,8 +325,8 @@ This prevents full view teardown on state updates (e.g., typing in text field).
 
 4. **Test Diff engine**:
    ```elixir
-   old = Dala.Ui.Node.from_map(old_map, "root")
-   new = Dala.Ui.Node.from_map(new_map, "root")
+   old = Dala.Node.from_map(old_map, "root")
+   new = Dala.Node.from_map(new_map, "root")
    patches = Dala.Diff.diff(old, new)
    IO.inspect(patches, label: "Patches")
    ```

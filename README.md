@@ -75,7 +75,7 @@ Add to `mix.exs`:
 
 ```elixir
 def deps do
-  [{:dala, "~> 0.0.5"}]
+  [{:dala, "~> 0.1.0"}]
 end
 ```
 
@@ -91,11 +91,13 @@ mix archive.install hex dala_new
 defmodule MyApp.CounterScreen do
   use Dala.Spark.Dsl
 
-  attribute :count, :integer, default: 0
+  attributes do
+    attribute :count, :integer, default: 0
+  end
 
   screen name: :counter do
     column do
-      gap(:space_sm)
+      gap :space_sm
       text "Count: @count", text_size: :xl
       button "Increment", on_tap: :increment
     end
@@ -141,12 +143,14 @@ defmodule MyApp do
   use Dala.App, theme: Dala.Theme.Obsidian
 
   def navigation(_platform) do
+    screens([MyApp.CounterScreen])
     stack(:home, root: MyApp.CounterScreen)
   end
 
   def on_start do
-    Dala.Screen.Screen.start_root(MyApp.CounterScreen)
-    Dala.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: :secret)
+    {:ok, _pid} = Dala.Screen.start_root(MyApp.CounterScreen)
+    cookie = Dala.Connectivity.Dist.cookie_from_env("MY_APP_DIST_COOKIE", "my_app")
+    Dala.Connectivity.Dist.ensure_started(node: :"my_app@127.0.0.1", cookie: cookie)
   end
 end
 ```
@@ -208,6 +212,10 @@ def handle_info({:push_token, :ios, token}, socket), do: ...
 
 Also: `Dala.Clipboard`, `Dala.Share`, `Dala.Photos`, `Dala.Files`, `Dala.Audio`, `Dala.Motion`, `Dala.Biometric`, `Dala.Scanner`, `Dala.Permissions`.
 
+Additional APIs: `Dala.Hardware.Bluetooth` (BLE), `Dala.Connectivity.Wifi`, `Dala.Wakelock`,
+`Dala.Storage.Storage`, `Dala.Storage.Blob`, `Dala.Platform.Settings`, `Dala.Platform.State`,
+`Dala.Platform.Linking`, `Dala.Platform.Background`, `Dala.Ui.Feedback.Alert`, `Dala.Ui.Embedded.Webview`.
+
 ## Live development
 
 ```bash
@@ -235,7 +243,7 @@ end
 | Package | Purpose |
 |---------|---------|
 | [`dala_dev`](https://hex.pm/packages/dala_dev) | Dev tooling: `mix dala.new`, `mix dala.deploy`, `mix dala.connect`, live dashboard |
-| [`dala_new`](https://hex.pm/packages/dala_new) | Generator poject tool |
+| [`dala_new`](https://hex.pm/packages/dala_new) | Generator project tool |
 | [`dala_runtime`](working, https://github.com/manhvu/dala_runtime) | AOT compiler & runtime for BEAM, fix limitations of JIT  |
 
 

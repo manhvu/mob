@@ -26,7 +26,7 @@ defmodule Dala.Spark.Pubsub do
 
         def handle_chat({:message, text}, socket) do
           messages = socket.assigns.messages ++ [text]
-          {:noreply, Dala.Ui.Socket.assign(socket, :messages, messages)}
+          {:noreply, Dala.Socket.assign(socket, :messages, messages)}
         end
       end
   """

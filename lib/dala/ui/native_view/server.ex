@@ -38,7 +38,7 @@ defmodule Dala.Ui.NativeView.Server do
     props = opts[:props]
     platform = opts[:platform]
 
-    socket = Dala.Ui.Socket.new(module, platform: platform)
+    socket = Dala.Socket.new(module, platform: platform)
 
     case module.mount(props, socket) do
       {:ok, socket} ->

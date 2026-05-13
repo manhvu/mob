@@ -4,7 +4,7 @@ defmodule Dala.MixProject do
   def project do
     [
       app: :dala,
-      version: "0.0.14",
+      version: "0.1.0",
       elixir: "~> 1.18",
       erlang: ">= 27.0",
       start_permanent: Mix.env() == :prod,
@@ -79,7 +79,7 @@ defmodule Dala.MixProject do
         Core: [Dala, Dala.App, Dala.Screen, Dala.Socket, Dala.State],
         UI: [
           Dala.Ui.Widgets,
-          Dala.Ui.Node,
+          Dala.Node,
           Dala.Ui.Diff,
           Dala.Ui.Renderer,
           Dala.Ui.Socket,

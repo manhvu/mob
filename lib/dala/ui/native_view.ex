@@ -22,7 +22,7 @@ defmodule Dala.Ui.NativeView do
         use Dala.Ui.NativeView
 
         def mount(props, socket) do
-          {:ok, Dala.Ui.Socket.assign(socket, :data, props[:data])}
+          {:ok, Dala.Socket.assign(socket, :data, props[:data])}
         end
 
         def render(assigns) do
@@ -30,7 +30,7 @@ defmodule Dala.Ui.NativeView do
         end
 
         def handle_event("segment_tapped", %{"index" => i}, socket) do
-          {:noreply, Dala.Ui.Socket.assign(socket, :selected, i)}
+          {:noreply, Dala.Socket.assign(socket, :selected, i)}
         end
       end
 

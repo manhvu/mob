@@ -318,23 +318,44 @@ These are the things we've burned ourselves on. Following them isn't optional.
     
     **Testing:** `Dala.Diff` has comprehensive tests in `test/dala/diff_test.exs`.
 
-## 19. **Bluetooth/WiFi setup mix task.**
-    `mix dala.setup_bluetooth_wifi` simplifies Bluetooth and WiFi permissions setup.
+## 20. **Bluetooth and WiFi support.**
+    Dala provides full BLE and WiFi APIs via `Dala.Hardware.Bluetooth` and `Dala.Connectivity.Wifi`.
     
-    **Features:**
-    - Detects platform (iOS, Android, or both)
-    - Runs platform-specific setup scripts if available (`scripts/ios_setup.sh`, `scripts/android_setup.sh`)
-    - Falls back to manual setup with clear instructions
-    - Verifies setup by checking files and permissions
-    - Idempotent (safe to run multiple times)
+    **One-command setup:**
+    ```bash
+    mix dala.setup_bluetooth_wifi              # set up both platforms
+    mix dala.setup_bluetooth_wifi --platform ios   # iOS only
+    mix dala.setup_bluetooth_wifi --check          # verify without changes
+    mix dala.bt_setup                              # shorter alias
+    ```
     
-    **Options:**
-    - `--platform ios|android|all` (default: all)
-    - `--no-color` to disable colored output
+    **Runtime API:**
+    ```elixir
+    Dala.Hardware.Bluetooth.state()                        # :powered_on | :powered_off | ...
+    Dala.Hardware.Bluetooth.start_scan(socket)              # scan for BLE devices
+    Dala.Hardware.Bluetooth.connect(socket, device_id)      # connect to device
+    Dala.Hardware.Bluetooth.read_characteristic(socket, ...)  # GATT read
+    Dala.Connectivity.Wifi.current_network()                # %{connected: true, ssid: ...}
+    Dala.Connectivity.Wifi.connected?()                     # true | false
+    Dala.Setup.diagnostic()                                 # full BT+WiFi diagnostic
+    Dala.Setup.print_diagnostic()                           # print report to console
+    ```
     
-    **Runtime helpers:** `Dala.Setup` module provides `check_bluetooth/0`, `check_wifi/0`,
-    `ensure_bluetooth_permissions/1`, `ensure_wifi_permissions/1`, and `diagnostic/0`.
-    Call from app startup or screens to verify permissions at runtime.
+    **Events arrive as handle_info:**
+    ```elixir
+    handle_info({:bluetooth, :device_found, %{id: id, name: name, rssi: rssi}}, socket)
+    handle_info({:bluetooth, :device_connected, %{id: id}}, socket)
+    handle_info({:wifi, :state_changed, %{connected: bool, ssid: ssid}}, socket)
+    ```
+    
+    **iOS:** CoreBluetooth via `DalaBluetoothManager` (ObjC) → C interface → Rust NIF.
+    **Android:** `DalaBridge.java` → JNI → Rust NIF.
+    
+    **Permissions:** Request via `Dala.Permissions.request(socket, :bluetooth)` / `:wifi`.
+    
+    **Setup modules:** `Dala.Setup.IOS`, `Dala.Setup.Android` for programmatic setup.
+    **Setup scripts:** `scripts/ios_setup.sh`, `scripts/android_setup.sh`.
+    **Full docs:** `docs/bluetooth_wifi_implementation.md`.
 
 ## 21. **Plugin lifecycle and capability registration.**
     Plugins now follow a full lifecycle with capability-based registration.
@@ -430,6 +451,13 @@ These are the things we've burned ourselves on. Following them isn't optional.
 | Generator templates (dala_new) | `dala_new/priv/templates/dala.new/` |
 | Build / release tooling | `dala_dev/scripts/release/`, `dala_dev/build_release.md` |
 | Plugin lifecycle, capabilities, registry | `lib/dala/plugin.ex`, `lib/dala/plugin/lifecycle.ex`, `lib/dala/plugin/registry.ex` |
+| Event system (unified API, bridge, target, throttle) | `lib/dala/event/event.ex`, `lib/dala/event/bridge.ex`, `lib/dala/event/target.ex`, `lib/dala/event/throttle.ex` |
+| NativeView component lifecycle | `lib/dala/ui/native_view.ex`, `lib/dala/ui/native_view/server.ex`, `lib/dala/ui/native_view/registry.ex` |
+| Background execution, Linking, Settings, State | `lib/dala/platform/background.ex`, `lib/dala/platform/linking.ex`, `lib/dala/platform/settings.ex`, `lib/dala/platform/state.ex` |
+| Storage (files, blobs, photos) | `lib/dala/storage/storage.ex`, `lib/dala/storage/blob.ex`, `lib/dala/storage/files.ex`, `lib/dala/media/photos.ex` |
+| Alerts, toasts, WebView bridge, Motion sensors | `lib/dala/ui/feedback/alert.ex`, `lib/dala/ui/embedded/webview.ex`, `lib/dala/ui/sensor/motion.ex` |
+| Wakelock, List rendering, PubSub | `lib/dala/hardware/wakelock.ex`, `lib/dala/list.ex`, `lib/dala/pubsub.ex` |
+| Distribution, Permissions | `lib/dala/connectivity/dist.ex`, `lib/dala/permissions.ex` |
 
 ## iOS ML Support (Nx ecosystem + CoreML + ONNX)
 
@@ -486,7 +514,7 @@ Helper modules: `Dala.ML`, `Dala.ML.EMLX`, `Dala.ML.Nx`, `Dala.ML.CoreML`, `Dala
 Full guide: `guides/ios_ml_support.md`
 Summary: `dala/ML_INTEGRATION_SUMMARY.md`
 
-## 21. **Dev-only UI preview and design tool.**
+## 22. **Dev-only UI preview and design tool.**
     `Dala.Preview` module (in `dev_tools/` directory) provides two modes:
 
     1. **Static preview** — generates standalone HTML with CSS that mimics Dala's styling.
@@ -537,44 +565,27 @@ Summary: `dala/ML_INTEGRATION_SUMMARY.md`
     - `Dala.Preview.Codegen.extract_handlers/1` — Extract event handler atoms from UI tree
     - Auto-generates `handle_event/3` stubs for all event handlers found in the tree
 
-## 20. **Bluetooth and WiFi support.**
-    Dala provides full BLE and WiFi APIs via `Dala.Bluetooth` and `Dala.WiFi` modules.
+## 23. **Event system and additional platform APIs.**
+    Dala provides a unified event system and several additional platform APIs:
     
-    **One-command setup:**
-    ```bash
-    mix dala.setup_bluetooth_wifi              # set up both platforms
-    mix dala.setup_bluetooth_wifi --platform ios   # iOS only
-    mix dala.setup_bluetooth_wifi --check          # verify without changes
-    mix dala.bt_setup                              # shorter alias
-    ```
-    
-    **Runtime API:**
-    ```elixir
-    Dala.Bluetooth.state()                        # :powered_on | :powered_off | ...
-    Dala.Bluetooth.start_scan(socket)              # scan for BLE devices
-    Dala.Bluetooth.connect(socket, device_id)      # connect to device
-    Dala.Bluetooth.read_characteristic(socket, ...)  # GATT read
-    Dala.WiFi.current_network()                   # %{connected: true, ssid: ...}
-    Dala.WiFi.connected?()                        # true | false
-    Dala.Setup.diagnostic()                       # full BT+WiFi diagnostic
-    Dala.Setup.print_diagnostic()                 # print report to console
-    ```
-    
-    **Events arrive as handle_info:**
-    ```elixir
-    handle_info({:bluetooth, :device_found, %{id: id, name: name, rssi: rssi}}, socket)
-    handle_info({:bluetooth, :device_connected, %{id: id}}, socket)
-    handle_info({:wifi, :state_changed, %{connected: bool, ssid: ssid}}, socket)
-    ```
-    
-    **iOS:** CoreBluetooth via `DalaBluetoothManager` (ObjC) → C interface → Rust NIF.
-    **Android:** `DalaBridge.java` → JNI → Rust NIF.
-    
-    **Permissions:** Request via `Dala.Permissions.request(socket, :bluetooth)` / `:wifi`.
-    
-    **Setup modules:** `Dala.Setup.IOS`, `Dala.Setup.Android` for programmatic setup.
-    **Setup scripts:** `scripts/ios_setup.sh`, `scripts/android_setup.sh`.
-    **Full docs:** `docs/bluetooth_wifi_implementation.md`.
+    - `Dala.Event` — Unified event emission: `dispatch/4`, `emit/4`, `send_test/6`
+    - `Dala.Event.Bridge` — Event routing between native and BEAM
+    - `Dala.Event.Throttle` — Event throttling/debouncing
+    - `Dala.Event.Trace` — Event tracing for debugging
+    - `Dala.Ui.NativeView` — Stateful Elixir processes paired with platform-native views
+    - `Dala.Platform.Background` — Background execution keep-alive
+    - `Dala.Platform.Linking` — Open URLs, deep links
+    - `Dala.Platform.Settings` — Persistent settings (UserDefaults/SharedPreferences)
+    - `Dala.Platform.State` — DETS-backed persistent key-value store
+    - `Dala.Storage.Blob` — Binary data via native blob references
+    - `Dala.Storage.Storage` — App-local file storage with named locations
+    - `Dala.Wakelock` — Screen wakelock
+    - `Dala.Ui.Feedback.Alert` — Native alerts, action sheets, toasts
+    - `Dala.Ui.Embedded.Webview` — Bidirectional JS bridge for WebView
+    - `Dala.Ui.Sensor.Motion` — Accelerometer and gyroscope
+    - `Dala.List` — List rendering with custom item renderers
+    - `Dala.PubSub` — Local PubSub via Elixir Registry
+    - `Dala.Connectivity.Dist` — Platform-aware Erlang distribution startup
 
 ## Conventions worth knowing
 

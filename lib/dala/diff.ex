@@ -1,13 +1,43 @@
 defmodule Dala.Diff do
   @moduledoc """
-  Public API for diff operations.
+  Diff engine for incremental UI updates.
 
-  This module delegates to `Dala.Ui.Diff` for computing UI tree diffs.
+  Compares two UI trees (as `Dala.Node` structs) and produces a minimal
+  set of patches to transform the old tree into the new tree.
+
+  ## Patch format
+
+  Patches are tuples tagged with an action:
+
+      {:replace, id, node}           # Replace entire node
+      {:update_props, id, props}     # Update props on existing node (full replacement)
+      {:patch_node, id, mask, props}  # Patch only changed fields (field-mask based)
+      {:insert, parent_id, index, node}  # Insert new node
+      {:remove, id}                  # Remove node
+
+  ## Usage
+
+      old_tree = Dala.Node.from_map(old_map, "root")
+      new_tree = Dala.Node.from_map(new_map, "root")
+      patches = Dala.Diff.diff(old_tree, new_tree)
+
+  ## Node identity
+
+  Nodes are identified by the `:id` field in `Dala.Node`. This must be
+  stable across renders for proper reconciliation.
+
+  ## Field masks
+
+  When only a few props change, `{:patch_node, id, mask, props}` is emitted
+  instead of `{:update_props, id, props}`. The mask is a 16-bit bitmask
+  where bit N corresponds to field tag (N+1). If more than half the fields
+  changed, a full `{:update_props, ...}` is sent instead.
   """
 
   alias Dala.Ui.Diff
 
   @type node_id :: String.t() | atom()
+
   @type patch ::
           {:replace, node_id(), Dala.Node.t()}
           | {:update_props, node_id(), map()}
@@ -19,58 +49,10 @@ defmodule Dala.Diff do
   Compute the diff between two UI trees.
 
   Returns a list of patches to transform `old_tree` into `new_tree`.
-
-  ## Examples
-
-      old_tree = Dala.Node.from_map(%{id: "root", type: :text, props: %{text: "Hello"}}, "root")
-      new_tree = Dala.Node.from_map(%{id: "root", type: :text, props: %{text: "World"}}, "root")
-      patches = Dala.Diff.diff(old_tree, new_tree)
-
   """
   @spec diff(Dala.Node.t() | nil, Dala.Node.t() | nil) :: [patch()]
   def diff(nil, nil), do: []
-  def diff(nil, %Dala.Node{} = new), do: Diff.diff(nil, to_ui_node(new)) |> from_ui_patches()
-  def diff(%Dala.Node{} = old, nil), do: Diff.diff(to_ui_node(old), nil) |> from_ui_patches()
-
-  def diff(%Dala.Node{} = old, %Dala.Node{} = new),
-    do: Diff.diff(to_ui_node(old), to_ui_node(new)) |> from_ui_patches()
-
-  defp to_ui_node(%Dala.Node{} = node) do
-    %Dala.Ui.Node{
-      id: node.id,
-      type: node.type,
-      props: node.props,
-      children: Enum.map(node.children, &to_ui_node/1)
-    }
-  end
-
-  defp to_ui_node(nil), do: nil
-
-  defp from_ui_patches(patches) do
-    Enum.map(patches, fn
-      {:replace, id, %Dala.Ui.Node{} = node} ->
-        {:replace, id, from_ui_node(node)}
-
-      {:update_props, id, props} ->
-        {:update_props, id, props}
-
-      {:patch_node, id, mask, props} ->
-        {:patch_node, id, mask, props}
-
-      {:insert, parent_id, index, %Dala.Ui.Node{} = node} ->
-        {:insert, parent_id, index, from_ui_node(node)}
-
-      {:remove, id} ->
-        {:remove, id}
-    end)
-  end
-
-  defp from_ui_node(%Dala.Ui.Node{} = node) do
-    %Dala.Node{
-      id: node.id,
-      type: node.type,
-      props: node.props,
-      children: Enum.map(node.children, &from_ui_node/1)
-    }
-  end
+  def diff(nil, %Dala.Node{} = new), do: Diff.diff(nil, new)
+  def diff(%Dala.Node{} = old, nil), do: Diff.diff(old, nil)
+  def diff(%Dala.Node{} = old, %Dala.Node{} = new), do: Diff.diff(old, new)
 end

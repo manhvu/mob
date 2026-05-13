@@ -558,4 +558,132 @@ Duration: `:short` (default, ~2 s) or `:long` (~4 s). iOS renders a floating lab
 | `:label` | string | `""` |
 | `:style` | `:default`, `:cancel`, `:destructive` | `:default` |
 | `:action` | atom — delivered as `{:alert, atom}` to `handle_info/2` | `:dismiss` |
+
+## Bluetooth (BLE)
+
+`Dala.Hardware.Bluetooth` provides BLE central (client) and peripheral (server) functionality.
+Requires `:bluetooth` permission.
+
+```elixir
+# Check state
+Dala.Hardware.Bluetooth.state()  # :powered_on | :powered_off | ...
+
+# Scan for devices
+Dala.Hardware.Bluetooth.start_scan(socket, services: [], timeout_ms: 10_000)
+
+# Connect / disconnect
+Dala.Hardware.Bluetooth.connect(socket, device_id)
+Dala.Hardware.Bluetooth.disconnect(socket, device_id)
+
+# GATT operations
+Dala.Hardware.Bluetooth.discover_services(socket, device_id)
+Dala.Hardware.Bluetooth.read_characteristic(socket, device_id, service_uuid, char_uuid)
+Dala.Hardware.Bluetooth.write_characteristic(socket, device_id, service_uuid, char_uuid, value)
+Dala.Hardware.Bluetooth.subscribe(socket, device_id, service_uuid, char_uuid)
+```
+
+Events arrive as:
+```elixir
+handle_info({:bluetooth, :device_found, %{id: id, name: name, rssi: rssi}}, socket)
+handle_info({:bluetooth, :device_connected, %{id: id}}, socket)
+handle_info({:bluetooth, :characteristic_read, %{device: id, value: data}}, socket)
+handle_info({:bluetooth, :notification_received, %{device: id, value: data}}, socket)
+```
+
+## WiFi
+
+`Dala.Connectivity.Wifi` provides WiFi network information.
+
+```elixir
+Dala.Connectivity.Wifi.connected?()                    # true | false
+Dala.Connectivity.Wifi.current_network()               # %{connected: true, ssid: ...}
+Dala.Connectivity.Wifi.ip_address()                    # "192.168.1.5" | nil
+Dala.Connectivity.Wifi.scan(socket)                     # Android only
+```
+
+Events arrive as:
+```elixir
+handle_info({:wifi, :state_changed, %{connected: bool, ssid: ssid}}, socket)
+handle_info({:wifi, :scan_result, [%{ssid: ssid, rssi: rssi}]}, socket)
+```
+
+## Wakelock
+
+`Dala.Wakelock` keeps the device screen on. No permissions required.
+
+```elixir
+Dala.Wakelock.enable()
+Dala.Wakelock.disable()
+Dala.Wakelock.toggle(enable: true)
+Dala.Wakelock.enabled?()  # true | false
+```
+
+## Persistent State
+
+`Dala.Platform.State` provides a DETS-backed persistent key-value store. Survives app kills and restarts.
+
+```elixir
+Dala.Platform.State.put(:theme, :citrus)
+Dala.Platform.State.get(:theme, :obsidian)   #=> :citrus
+Dala.Platform.State.delete(:theme)
+```
+
+## Persistent Settings
+
+`Dala.Platform.Settings` wraps UserDefaults (iOS) / SharedPreferences (Android).
+
+```elixir
+Dala.Platform.Settings.get("theme")
+Dala.Platform.Settings.set(socket, "theme", "dark")
+Dala.Platform.Settings.watch(socket, "theme")
+
+def handle_info({:settings, :changed, {"theme", value}}, socket), do: ...
+```
+
+## Linking (Deep Links)
+
+`Dala.Platform.Linking` opens URLs and handles deep links.
+
+```elixir
+Dala.Platform.Linking.open_url(socket, "https://example.com")
+Dala.Platform.Linking.can_open?("https://example.com")  # true | false
+Dala.Platform.Linking.initial_url()                      # nil | "https://..."
+
+def handle_info({:linking, :url, url}, socket), do: ...
+```
+
+## Background Execution
+
+`Dala.Platform.Background` keeps the app alive when the screen locks.
+
+```elixir
+Dala.Platform.Background.keep_alive()  # start keep-alive
+Dala.Platform.Background.stop()        # allow suspension
+```
+
+iOS: silent audio session. Android: foreground service with notification.
+
+## Blob Storage
+
+`Dala.Storage.Blob` handles binary data via native blob references.
+
+```elixir
+blob_ref = Dala.Storage.Blob.create(<<1, 2, 3>>, "application/octet-stream")
+sliced = Dala.Storage.Blob.slice(blob_ref, 0, 2)
+base64 = Dala.Storage.Blob.to_base64(blob_ref)
+{:ok, path} = Dala.Storage.Blob.to_file(blob_ref, "/tmp/blob.bin")
+```
+
+## File Storage
+
+`Dala.Storage.Storage` provides app-local file storage with named locations.
+
+```elixir
+Dala.Storage.Storage.dir(:documents)           # resolve location path
+Dala.Storage.Storage.list(:cache)              # list files
+Dala.Storage.Storage.write("/path/file.txt", data)
+{:ok, data} = Dala.Storage.Storage.read("/path/file.txt")
+```
+
+Locations: `:temp`, `:documents`, `:cache`, `:app_support`.
 ```

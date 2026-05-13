@@ -14,7 +14,7 @@ defmodule Dala.Platform.Clipboard do
 
       def handle_event("paste", _params, socket) do
         case Dala.Clipboard.get(socket) do
-          {:clipboard, :ok, text} -> {:noreply, Dala.Ui.Socket.assign(socket, :field, text)}
+          {:clipboard, :ok, text} -> {:noreply, Dala.Socket.assign(socket, :field, text)}
           {:clipboard, :empty}    -> {:noreply, socket}
         end
       end

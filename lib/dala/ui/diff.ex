@@ -4,7 +4,7 @@ defmodule Dala.Ui.Diff do
   @moduledoc """
   Diff engine for incremental UI updates.
 
-  Compares two UI trees (as `Dala.Ui.Node` structs) and produces a minimal
+  Compares two UI trees (as `Dala.Node` structs) and produces a minimal
   set of patches to transform the old tree into the new tree.
 
   ## Patch format
@@ -19,13 +19,13 @@ defmodule Dala.Ui.Diff do
 
   ## Usage
 
-      old_tree = Dala.Ui.Node.from_map(old_map, "root")
-      new_tree = Dala.Ui.Node.from_map(new_map, "root")
-      patches = Dala.Ui.Diff.diff(old_tree, new_tree)
+      old_tree = Dala.Node.from_map(old_map, "root")
+      new_tree = Dala.Node.from_map(new_map, "root")
+      patches = Dala.Diff.diff(old_tree, new_tree)
 
   ## Node identity
 
-  Nodes are identified by the `:id` field in `Dala.Ui.Node`. This must be
+  Nodes are identified by the `:id` field in `Dala.Node`. This must be
   stable across renders for proper reconciliation.
 
   ## Field masks
@@ -64,10 +64,10 @@ defmodule Dala.Ui.Diff do
   @type node_id :: String.t() | atom()
 
   @type patch ::
-          {:replace, node_id(), Dala.Ui.Node.t()}
+          {:replace, node_id(), Dala.Node.t()}
           | {:update_props, node_id(), map()}
           | {:patch_node, node_id(), non_neg_integer(), map()}
-          | {:insert, node_id(), non_neg_integer(), Dala.Ui.Node.t()}
+          | {:insert, node_id(), non_neg_integer(), Dala.Node.t()}
           | {:remove, node_id()}
 
   @doc """
@@ -75,31 +75,31 @@ defmodule Dala.Ui.Diff do
 
   Returns a list of patches to transform `old_tree` into `new_tree`.
   """
-  @spec diff(Dala.Ui.Node.t() | nil, Dala.Ui.Node.t() | nil) :: [patch()]
-  def diff(nil, %Dala.Ui.Node{id: id} = new), do: [{:replace, id, new}]
-  def diff(%Dala.Ui.Node{id: id}, nil), do: [{:remove, id}]
-  def diff(%Dala.Ui.Node{id: id} = old, %Dala.Ui.Node{id: id} = new), do: do_diff(old, new)
+  @spec diff(Dala.Node.t() | nil, Dala.Node.t() | nil) :: [patch()]
+  def diff(nil, %Dala.Node{id: id} = new), do: [{:replace, id, new}]
+  def diff(%Dala.Node{id: id}, nil), do: [{:remove, id}]
+  def diff(%Dala.Node{id: id} = old, %Dala.Node{id: id} = new), do: do_diff(old, new)
 
-  def diff(%Dala.Ui.Node{id: old_id} = _old, %Dala.Ui.Node{id: new_id} = new) do
+  def diff(%Dala.Node{id: old_id} = _old, %Dala.Node{id: new_id} = new) do
     # Different IDs at root level - full replacement
-    [{:remove, old_id}, {:insert, :root, 0, %Dala.Ui.Node{new | id: new_id}}]
+    [{:remove, old_id}, {:insert, :root, 0, %Dala.Node{new | id: new_id}}]
   end
 
   # Same node - check for changes
-  defp do_diff(%Dala.Ui.Node{id: _id, type: type} = old, %Dala.Ui.Node{type: type} = new) do
+  defp do_diff(%Dala.Node{id: _id, type: type} = old, %Dala.Node{type: type} = new) do
     props_patches = diff_props(old, new)
     children_patches = diff_children(old, new)
     props_patches ++ children_patches
   end
 
-  defp do_diff(%Dala.Ui.Node{id: id} = _old, %Dala.Ui.Node{} = new) do
+  defp do_diff(%Dala.Node{id: id} = _old, %Dala.Node{} = new) do
     # Different type - full replacement
     [{:replace, id, new}]
   end
 
   # Props diff - use field-mask based patching when few fields changed,
   # full update when many fields changed
-  defp diff_props(%Dala.Ui.Node{id: id, props: old_props}, %Dala.Ui.Node{props: new_props}) do
+  defp diff_props(%Dala.Node{id: id, props: old_props}, %Dala.Node{props: new_props}) do
     if old_props == new_props do
       []
     else
@@ -146,7 +146,7 @@ defmodule Dala.Ui.Diff do
   end
 
   # Children diff with keyed reconciliation
-  defp diff_children(%Dala.Ui.Node{id: parent_id, children: old_children}, %Dala.Ui.Node{
+  defp diff_children(%Dala.Node{id: parent_id, children: old_children}, %Dala.Node{
          children: new_children
        }) do
     old_map = Map.new(old_children, &{&1.id, &1})

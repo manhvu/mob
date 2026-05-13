@@ -297,6 +297,47 @@ def handle_event(:increment, _params, socket) do
 end
 ```
 
+## PubSub Subscriptions
+
+The Spark DSL supports declarative PubSub subscriptions via the `pubsub` section. Topics are subscribed when the screen mounts and automatically unsubscribed when the screen terminates.
+
+```elixir
+defmodule MyApp.ChatScreen do
+  use Dala.Spark.Dsl
+
+  attributes do
+    attribute :messages, :list, default: []
+  end
+
+  pubsub do
+    subscribe "chat:room:123", on_message: :handle_chat
+  end
+
+  screen name: :chat do
+    column do
+      text "Messages: @messages"
+    end
+  end
+
+  def handle_chat({:message, text}, socket) do
+    messages = socket.assigns.messages ++ [text]
+    {:noreply, Dala.Socket.assign(socket, :messages, messages)}
+  end
+end
+```
+
+Use `Dala.PubSub` to set up a PubSub instance and broadcast messages:
+
+```elixir
+# In your app supervision tree:
+children = [
+  {Dala.PubSub, name: MyApp.PubSub}
+]
+
+# Broadcast a message:
+Dala.PubSub.broadcast(MyApp.PubSub, "chat:room:123", {:message, "Hello!"})
+```
+
 ## Integration with Dala.App
 
 Register Spark DSL screens in your app's `navigation/1` using `Dala.App.screens/1`:

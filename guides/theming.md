@@ -187,3 +187,16 @@ You can also pass raw ARGB hex integers directly as prop values:
 ```
 
 Use raw integers sparingly. Semantic tokens give you free dark-mode and theme switching.
+
+## Detecting dark mode
+
+`Dala.Theme.color_scheme/0` returns the current OS appearance (`:light` or `:dark`). Use it to adapt your UI based on the system setting:
+
+```elixir
+def mount(_params, _session, socket) do
+  scheme = Dala.Theme.color_scheme()
+  {:ok, Dala.Socket.assign(socket, :color_scheme, scheme)}
+end
+```
+
+This reads from `UITraitCollection.userInterfaceStyle` on iOS and `Configuration.uiMode` on Android.
