@@ -10,7 +10,7 @@ defmodule Dala.ML do
   - **Axon** - Neural networks (deep learning)
   - **EMLX** - Apple Silicon GPU acceleration (iOS only, auto-configured)
   - **CoreML** - iOS-native ML framework (Neural Engine, iOS only)
-  - **ONNX Runtime** - Cross-platform inference engine (iOS/Android/desktop)
+  - **ONNX Runtime** - Cross-platform inference engine (iOS/Android)
 
   ## Quick Start
 
@@ -23,15 +23,15 @@ defmodule Dala.ML do
 
   ## Platform Support
 
-  | Library | iOS Device | iOS Sim | Android | macOS | Linux |
-  |---------|-----------|--------|---------|-------|-------|
-  | Nx | ✅ | ✅ | ✅ | ✅ | ✅ |
-  | Scholar | ✅ | ✅ | ✅ | ✅ | ✅ |
-  | NxSignal | ✅ | ✅ | ✅ | ✅ | ✅ |
-  | Axon | ✅ | ✅ | ✅ | ✅ | ✅ |
-  | EMLX (GPU) | ✅ | ✅ | ❌ | ✅ | ❌ |
-  | CoreML | ✅ | ✅ | ❌ | ❌ | ❌ |
-  | ONNX Runtime | ✅ | ✅ | ✅ | ✅ | ✅ |
+  | Library | iOS Device | iOS Sim | Android |
+  |---------|-----------|--------|---------|
+  | Nx | ✅ | ✅ | ✅ |
+  | Scholar | ✅ | ✅ | ✅ |
+  | NxSignal | ✅ | ✅ | ✅ |
+  | Axon | ✅ | ✅ | ✅ |
+  | EMLX (GPU) | ✅ | ✅ | ❌ |
+  | CoreML | ✅ | ✅ | ❌ |
+  | ONNX Runtime | ✅ | ✅ | ✅ |
   """
 
   @doc """
