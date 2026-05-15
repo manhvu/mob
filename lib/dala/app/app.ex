@@ -37,7 +37,22 @@ defmodule Dala.App.App do
   without needing to reference modules directly.
   """
 
+  @doc """
+  Declare the app's navigation structure.
+
+  Implement this callback to define the app's navigation using `stack/2`,
+  `tab_bar/1`, and `drawer/1` helpers. The `platform` argument is the
+  current platform atom (`:ios` or `:android`), allowing platform-specific
+  navigation layouts.
+
+      def navigation(:ios),     do: tab_bar([stack(:home, root: HomeScreen)])
+      def navigation(:android), do: drawer([stack(:home, root: HomeScreen)])
+      def navigation(_),        do: stack(:home, root: HomeScreen)
+
+  All `name` atoms used in stacks become valid `push_screen` destinations.
+  """
   @callback navigation(platform :: atom()) :: map()
+
 
   @doc """
   App-specific startup hook. Called by the generated `start/0` after all

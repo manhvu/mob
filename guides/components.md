@@ -151,8 +151,8 @@ A scrolling container (ScrollView equivalent).
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `horizontal` | boolean | Enable horizontal scrolling (default `false`) |
-| `show_indicator` | boolean | Show scroll indicator (default `true`) |
+| `direction` | `:vertical` / `:horizontal` | Scroll direction (default `:vertical`) |
+| `shows_indicator` | boolean | Show scroll indicator (default `true`) |
 | `on_end_reached` | `{pid, tag}` | Fired when scroll reaches bottom/end |
 | `on_scroll` | `{pid, tag}` | Fired during scrolling with scroll position |
 | `paging` | boolean | Enable snap-to-page scrolling (default `false`) |

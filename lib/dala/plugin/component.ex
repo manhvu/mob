@@ -54,7 +54,13 @@ defmodule Dala.Plugin.Component do
 
   @doc """
   Adds a property to the component schema.
+
+  Options:
+    * `:required` — boolean, whether the prop is required (default: false)
+    * `:default` — default value (default: nil)
+    * `:doc` — documentation string (default: nil)
   """
+  @spec add_prop(t(), Plugin.prop_name(), Plugin.prop_type(), keyword()) :: t()
   def add_prop(component, name, type, opts \\ []) do
     prop = %{
       name: name,
@@ -69,7 +75,12 @@ defmodule Dala.Plugin.Component do
 
   @doc """
   Adds an event to the component schema.
+
+  Options:
+    * `:payload` — map of field names to types (default: %{})
+    * `:doc` — documentation string (default: nil)
   """
+  @spec add_event(t(), Plugin.event_name(), keyword()) :: t()
   def add_event(component, name, opts \\ []) do
     event = %{
       name: name,
@@ -82,15 +93,20 @@ defmodule Dala.Plugin.Component do
 
   @doc """
   Adds a native platform mapping to the component schema.
+
+  `platform` is the platform string (e.g. `"ios"`, `"android"`).
+  `class_name` is the native class name to instantiate.
   """
+  @spec add_native(t(), String.t(), String.t()) :: t()
   def add_native(component, platform, class_name)
       when is_binary(platform) and is_binary(class_name) do
     %{component | natives: Map.put(component.natives, platform, class_name)}
   end
 
   @doc """
-  Adds a capability to the component schema.
+  Adds a required capability to the component schema.
   """
+  @spec add_capability(t(), Plugin.capability()) :: t()
   def add_capability(component, capability) do
     %{component | capabilities: [capability | component.capabilities]}
   end
@@ -101,6 +117,7 @@ defmodule Dala.Plugin.Component do
   Optional capabilities enhance the component but are not required for
   basic functionality.
   """
+  @spec add_optional_capability(t(), atom()) :: t()
   def add_optional_capability(component, capability) do
     %{component | optional_capabilities: [capability | component.optional_capabilities]}
   end

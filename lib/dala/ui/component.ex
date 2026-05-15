@@ -1054,9 +1054,11 @@ defmodule Dala.Ui.Component do
   # ── Public API ─────────────────────────────────────────────────────────────
 
   @doc "Get all components as a keyword list"
+  @spec all() :: [{atom(), t()}]
   def all, do: components() |> Map.to_list()
 
   @doc "Get leaf components as a keyword list"
+  @spec leaf_components() :: [{atom(), t()}]
   def leaf_components do
     components()
     |> Enum.filter(fn {_name, comp} -> comp.category == :leaf end)
@@ -1064,6 +1066,7 @@ defmodule Dala.Ui.Component do
   end
 
   @doc "Get container components as a keyword list"
+  @spec container_components() :: [{atom(), t()}]
   def container_components do
     components()
     |> Enum.filter(fn {_name, comp} -> comp.category == :container end)
@@ -1071,11 +1074,13 @@ defmodule Dala.Ui.Component do
   end
 
   @doc "Get a single component by name"
+  @spec get(atom()) :: t() | nil
   def get(name) when is_atom(name) do
     Map.get(components(), name)
   end
 
   @doc "Get the props list for a component by name"
+  @spec props(atom()) :: [atom()]
   def props(name) when is_atom(name) do
     case Map.get(components(), name) do
       nil -> []
@@ -1084,6 +1089,7 @@ defmodule Dala.Ui.Component do
   end
 
   @doc "Get the prop schema for a component by name"
+  @spec prop_schema(atom()) :: [{atom(), keyword()}]
   def prop_schema(name) when is_atom(name) do
     case Map.get(components(), name) do
       nil ->
@@ -1098,6 +1104,7 @@ defmodule Dala.Ui.Component do
   end
 
   @doc "Apply a component's transform function to props"
+  @spec transform_props(atom(), map()) :: map()
   def transform_props(name, props) when is_atom(name) and is_map(props) do
     case Map.get(components(), name) do
       nil -> props

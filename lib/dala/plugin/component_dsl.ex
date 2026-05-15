@@ -11,6 +11,7 @@ defmodule Dala.Plugin.ComponentDSL do
   @doc """
   Evaluates a component definition block.
   """
+  @spec eval(module(), Dala.Plugin.Component.t(), Macro.t()) :: Dala.Plugin.Component.t()
   def eval(_plugin_module, component, block) do
     # Store component in process dictionary for the DSL to access
     key = {:__dala_component__, component.plugin}

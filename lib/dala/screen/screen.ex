@@ -28,7 +28,7 @@ defmodule Dala.Screen.Screen do
 
   ## Dispatching events
 
-      Dala.Screen.Screen.dispatch(pid, "increment", %{})
+    Dala.Screen.dispatch(pid, "increment", %{})
   """
 
   # Set up Spark DSL - makes Dala.Screen a Spark extension module
@@ -116,9 +116,9 @@ defmodule Dala.Screen.Screen do
   # ── Navigation ────────────────────────────────────────────────────────────
   @doc """
   Start a screen as the root UI screen. Calls mount, renders the component tree
-  via `Dala.Ui.Renderer`, and calls `set_root_binary` on the resulting view.
+  via `Dala.Ui.Renderer`, and sends the binary tree to the native side.
 
-  This is the main entry point for production use. `start_link/2` is for tests
+  This is the main entry point for production use. `start_link/3` is for tests
   (no NIF calls).
   """
   @spec start_root(module(), map(), keyword()) :: GenServer.on_start()
@@ -140,7 +140,7 @@ defmodule Dala.Screen.Screen do
   Return the current socket state of a running screen.
   Intended for testing and debugging — not for production app logic.
   """
-  @spec get_socket(pid()) :: any()
+  @spec get_socket(pid()) :: Dala.Socket.t()
   def get_socket(pid) do
     GenServer.call(pid, :get_socket)
   end

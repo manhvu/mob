@@ -65,7 +65,7 @@ defmodule Dala.Event.Target do
       iex> Dala.Event.Target.resolve(self(), %{screen_pid: self(), component_chain: []})
       {:ok, self()}
   """
-  @spec resolve(spec(), render_scope()) :: {:ok, pid()} | {:error, atom()}
+  @spec resolve(spec(), render_scope()) :: {:ok, pid()} | {:error, term()}
   def resolve(:parent, %{component_chain: chain, screen_pid: screen_pid}) do
     case List.last(chain) do
       nil -> {:ok, screen_pid}

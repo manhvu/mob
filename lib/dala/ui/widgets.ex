@@ -92,6 +92,8 @@ defmodule Dala.Ui.Widgets do
       props
       |> Map.put_new(:align_items, props[:alignment])
       |> Map.put_new(:justify_content, props[:justify])
+      |> Enum.filter(fn {_k, v} -> v != nil end)
+      |> Map.new()
 
     allowed = @layout_props ++ @gesture_props ++ @accessibility_props ++ [:align_items, :justify_content, :alignment, :justify]
 
@@ -117,6 +119,8 @@ defmodule Dala.Ui.Widgets do
       props
       |> Map.put_new(:align_items, props[:alignment])
       |> Map.put_new(:justify_content, props[:justify])
+      |> Enum.filter(fn {_k, v} -> v != nil end)
+      |> Map.new()
 
     allowed = @layout_props ++ @gesture_props ++ @accessibility_props ++ [:align_items, :justify_content, :alignment, :justify]
 
@@ -423,7 +427,7 @@ defmodule Dala.Ui.Widgets do
 
   ## Props
 
-    * `:value` — current value (default: 0.0)
+    * `:value` — current value (default: 0.5)
     * `:min_value` — minimum value (default: 0.0)
     * `:max_value` — maximum value (default: 1.0)
     * `:on_change` — `{pid, tag}` tuple; fired with new float value on drag
@@ -677,8 +681,8 @@ defmodule Dala.Ui.Widgets do
 
   ## Props
 
-    * `:horizontal` — boolean, enables horizontal scrolling (default: false)
-    * `:show_indicator` — boolean, show scroll indicator (default: true)
+    * `:direction` — `:vertical` (default) or `:horizontal`
+    * `:shows_indicator` — boolean, show scroll indicator (default: true)
     * `:on_end_reached` — `{pid, tag}` tuple; fired when scroll reaches bottom/end
     * `:on_scroll` — `{pid, tag}` tuple; fired during scrolling with scroll position
     * `:padding`, `:background` — layout props
@@ -1158,7 +1162,7 @@ defmodule Dala.Ui.Widgets do
 
     * `:visible` — boolean, whether the sheet is shown
     * `:on_dismiss` — `{pid, tag}` tuple; fired when the sheet is dismissed
-    * `:drag_indicator` — boolean, show drag handle at top (default: false)
+    * `:drag_indicator` — boolean, show drag handle at top (default: true)
     * `:peek_height` — float, height of the sheet when partially visible
     * `:background` — background color
     * `:corner_radius` — rounded corners at the top

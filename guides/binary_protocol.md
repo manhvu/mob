@@ -115,71 +115,23 @@ Used by `Dala.Ui.Renderer.encode_frame/1` and `Dala.Platform.Native.apply_patche
 
 ### Patch Opcodes
 
-#### `op_patch_node` (0x04)
+#### `op_frame_begin` (0x00)
 
 ```
-[u8 opcode=0x04][u64 id][u8 field_mask][props...]
-```
-
-Update specific fields on a node by bitmask. More efficient than a full property update.
-
-#### `op_set_text` (0x05)
-
-```
-[u8 opcode=0x05][u64 id][u16 len][bytes]
-```
-
-Fast-path for text-only updates on `:text` and `:button` nodes.
-
-#### `op_set_style` (0x06)
-
-```
-[u8 opcode=0x06][u64 id][u8 style_tag][u8 style_value]
-```
-
-Update a single style property (e.g., color, padding) without a full props map.
-
-#### `op_register_string` (0x07)
-
-```
-[u8 opcode=0x07][u64 id][u16 len][bytes]
-```
-
-Pre-register a string with the native side for faster subsequent references.
-
-#### `op_event` (0x08)
-
-```
-[u8 opcode=0x08][u64 id][u8 event_type][payload...]
-```
-
-Event delivery from native to Elixir (reverse direction).
-
-#### `op_frame_begin` (0x09)
-
-```
-[u8 opcode=0x09]
+[u8 opcode=0x00]
 ```
 
 Delimits the start of a frame. Used for frame boundary detection.
 
-#### `op_frame_end` (0x0A)
+#### `op_create_node` (0x01) — INSERT
 
 ```
-[u8 opcode=0x0A]
-```
-
-Delimits the end of a frame.
-
-#### INSERT (0x01)
-
-```
-[u8 opcode=0x01][u64 id][u64 parent_id][u32 index][u8 type][props...]
+[u8 opcode=0x01][u64 id][u64 parent_id][u32 index][u8 type][u64 layout_hash][props...][u32 child_count][u64 child_ids...]
 ```
 
 Insert a new node under `parent_id` at position `index`.
 
-#### REMOVE (0x02)
+#### `op_remove` (0x02) — REMOVE
 
 ```
 [u8 opcode=0x02][u64 id]
@@ -187,13 +139,61 @@ Insert a new node under `parent_id` at position `index`.
 
 Remove the node with the given `id`.
 
-#### UPDATE (0x03)
+#### `op_update` (0x03) — UPDATE
 
 ```
 [u8 opcode=0x03][u64 id][props...]
 ```
 
 Update properties on the node with the given `id`.
+
+#### `op_patch_node` (0x04)
+
+```
+[u8 opcode=0x04][u64 id][u16 field_mask][changed props...]
+```
+
+Update specific fields on a node by bitmask. More efficient than a full property update.
+
+#### `op_register_string` (0x05)
+
+```
+[u8 opcode=0x05][u16 string_id][u16 len][bytes...]
+```
+
+Pre-register a string with the native side for faster subsequent references.
+
+#### `op_set_text` (0x06)
+
+```
+[u8 opcode=0x06][u64 id][u16 len][bytes...]
+```
+
+Fast-path for text-only updates on `:text` and `:button` nodes.
+
+#### `op_set_style` (0x07)
+
+```
+[u8 opcode=0x07][u64 id][props...]
+```
+
+Update style properties on a node without a full props replacement.
+
+#### `op_event` (0x08)
+
+```
+[u8 opcode=0x08][u64 target_id][u8 event_type][u64 timestamp][u16 payload_len][payload_bytes...]
+```
+
+Event delivery from native to Elixir (reverse direction).
+
+#### `op_frame_end` (0xFF)
+
+```
+[u8 opcode=0xFF]
+```
+
+Delimits the end of a frame.
 
 ---
 
@@ -217,7 +217,9 @@ Properties are encoded as tagged values. The `field_count` byte in the node head
 | 10 | `:flex_direction` | `[u8]` | byte (0=column, 1=row) |
 | 11 | `:justify_content` | `[u8]` | byte (0=start, 1=center, 2=end, 3=space_between) |
 | 12 | `:align_items` | `[u8]` | byte (0=start, 1=center, 2=end, 3=stretch) |
-| 13+ | *(extended)* | *varies* | Reserved for new component properties |
+| 13 | `:thickness` | `[f32]` | float (little-endian) |
+| 14 | `:fixed_size` | `[f32]` | float (little-endian) |
+| 15+ | *(extended)* | *varies* | Reserved for new component properties |
 
 ### Enum Encoding
 

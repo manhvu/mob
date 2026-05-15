@@ -70,7 +70,7 @@ defmodule Dala.ML.Training do
   @spec evaluate(term(), term(), {term(), term()}, keyword()) ::
           {:ok, map()} | {:error, term()}
   def evaluate(model, params, {data, labels}, opts \\ []) do
-    _metrics = Keyword.get(opts, [:metrics], [:accuracy])
+    _metrics = Keyword.get(opts, :metrics, [:accuracy])
 
     try do
       result =

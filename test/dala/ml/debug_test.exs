@@ -39,7 +39,7 @@ defmodule Dala.ML.Debug.Test do
     end
 
     test "sample contains up to 10 elements" do
-      tensor = Nx.to_flat_list(Nx.tensor(1..100)) |> Nx.tensor()
+      tensor = 1..100 |> Enum.to_list() |> Nx.tensor()
       info = Dala.ML.Debug.tensor_info(tensor)
       assert length(info.sample) <= 10
     end

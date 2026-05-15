@@ -119,6 +119,8 @@ end
 
 ```elixir
 scroll do
+  direction :vertical
+  shows_indicator true
   padding :space_md
   text "Long content..."
 end

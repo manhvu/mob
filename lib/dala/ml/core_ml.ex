@@ -98,8 +98,10 @@ defmodule Dala.ML.CoreML do
   end
 
   @doc """
-  Convenience: load and predict in one call.
-  Model must be loaded first.
+  Run prediction on an already-loaded model.
+
+  Unlike `load_model/2` + `predict/2`, this does NOT load the model.
+  The model must be loaded first via `load_model/2`.
   """
   @spec predict_with_loaded_model(String.t(), map()) ::
           {:ok, String.t()} | {:error, term()} | :not_supported

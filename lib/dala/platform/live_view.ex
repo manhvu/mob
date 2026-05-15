@@ -216,6 +216,7 @@ defmodule Dala.Platform.LiveUview do
         ...
       end
   """
+  @spec suppress_dev_tool_warnings() :: :ok
   def suppress_dev_tool_warnings do
     # Only suppress on dalaile platforms where these tools can't possibly run
     if Dala.Platform.Native.platform() in [:android, :ios] do

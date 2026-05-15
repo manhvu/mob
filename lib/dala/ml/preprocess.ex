@@ -160,9 +160,9 @@ defmodule Dala.ML.Preprocess do
   - `:n_mels` — Number of mel bands (default: 80)
   - `:hop_length` — Hop length (default: 160)
   """
-  @spec mel_spectrogram(Nx.Tensor.t(), keyword()) :: Nx.Tensor.t() | {:ok, Nx.Tensor.t()}
+  @spec mel_spectrogram(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()}
   def mel_spectrogram(samples, opts \\ []) do
-    sample_rate = Keyword.get(opts, :sample_rate, 16000)
+    #sample_rate = Keyword.get(opts, :sample_rate, 16000)
     n_fft = Keyword.get(opts, :n_fft, 400)
     n_mels = Keyword.get(opts, :n_mels, 80)
     hop_length = Keyword.get(opts, :hop_length, 160)

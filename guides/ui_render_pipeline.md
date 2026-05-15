@@ -58,7 +58,7 @@ This produces a tree of `%Dala.Node{}` structs (via `Dala.Node.from_map/2`) with
 }
 ```
 
-### 2. Prepare Phase (`Dala.Ui.Renderer.prepare/4`)
+### 2. Prepare Phase (`Dala.Ui.Renderer`)
 
 The renderer transforms the tree before binary encoding — token resolution, component defaults, platform blocks, and tap registration.
 
@@ -183,7 +183,7 @@ For complete details on the binary format, see [Binary Protocol](binary_protocol
 
 ### Node Identity (hash_id/1)
 
-Stable node IDs are computed using `:erlang.phash2/2`:
+Stable node IDs are computed using SHA-256:
 
 ```elixir
 defp hash_id(id) do

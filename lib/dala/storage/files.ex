@@ -18,6 +18,17 @@ defmodule Dala.Storage.Files do
   iOS: `UIDocumentPickerViewController`. Android: `OpenMultipleDocuments`.
   """
 
+  @doc """
+  Open the system file picker.
+
+  Options:
+    * `:types` — list of MIME type patterns (default: `["*/*"]`)
+
+  Results arrive via `handle_info` as `{:files, :picked, items}` or
+  `{:files, :cancelled}`.
+
+  Returns the socket unchanged.
+  """
   @spec pick(Dala.Socket.t(), keyword()) :: Dala.Socket.t()
   def pick(socket, opts \\ []) do
     types = Keyword.get(opts, :types, ["*/*"])

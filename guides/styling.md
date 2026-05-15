@@ -154,9 +154,9 @@ Android reference: [Coil](https://coil-kt.github.io/coil/compose/)
 
 | Prop | iOS | Android |
 |---|---|---|
-| `axis: :vertical` (default) | `ScrollView(.vertical)` | `Modifier.verticalScroll` on a `Column` |
-| `axis: :horizontal` | `ScrollView(.horizontal)` | `Modifier.horizontalScroll` on a `Row` |
-| `show_indicator: false` | `.scrollIndicators(.hidden)` | `ScrollState` (indicators not natively controllable in Compose) |
+| `direction: :vertical` (default) | `ScrollView(.vertical)` | `Modifier.verticalScroll` on a `Column` |
+| `direction: :horizontal` | `ScrollView(.horizontal)` | `Modifier.horizontalScroll` on a `Row` |
+| `shows_indicator: false` | `.scrollIndicators(.hidden)` | `ScrollState` (indicators not natively controllable in Compose) |
 
 Android's `verticalScroll` modifier also applies `.imePadding()` so the keyboard does not obscure text fields inside a scroll view.
 

@@ -21,17 +21,25 @@ defmodule Dala.Platform.Settings do
       end
   """
 
+  @doc "Get a setting value by key. Returns `nil` if the key is not set."
   @spec get(String.t()) :: any() | nil
   def get(key) when is_binary(key) do
     Dala.Platform.Native.settings_get(key)
   end
 
+  @doc "Set a setting value. Returns the socket unchanged."
   @spec set(Dala.Socket.t(), String.t(), any()) :: Dala.Socket.t()
   def set(socket, key, value) when is_binary(key) do
     Dala.Platform.Native.settings_set(key, value)
     socket
   end
 
+  @doc """
+  Watch a key for changes. Change notifications arrive as
+  `{:settings, :changed, {key, value}}` via `handle_info/2`.
+
+  Returns the socket unchanged.
+  """
   @spec watch(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def watch(socket, key) when is_binary(key) do
     Dala.Platform.Native.settings_watch(key)

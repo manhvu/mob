@@ -40,6 +40,7 @@ defmodule Dala.Ml.Nx do
   @doc """
   Creates a tensor with the platform-appropriate backend.
   """
+  @spec tensor(term(), keyword()) :: Nx.Tensor.t()
   def tensor(data, opts \\ []) do
     backend = Keyword.get(opts, :backend, default_backend())
     Nx.tensor(data, Keyword.put(opts, :backend, backend))

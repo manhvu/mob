@@ -207,7 +207,13 @@ defmodule Dala.Ui.Renderer do
     {:ok, :binary_tree}
   end
 
-  # Optimized version that batches tap registrations
+  @doc """
+  Fast render path for simple updates.
+
+  Optimized version that batches tap registrations with the binary encoding.
+  Otherwise identical to `render/4` — loads the active theme, serialises the
+  tree to binary, and calls `set_root_binary/1` on the NIF.
+  """
   @spec render_fast(Dala.Node.t() | map(), atom(), module(), atom()) :: {:ok, :binary_tree}
   def render_fast(tree, platform, nif \\ @default_nif, transition \\ :none) do
     nif.clear_taps()

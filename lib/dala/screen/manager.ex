@@ -12,6 +12,7 @@ defmodule Dala.Screen.Manager do
   @id_counter :dala_screen_id_counter
 
   @doc "Starts the screen manager (supervision child spec)."
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
@@ -53,6 +54,7 @@ defmodule Dala.Screen.Manager do
   @doc """
   Generates a unique screen ID.
   """
+  @spec next_id() :: integer()
   def next_id do
     :ets.update_counter(@id_counter, :counter, {2, 1}, {2, 0})
   end
@@ -65,6 +67,7 @@ defmodule Dala.Screen.Manager do
   - `pid`: screen process PID
   - `module`: screen module (e.g., `MyApp.HomeScreen`)
   """
+  @spec register(integer(), atom() | nil, pid(), module()) :: :ok
   def register(id, name, pid, module) when is_integer(id) and is_pid(pid) do
     :ets.insert(@table, {id, name, pid, module})
     # Monitor the screen process so we clean up if it crashes
@@ -83,6 +86,7 @@ defmodule Dala.Screen.Manager do
   end
 
   @doc "Unregisters a screen by its PID (called when screen stops)."
+  @spec unregister(pid()) :: :ok
   def unregister(pid) when is_pid(pid) do
     :ets.match_delete(@table, {:_, :_, pid, :_})
 
@@ -94,6 +98,7 @@ defmodule Dala.Screen.Manager do
 
   Returns `:ok` if sent, `{:error, :not_found}` if identifier doesn't match any screen.
   """
+  @spec dispatch(pid() | atom() | integer(), term()) :: :ok | {:error, :not_found}
   def dispatch(identifier, message) do
     case lookup_pid(identifier) do
       {:ok, pid} ->
@@ -108,6 +113,7 @@ defmodule Dala.Screen.Manager do
   @doc """
   Lists all registered screens as a list of maps with `:id`, `:name`, `:pid`, `:module`.
   """
+  @spec list() :: [%{id: integer(), name: atom() | nil, pid: pid(), module: module()}]
   def list do
     :ets.tab2list(@table)
     |> Enum.map(fn {id, name, pid, module} ->

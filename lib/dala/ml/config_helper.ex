@@ -39,6 +39,7 @@ defmodule Dala.ML.ConfigHelper do
   - `{:emlx, github: "elixir-nx/emlx", branch: "main"}` — Apple Silicon GPU (iOS/macOS)
   - `{:axon_onnx, "~> 0.5"}` — ONNX model loading for Axon
   """
+  @spec recommended_deps() :: [{atom(), String.t() | keyword()}]
   def recommended_deps do
     [
       {:nx, "~> 0.10"},
@@ -60,6 +61,7 @@ defmodule Dala.ML.ConfigHelper do
   ## Download:
   Pre-trained models are available from HuggingFace or TensorFlow Hub.
   """
+  @spec quantized_model_config() :: map()
   def quantized_model_config do
     %{
       models: [
@@ -87,6 +89,7 @@ defmodule Dala.ML.ConfigHelper do
 
   Add this to your app's config/config.exs.
   """
+  @spec recommended_config() :: String.t()
   def recommended_config do
     """
     # Disable JIT for iOS devices (W^X policy blocks it)
@@ -106,6 +109,7 @@ defmodule Dala.ML.ConfigHelper do
 
   Add these to your build script or mix.exs make_env.
   """
+  @spec build_env_vars() :: %{String.t() => String.t()}
   def build_env_vars do
     %{
       "LIBMLX_ENABLE_JIT" => "false",
@@ -116,6 +120,7 @@ defmodule Dala.ML.ConfigHelper do
   @doc """
   Prints a copy-pasteable mix.exs snippet.
   """
+  @spec print_mix_deps() :: String.t()
   def print_mix_deps do
     deps = recommended_deps()
 
@@ -145,6 +150,7 @@ defmodule Dala.ML.ConfigHelper do
   @doc """
   Prints a copy-pasteable config.exs snippet.
   """
+  @spec print_config() :: String.t()
   def print_config do
     recommended_config()
   end
