@@ -295,6 +295,94 @@ fn apply_command(buf: &mut FrameBuffer, cmd: &RenderCommand, gpu: &mut dyn Rende
         RenderCommand::RemoveSprite { id } => {
             let _ = id;
         }
+        RenderCommand::LoadImage { id, w, h, ref data } => {
+            let _ = (id, w, h, data);
+        }
+        RenderCommand::RemoveImage { id } => {
+            let _ = id;
+        }
+        RenderCommand::ImageBlit {
+            image_id,
+            x,
+            y,
+            w,
+            h,
+        } => {
+            let _ = (image_id, x, y, w, h);
+        }
+        RenderCommand::DrawCircle {
+            cx,
+            cy,
+            radius,
+            color,
+        } => {
+            buf.draw_circle(cx, cy, radius, color);
+        }
+        RenderCommand::FillCircle {
+            cx,
+            cy,
+            radius,
+            color,
+        } => {
+            buf.fill_circle(cx, cy, radius, color);
+        }
+        RenderCommand::DrawTriangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+            color,
+        } => {
+            buf.draw_triangle(x1, y1, x2, y2, x3, y3, color);
+        }
+        RenderCommand::FillTriangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+            color,
+        } => {
+            buf.fill_triangle(x1, y1, x2, y2, x3, y3, color);
+        }
+        RenderCommand::DrawRoundRect {
+            x,
+            y,
+            w,
+            h,
+            radius,
+            color,
+        } => {
+            buf.draw_round_rect(x, y, w, h, radius, color);
+        }
+        RenderCommand::FillRoundRect {
+            x,
+            y,
+            w,
+            h,
+            radius,
+            color,
+        } => {
+            buf.fill_round_rect(x, y, w, h, radius, color);
+        }
+        RenderCommand::SetClip {
+            x,
+            y,
+            w,
+            h,
+            enabled,
+        } => {
+            let _ = (x, y, w, h, enabled);
+        }
+        RenderCommand::ResetClip => {
+            // no-op on CPU framebuffer
+        }
+        RenderCommand::Batch { count, ref data } => {
+            let _ = (count, data);
+        }
     }
 }
 

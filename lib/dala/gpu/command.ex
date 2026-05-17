@@ -84,6 +84,19 @@ defmodule Dala.Gpu.Command do
     <<0x08, id::unsigned-little-64>>
   end
 
+  @doc "Encode a load_image command that uploads an image as a GPU texture."
+  @spec encode_load_image(non_neg_integer(), binary(), non_neg_integer(), non_neg_integer()) :: binary()
+  def encode_load_image(id, rgba_data, width, height) do
+    <<0x17, id::unsigned-little-64, width::unsigned-little-32, height::unsigned-little-32,
+      rgba_data::binary>>
+  end
+
+  @doc "Encode a remove_image command that frees an image texture."
+  @spec encode_remove_image(non_neg_integer()) :: binary()
+  def encode_remove_image(id) do
+    <<0x18, id::unsigned-little-64>>
+  end
+
   @doc "Encode a dispatch_compute command that runs a GPU compute shader."
   @spec encode_dispatch_compute(String.t(), binary(), {non_neg_integer(), non_neg_integer(), non_neg_integer()}) :: binary()
   def encode_dispatch_compute(shader_source, params, {wg_x, wg_y, wg_z}) do
@@ -123,6 +136,81 @@ defmodule Dala.Gpu.Command do
 
     <<0x0C, name_len::unsigned-little-32, name_bytes::binary,
       data_len::unsigned-little-32, data::binary>>
+  end
+
+  @doc "Encode an image_blit command that draws a loaded image texture."
+  @spec encode_image_blit(non_neg_integer(), integer(), integer(), non_neg_integer(), non_neg_integer()) :: binary()
+  def encode_image_blit(image_id, x, y, w, h) do
+    <<0x16, image_id::unsigned-little-64, x::signed-little-32, y::signed-little-32,
+      w::unsigned-little-32, h::unsigned-little-32>>
+  end
+
+  @doc "Encode a draw_circle command."
+  @spec encode_draw_circle(integer(), integer(), non_neg_integer(), color()) :: binary()
+  def encode_draw_circle(cx, cy, radius, color) do
+    rgba = color_to_rgba(color)
+    <<0x0D, cx::signed-little-32, cy::signed-little-32, radius::unsigned-little-32, rgba::binary>>
+  end
+
+  @doc "Encode a fill_circle command."
+  @spec encode_fill_circle(integer(), integer(), non_neg_integer(), color()) :: binary()
+  def encode_fill_circle(cx, cy, radius, color) do
+    rgba = color_to_rgba(color)
+    <<0x0E, cx::signed-little-32, cy::signed-little-32, radius::unsigned-little-32, rgba::binary>>
+  end
+
+  @doc "Encode a draw_triangle command."
+  @spec encode_draw_triangle(integer(), integer(), integer(), integer(), integer(), integer(), color()) :: binary()
+  def encode_draw_triangle(x1, y1, x2, y2, x3, y3, color) do
+    rgba = color_to_rgba(color)
+    <<0x0F, x1::signed-little-32, y1::signed-little-32, x2::signed-little-32,
+      y2::signed-little-32, x3::signed-little-32, y3::signed-little-32, rgba::binary>>
+  end
+
+  @doc "Encode a fill_triangle command."
+  @spec encode_fill_triangle(integer(), integer(), integer(), integer(), integer(), integer(), color()) :: binary()
+  def encode_fill_triangle(x1, y1, x2, y2, x3, y3, color) do
+    rgba = color_to_rgba(color)
+    <<0x10, x1::signed-little-32, y1::signed-little-32, x2::signed-little-32,
+      y2::signed-little-32, x3::signed-little-32, y3::signed-little-32, rgba::binary>>
+  end
+
+  @doc "Encode a draw_round_rect command."
+  @spec encode_draw_round_rect(non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), color()) :: binary()
+  def encode_draw_round_rect(x, y, w, h, radius, color) do
+    rgba = color_to_rgba(color)
+    <<0x11, x::unsigned-little-32, y::unsigned-little-32, w::unsigned-little-32,
+      h::unsigned-little-32, radius::unsigned-little-32, rgba::binary>>
+  end
+
+  @doc "Encode a fill_round_rect command."
+  @spec encode_fill_round_rect(non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), color()) :: binary()
+  def encode_fill_round_rect(x, y, w, h, radius, color) do
+    rgba = color_to_rgba(color)
+    <<0x12, x::unsigned-little-32, y::unsigned-little-32, w::unsigned-little-32,
+      h::unsigned-little-32, radius::unsigned-little-32, rgba::binary>>
+  end
+
+  @doc "Encode a set_clip command."
+  @spec encode_set_clip(non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), boolean()) :: binary()
+  def encode_set_clip(x, y, w, h, enabled) do
+    flag = if enabled, do: 1, else: 0
+    <<0x13, x::unsigned-little-32, y::unsigned-little-32, w::unsigned-little-32,
+      h::unsigned-little-32, flag::unsigned-little-8>>
+  end
+
+  @doc "Encode a reset_clip command."
+  @spec encode_reset_clip() :: binary()
+  def encode_reset_clip do
+    <<0x14>>
+  end
+
+  @doc "Encode a batch command containing multiple sub-commands."
+  @spec encode_batch([binary()]) :: binary()
+  def encode_batch(commands) do
+    data = :erlang.list_to_binary(commands)
+    count = length(commands)
+    <<0x15, count::unsigned-little-32, data::binary>>
   end
 
   # ── Color encoding ────────────────────────────────────────────────────────

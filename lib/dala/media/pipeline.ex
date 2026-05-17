@@ -28,7 +28,7 @@ defmodule Dala.Media.Pipeline do
       Dala.Media.Pipeline.stop(pipeline)
   """
 
-  use Supervisor
+  use GenServer
 
   require Logger
 
@@ -238,7 +238,7 @@ defmodule Dala.Media.Pipeline do
         anim_pid: anim,
         texture_pool_pid: pool,
         adaptive_pid: adaptive,
-        subtitle_cues: subtitle_cues,
+        subtitle_cues: subtitle_cues
       }}
     end
   end

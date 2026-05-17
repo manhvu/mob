@@ -129,6 +129,156 @@ pub enum RenderCommand {
         /// Sprite ID to remove.
         id: u64,
     },
+
+    /// Load an image into the GPU texture pool.
+    LoadImage {
+        /// Unique image ID.
+        id: u64,
+        /// Image width in pixels.
+        w: u32,
+        /// Image height in pixels.
+        h: u32,
+        /// RGBA8888 pixel data (w * h * 4 bytes).
+        data: Vec<u8>,
+    },
+
+    /// Remove an image from the GPU texture pool.
+    RemoveImage {
+        /// Image ID to remove.
+        id: u64,
+    },
+
+    /// Blit a loaded image texture onto the framebuffer.
+    ImageBlit {
+        /// Image ID in the texture pool.
+        image_id: u64,
+        /// Destination X coordinate.
+        x: i32,
+        /// Destination Y coordinate.
+        y: i32,
+        /// Destination width (for scaling).
+        w: u32,
+        /// Destination height (for scaling).
+        h: u32,
+    },
+
+    /// Draw a circle outline.
+    DrawCircle {
+        /// Center X coordinate.
+        cx: i32,
+        /// Center Y coordinate.
+        cy: i32,
+        /// Radius in pixels.
+        radius: u32,
+        /// RGBA color components.
+        color: [u8; 4],
+    },
+
+    /// Fill a circle.
+    FillCircle {
+        /// Center X coordinate.
+        cx: i32,
+        /// Center Y coordinate.
+        cy: i32,
+        /// Radius in pixels.
+        radius: u32,
+        /// RGBA color components.
+        color: [u8; 4],
+    },
+
+    /// Draw a triangle outline from three points.
+    DrawTriangle {
+        /// First point X.
+        x1: i32,
+        /// First point Y.
+        y1: i32,
+        /// Second point X.
+        x2: i32,
+        /// Second point Y.
+        y2: i32,
+        /// Third point X.
+        x3: i32,
+        /// Third point Y.
+        y3: i32,
+        /// RGBA color components.
+        color: [u8; 4],
+    },
+
+    /// Fill a triangle.
+    FillTriangle {
+        /// First point X.
+        x1: i32,
+        /// First point Y.
+        y1: i32,
+        /// Second point X.
+        x2: i32,
+        /// Second point Y.
+        y2: i32,
+        /// Third point X.
+        x3: i32,
+        /// Third point Y.
+        y3: i32,
+        /// RGBA color components.
+        color: [u8; 4],
+    },
+
+    /// Draw a rounded rectangle outline.
+    DrawRoundRect {
+        /// X coordinate of the top-left corner.
+        x: u32,
+        /// Y coordinate of the top-left corner.
+        y: u32,
+        /// Width.
+        w: u32,
+        /// Height.
+        h: u32,
+        /// Corner radius in pixels.
+        radius: u32,
+        /// RGBA color components.
+        color: [u8; 4],
+    },
+
+    /// Fill a rounded rectangle.
+    FillRoundRect {
+        /// X coordinate of the top-left corner.
+        x: u32,
+        /// Y coordinate of the top-left corner.
+        y: u32,
+        /// Width.
+        w: u32,
+        /// Height.
+        h: u32,
+        /// Corner radius in pixels.
+        radius: u32,
+        /// RGBA color components.
+        color: [u8; 4],
+    },
+
+    /// Set the clipping rectangle.
+    SetClip {
+        /// X coordinate of the clip region.
+        x: u32,
+        /// Y coordinate of the clip region.
+        y: u32,
+        /// Width of the clip region.
+        w: u32,
+        /// Height of the clip region.
+        h: u32,
+        /// Whether clipping is enabled.
+        enabled: bool,
+    },
+
+    /// Reset the clipping region to the full framebuffer.
+    ResetClip,
+
+    /// Batch command: execute multiple commands atomically.
+    /// The inner commands are encoded as a concatenated binary blob.
+    Batch {
+        /// Number of commands in the batch.
+        count: u32,
+        /// Concatenated binary-encoded commands.
+        data: Vec<u8>,
+    },
 }
 
 #[cfg(test)]

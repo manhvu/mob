@@ -188,6 +188,68 @@ defmodule Dala.Gpu do
     Surface.remove_sprite(pid, id)
   end
 
+  # ── Image loading ────────────────────────────────────────────────────────
+
+  @doc """
+  Load an image into the GPU texture pool.
+
+  `id` is a unique non-negative integer identifying the image.
+  `rgba_binary` is the pixel data in RGBA8888 format.
+
+  The image can then be rendered with `draw_image/6`.
+
+  ## Example
+
+      # Load a PNG-decoded binary
+      {:ok, rgba_data} = Image.load("photo.png")
+      Dala.Gpu.load_image(surface, 1, rgba_data, 640, 480)
+
+      # Draw it at position (100, 200) scaled to 320x240
+      Dala.Gpu.draw_image(surface, 1, 100, 200, 320, 240)
+  """
+  @spec load_image(
+          surface_pid(),
+          non_neg_integer(),
+          binary(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: :ok
+  def load_image(pid, id, rgba_binary, width, height) do
+    Surface.load_image(pid, id, rgba_binary, width, height)
+  end
+
+  @doc "Remove an image from the GPU texture pool."
+  @spec remove_image(surface_pid(), non_neg_integer()) :: :ok
+  def remove_image(pid, id) do
+    Surface.remove_image(pid, id)
+  end
+
+  @doc """
+  Draw a loaded image onto the framebuffer at the given position and size.
+
+  The image is scaled to fit the destination rectangle. For best quality,
+  load the image at its native resolution and scale via the destination size.
+
+  ## Example
+
+      # Full-size render
+      Dala.Gpu.draw_image(surface, image_id, 0, 0, 640, 480)
+
+      # PiP mode: small overlay in the corner
+      Dala.Gpu.draw_image(surface, image_id, 540, 20, 120, 90)
+  """
+  @spec draw_image(
+          surface_pid(),
+          non_neg_integer(),
+          integer(),
+          integer(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: :ok
+  def draw_image(pid, image_id, x, y, w, h) do
+    Surface.draw_image(pid, image_id, x, y, w, h)
+  end
+
   # ── GPU compute ──────────────────────────────────────────────────────────
 
   @doc """
@@ -220,5 +282,61 @@ defmodule Dala.Gpu do
   @spec supports_compute(surface_pid()) :: boolean()
   def supports_compute(pid) do
     Surface.supports_compute(pid)
+  end
+
+  # ── Complex drawing commands ──────────────────────────────────────────────
+
+  @doc "Draw a circle outline."
+  @spec draw_circle(surface_pid(), integer(), integer(), non_neg_integer(), color()) :: :ok
+  def draw_circle(pid, cx, cy, radius, color) do
+    Surface.draw_circle(pid, cx, cy, radius, color)
+  end
+
+  @doc "Fill a circle."
+  @spec fill_circle(surface_pid(), integer(), integer(), non_neg_integer(), color()) :: :ok
+  def fill_circle(pid, cx, cy, radius, color) do
+    Surface.fill_circle(pid, cx, cy, radius, color)
+  end
+
+  @doc "Draw a triangle outline from three points."
+  @spec draw_triangle(surface_pid(), integer(), integer(), integer(), integer(), integer(), integer(), color()) :: :ok
+  def draw_triangle(pid, x1, y1, x2, y2, x3, y3, color) do
+    Surface.draw_triangle(pid, x1, y1, x2, y2, x3, y3, color)
+  end
+
+  @doc "Fill a triangle."
+  @spec fill_triangle(surface_pid(), integer(), integer(), integer(), integer(), integer(), integer(), color()) :: :ok
+  def fill_triangle(pid, x1, y1, x2, y2, x3, y3, color) do
+    Surface.fill_triangle(pid, x1, y1, x2, y2, x3, y3, color)
+  end
+
+  @doc "Draw a rounded rectangle outline."
+  @spec draw_round_rect(surface_pid(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), color()) :: :ok
+  def draw_round_rect(pid, x, y, w, h, radius, color) do
+    Surface.draw_round_rect(pid, x, y, w, h, radius, color)
+  end
+
+  @doc "Fill a rounded rectangle."
+  @spec fill_round_rect(surface_pid(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), color()) :: :ok
+  def fill_round_rect(pid, x, y, w, h, radius, color) do
+    Surface.fill_round_rect(pid, x, y, w, h, radius, color)
+  end
+
+  @doc "Set the clipping rectangle. Pass `enabled: false` to disable clipping."
+  @spec set_clip(surface_pid(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer(), boolean()) :: :ok
+  def set_clip(pid, x, y, w, h, enabled \\ true) do
+    Surface.set_clip(pid, x, y, w, h, enabled)
+  end
+
+  @doc "Reset the clipping region to the full framebuffer."
+  @spec reset_clip(surface_pid()) :: :ok
+  def reset_clip(pid) do
+    Surface.reset_clip(pid)
+  end
+
+  @doc "Execute a batch of pre-encoded command binaries atomically."
+  @spec batch(surface_pid(), [binary()]) :: :ok
+  def batch(pid, commands) when is_list(commands) do
+    Surface.batch(pid, commands)
   end
 end

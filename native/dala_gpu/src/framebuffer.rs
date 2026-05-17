@@ -140,6 +140,193 @@ impl FrameBuffer {
         &mut self.pixels
     }
 
+    /// Draw a circle outline using the midpoint circle algorithm.
+    pub fn draw_circle(&mut self, cx: i32, cy: i32, radius: u32, color: [u8; 4]) {
+        let r = radius as i32;
+        let mut x = r;
+        let mut y = 0;
+        let mut err = 0;
+
+        while x >= y {
+            self.set_pixel(cx + x, cy + y, &color);
+            self.set_pixel(cx + y, cy + x, &color);
+            self.set_pixel(cx - y, cy + x, &color);
+            self.set_pixel(cx - x, cy + y, &color);
+            self.set_pixel(cx - x, cy - y, &color);
+            self.set_pixel(cx - y, cy - x, &color);
+            self.set_pixel(cx + y, cy - x, &color);
+            self.set_pixel(cx + x, cy - y, &color);
+            y += 1;
+            err += 1 + 2 * y;
+            if 2 * (err - x) + 1 > 0 {
+                x -= 1;
+                err += 1 - 2 * x;
+            }
+        }
+    }
+
+    /// Fill a circle.
+    pub fn fill_circle(&mut self, cx: i32, cy: i32, radius: u32, color: [u8; 4]) {
+        let r = radius as i32;
+        for dy in -r..=r {
+            for dx in -r..=r {
+                if dx * dx + dy * dy <= r * r {
+                    self.set_pixel(cx + dx, cy + dy, &color);
+                }
+            }
+        }
+    }
+
+    /// Draw a triangle outline from three points.
+    pub fn draw_triangle(
+        &mut self,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        x3: i32,
+        y3: i32,
+        color: [u8; 4],
+    ) {
+        self.draw_line(x1, y1, x2, y2, color);
+        self.draw_line(x2, y2, x3, y3, color);
+        self.draw_line(x3, y3, x1, y1, color);
+    }
+
+    /// Fill a triangle using scanline rasterization.
+    pub fn fill_triangle(
+        &mut self,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        x3: i32,
+        y3: i32,
+        color: [u8; 4],
+    ) {
+        // Sort vertices by y-coordinate (bubble sort for 3 elements)
+        let mut pts = [(x1, y1), (x2, y2), (x3, y3)];
+        if pts[0].1 > pts[1].1 {
+            pts.swap(0, 1);
+        }
+        if pts[1].1 > pts[2].1 {
+            pts.swap(1, 2);
+        }
+        if pts[0].1 > pts[1].1 {
+            pts.swap(0, 1);
+        }
+        let (x0, y0) = pts[0];
+        let (x1s, y1s) = pts[1];
+        let (x2, y2) = pts[2];
+
+        // Scanline fill
+        for y in y0..=y2 {
+            let t = if y2 != y0 {
+                (y - y0) as f32 / (y2 - y0) as f32
+            } else {
+                0.0
+            };
+            let xa = x0 as f32 + (x2 as f32 - x0 as f32) * t;
+            let xb = if y < y1s && y1s != y0 {
+                let t2 = (y - y0) as f32 / (y1s - y0) as f32;
+                x0 as f32 + (x1s as f32 - x0 as f32) * t2
+            } else {
+                let t2 = if y2 != y1s {
+                    (y - y1s) as f32 / (y2 - y1s) as f32
+                } else {
+                    0.0
+                };
+                x1s as f32 + (x2 as f32 - x1s as f32) * t2
+            };
+            let (start_x, end_x) = if xa < xb {
+                (xa as i32, xb as i32)
+            } else {
+                (xb as i32, xa as i32)
+            };
+            for x in start_x..=end_x {
+                self.set_pixel(x, y, &color);
+            }
+        }
+    }
+
+    /// Draw a rounded rectangle outline.
+    pub fn draw_round_rect(&mut self, x: u32, y: u32, w: u32, h: u32, radius: u32, color: [u8; 4]) {
+        let r = radius as i32;
+        let x = x as i32;
+        let y = y as i32;
+        let w = w as i32;
+        let h = h as i32;
+
+        // Straight edges
+        self.draw_line(x + r, y, x + w - r - 1, y, color);
+        self.draw_line(x + r, y + h - 1, x + w - r - 1, y + h - 1, color);
+        self.draw_line(x, y + r, x, y + h - r - 1, color);
+        self.draw_line(x + w - 1, y + r, x + w - 1, y + h - r - 1, color);
+
+        // Four corners
+        self.draw_corner_arc(x + r, y + r, r, 180, 270, color);
+        self.draw_corner_arc(x + w - r - 1, y + r, r, 270, 360, color);
+        self.draw_corner_arc(x + w - r - 1, y + h - r - 1, r, 0, 90, color);
+        self.draw_corner_arc(x + r, y + h - r - 1, r, 90, 180, color);
+    }
+
+    /// Fill a rounded rectangle.
+    pub fn fill_round_rect(&mut self, x: u32, y: u32, w: u32, h: u32, radius: u32, color: [u8; 4]) {
+        let r = radius.min(w / 2).min(h / 2);
+        let x = x as i32;
+        let y = y as i32;
+        let w = w as i32;
+        let h = h as i32;
+        let r = r as i32;
+
+        // Center rectangle
+        self.fill_rect(
+            (x + r) as u32,
+            y as u32,
+            (w - 2 * r) as u32,
+            h as u32,
+            color,
+        );
+        // Left and right strips
+        self.fill_rect(
+            x as u32,
+            (y + r) as u32,
+            r as u32,
+            (h - 2 * r) as u32,
+            color,
+        );
+        self.fill_rect(
+            (x + w - r) as u32,
+            (y + r) as u32,
+            r as u32,
+            (h - 2 * r) as u32,
+            color,
+        );
+        // Four corner circles
+        self.fill_circle(x + r, y + r, r as u32, color);
+        self.fill_circle(x + w - r - 1, y + r, r as u32, color);
+        self.fill_circle(x + w - r - 1, y + h - r - 1, r as u32, color);
+        self.fill_circle(x + r, y + h - r - 1, r as u32, color);
+    }
+
+    // Helper: draw a quarter arc
+    fn draw_corner_arc(
+        &mut self,
+        cx: i32,
+        cy: i32,
+        r: i32,
+        start_deg: i32,
+        end_deg: i32,
+        color: [u8; 4],
+    ) {
+        for deg in start_deg..end_deg {
+            let rad = std::f64::consts::PI * deg as f64 / 180.0;
+            let px = cx + (r as f64 * rad.cos()).round() as i32;
+            let py = cy + (r as f64 * rad.sin()).round() as i32;
+            self.set_pixel(px, py, &color);
+        }
+    }
+
     /// Resize the framebuffer, preserving existing content where possible.
     pub fn resize(&mut self, width: u32, height: u32) {
         if self.width == width && self.height == height {
@@ -223,7 +410,9 @@ mod tests {
         fb.clear([0, 0, 0, 255]);
 
         // 2x2 sprite of red pixels.
-        let sprite = vec![255u8, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255];
+        let sprite = vec![
+            255u8, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+        ];
         fb.blit_rgba(&sprite, 2, 2, 3, 3);
 
         // Check pixel at (3, 3).

@@ -52,7 +52,7 @@ defmodule Dala.Media.Scene do
 
   @type scene_ref :: pid()
   @type node_id :: reference()
-  @type node_type :: :video | :overlay | :text | :effect | :animation
+  @type node_type :: :video | :image | :overlay | :text | :effect | :animation
   @type position :: {non_neg_integer(), non_neg_integer()}
   @type size :: {non_neg_integer(), non_neg_integer()}
   @type z_index :: integer()
@@ -116,6 +116,105 @@ defmodule Dala.Media.Scene do
   @doc "Composite all nodes and render to the GPU surface."
   @spec render(scene_ref()) :: :ok
   def render(pid), do: GenServer.call(pid, :render)
+
+  @doc """
+  Add an image node to the scene.
+
+  Convenience wrapper around `add_node/3` for image sources.
+
+  ## Options
+
+    * `:image_id` — The GPU image ID (from `Dala.Gpu.load_image/4`)
+    * `:position` — `{x, y}` tuple (default: `{0, 0}`)
+    * `:size` — `{w, h}` tuple (default: `{100, 100}`)
+    * `:z_index` — Layer order (default: `0`)
+    * `:opacity` — `0.0` to `1.0` (default: `1.0`)
+
+  ## Example
+
+      {:ok, img_node} = Dala.Media.Scene.add_image(scene, image_id: 1, position: {540, 20}, size: {120, 90}, z_index: 100)
+  """
+  @spec add_image(scene_ref(), keyword()) :: {:ok, node_id()} | {:error, term()}
+  def add_image(pid, opts) do
+    image_id = Keyword.fetch!(opts, :image_id)
+    props = %{
+      image_id: image_id,
+      position: Keyword.get(opts, :position, {0, 0}),
+      size: Keyword.get(opts, :size, {100, 100}),
+      z_index: Keyword.get(opts, :z_index, 0),
+      opacity: Keyword.get(opts, :opacity, 1.0),
+    }
+    add_node(pid, :image, props)
+  end
+
+  @doc """
+  Add a video node to the scene with optional PiP (picture-in-picture) transform.
+
+  Convenience wrapper around `add_node/3` for video streams.
+
+  ## Options
+
+    * `:stream` — A `Dala.Media.Video` pid (required)
+    * `:position` — `{x, y}` tuple (default: `{0, 0}`)
+    * `:size` — `{w, h}` tuple (default: `{1920, 1080}`)
+    * `:z_index` — Layer order (default: `0`)
+    * `:pip` — If `true`, applies a PiP transform (small overlay in top-right corner)
+    * `:pip_position` — Custom PiP position `{x, y}` (default: auto-calculated)
+    * `:pip_size` — Custom PiP size `{w, h}` (default: `{200, 150}`)
+
+  ## Example
+
+      # Full-screen video
+      {:ok, vid} = Dala.Media.Scene.add_video(scene, stream: video_stream, size: {1920, 1080})
+
+      # PiP video overlay
+      {:ok, pip} = Dala.Media.Scene.add_video(scene, stream: pip_stream, pip: true, z_index: 100)
+
+      # Custom PiP position
+      {:ok, pip} = Dala.Media.Scene.add_video(scene, stream: pip_stream, pip: true, pip_position: {50, 50}, pip_size: {300, 200})
+  """
+  @spec add_video(scene_ref(), keyword()) :: {:ok, node_id()} | {:error, term()}
+  def add_video(pid, opts) do
+    stream = Keyword.fetch!(opts, :stream)
+    pip? = Keyword.get(opts, :pip, false)
+
+    {position, size} = if pip? do
+      scene_w = Keyword.get(opts, :scene_width, 1920)
+      _scene_h = Keyword.get(opts, :scene_height, 1080)
+      pip_size = Keyword.get(opts, :pip_size, {200, 150})
+      pip_pos = Keyword.get(opts, :pip_position, {scene_w - elem(pip_size, 0) - 20, 20})
+      {pip_pos, pip_size}
+    else
+      {Keyword.get(opts, :position, {0, 0}), Keyword.get(opts, :size, {1920, 1080})}
+    end
+
+    props = %{
+      stream: stream,
+      position: position,
+      size: size,
+      z_index: Keyword.get(opts, :z_index, 0),
+      opacity: Keyword.get(opts, :opacity, 1.0),
+    }
+    add_node(pid, :video, props)
+  end
+
+  @doc """
+  Update a node's PiP (picture-in-picture) transform.
+
+  Convenience function to move/resize a PiP node.
+
+  ## Example
+
+      Dala.Media.Scene.set_pip_transform(scene, pip_node_id, position: {100, 50}, size: {250, 180})
+  """
+  @spec set_pip_transform(scene_ref(), node_id(), keyword()) :: :ok
+  def set_pip_transform(pid, node_id, opts) do
+    transform = %{
+      position: Keyword.get(opts, :position, {0, 0}),
+      size: Keyword.get(opts, :size, {200, 150}),
+    }
+    set_transform(pid, node_id, transform)
+  end
 
   @doc "Get current frame count."
   @spec frame_count(scene_ref()) :: non_neg_integer()
@@ -254,6 +353,7 @@ defmodule Dala.Media.Scene do
       size: Map.get(props, :size, {0, 0}),
       stream: Map.get(props, :stream),
       texture: Map.get(props, :texture),
+      image_id: Map.get(props, :image_id),
       text: Map.get(props, :text),
       effect_type: Map.get(props, :type),
       radius: Map.get(props, :radius, 0.0),
@@ -276,22 +376,31 @@ defmodule Dala.Media.Scene do
       nil ->
         :ok
 
-      _texture_id ->
+      texture_id ->
         {x, y} = node.transform.position
         {w, h} = node.size
-        Dala.Gpu.fill_rect(gpu, x, y, w, h, {0, 0, 0, 0})
+        Dala.Gpu.draw_image(gpu, texture_id, x, y, w, h)
     end
+  end
+
+  defp composite_node(gpu, %{type: :image, image_id: image_id} = node, _state)
+       when is_integer(image_id) do
+    {x, y} = node.transform.position
+    {w, h} = node.size
+    Dala.Gpu.draw_image(gpu, image_id, x, y, w, h)
   end
 
   defp composite_node(gpu, %{type: :overlay, texture: texture_id} = node, _state)
        when is_integer(texture_id) do
     {x, y} = node.transform.position
-    Dala.Gpu.blit(gpu, texture_id, x, y)
+    {w, h} = node.size
+    Dala.Gpu.draw_image(gpu, texture_id, x, y, w, h)
   end
 
   defp composite_node(gpu, %{type: :text, text: text} = node, _state) when is_binary(text) do
     {x, y} = node.transform.position
-    Dala.Gpu.fill_rect(gpu, x, y, 100, 30, {255, 255, 255, 255})
+    {w, h} = node.size
+    Dala.Gpu.fill_round_rect(gpu, x, y, w, h, 4, {0, 0, 0, 128})
   end
 
   defp composite_node(gpu, %{type: :effect, effect_type: :blur} = node, _state) do

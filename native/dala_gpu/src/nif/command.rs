@@ -202,6 +202,206 @@ pub fn decode_command(data: &[u8]) -> RenderCommand {
                 RenderCommand::Present
             }
         }
+        0x0D => {
+            // DrawCircle: cx,cy as i32 LE + radius as u32 LE + 4 bytes RGBA
+            if data.len() >= 17 {
+                let cx = i32::from_le_bytes(data[1..5].try_into().unwrap());
+                let cy = i32::from_le_bytes(data[5..9].try_into().unwrap());
+                let radius = u32::from_le_bytes(data[9..13].try_into().unwrap());
+                let color = [data[13], data[14], data[15], data[16]];
+                RenderCommand::DrawCircle {
+                    cx,
+                    cy,
+                    radius,
+                    color,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x0E => {
+            // FillCircle: cx,cy as i32 LE + radius as u32 LE + 4 bytes RGBA
+            if data.len() >= 17 {
+                let cx = i32::from_le_bytes(data[1..5].try_into().unwrap());
+                let cy = i32::from_le_bytes(data[5..9].try_into().unwrap());
+                let radius = u32::from_le_bytes(data[9..13].try_into().unwrap());
+                let color = [data[13], data[14], data[15], data[16]];
+                RenderCommand::FillCircle {
+                    cx,
+                    cy,
+                    radius,
+                    color,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x0F => {
+            // DrawTriangle: x1,y1,x2,y2,x3,y3 as i32 LE + 4 bytes RGBA
+            if data.len() >= 29 {
+                let x1 = i32::from_le_bytes(data[1..5].try_into().unwrap());
+                let y1 = i32::from_le_bytes(data[5..9].try_into().unwrap());
+                let x2 = i32::from_le_bytes(data[9..13].try_into().unwrap());
+                let y2 = i32::from_le_bytes(data[13..17].try_into().unwrap());
+                let x3 = i32::from_le_bytes(data[17..21].try_into().unwrap());
+                let y3 = i32::from_le_bytes(data[21..25].try_into().unwrap());
+                let color = [data[25], data[26], data[27], data[28]];
+                RenderCommand::DrawTriangle {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x3,
+                    y3,
+                    color,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x10 => {
+            // FillTriangle: x1,y1,x2,y2,x3,y3 as i32 LE + 4 bytes RGBA
+            if data.len() >= 29 {
+                let x1 = i32::from_le_bytes(data[1..5].try_into().unwrap());
+                let y1 = i32::from_le_bytes(data[5..9].try_into().unwrap());
+                let x2 = i32::from_le_bytes(data[9..13].try_into().unwrap());
+                let y2 = i32::from_le_bytes(data[13..17].try_into().unwrap());
+                let x3 = i32::from_le_bytes(data[17..21].try_into().unwrap());
+                let y3 = i32::from_le_bytes(data[21..25].try_into().unwrap());
+                let color = [data[25], data[26], data[27], data[28]];
+                RenderCommand::FillTriangle {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x3,
+                    y3,
+                    color,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x11 => {
+            // DrawRoundRect: x,y,w,h as u32 LE + radius as u32 LE + 4 bytes RGBA
+            if data.len() >= 25 {
+                let x = u32::from_le_bytes(data[1..5].try_into().unwrap());
+                let y = u32::from_le_bytes(data[5..9].try_into().unwrap());
+                let w = u32::from_le_bytes(data[9..13].try_into().unwrap());
+                let h = u32::from_le_bytes(data[13..17].try_into().unwrap());
+                let radius = u32::from_le_bytes(data[17..21].try_into().unwrap());
+                let color = [data[21], data[22], data[23], data[24]];
+                RenderCommand::DrawRoundRect {
+                    x,
+                    y,
+                    w,
+                    h,
+                    radius,
+                    color,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x12 => {
+            // FillRoundRect: x,y,w,h as u32 LE + radius as u32 LE + 4 bytes RGBA
+            if data.len() >= 25 {
+                let x = u32::from_le_bytes(data[1..5].try_into().unwrap());
+                let y = u32::from_le_bytes(data[5..9].try_into().unwrap());
+                let w = u32::from_le_bytes(data[9..13].try_into().unwrap());
+                let h = u32::from_le_bytes(data[13..17].try_into().unwrap());
+                let radius = u32::from_le_bytes(data[17..21].try_into().unwrap());
+                let color = [data[21], data[22], data[23], data[24]];
+                RenderCommand::FillRoundRect {
+                    x,
+                    y,
+                    w,
+                    h,
+                    radius,
+                    color,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x13 => {
+            // SetClip: x,y,w,h as u32 LE + enabled as u8
+            if data.len() >= 18 {
+                let x = u32::from_le_bytes(data[1..5].try_into().unwrap());
+                let y = u32::from_le_bytes(data[5..9].try_into().unwrap());
+                let w = u32::from_le_bytes(data[9..13].try_into().unwrap());
+                let h = u32::from_le_bytes(data[13..17].try_into().unwrap());
+                let enabled = data[17] != 0;
+                RenderCommand::SetClip {
+                    x,
+                    y,
+                    w,
+                    h,
+                    enabled,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x14 => RenderCommand::ResetClip,
+        0x16 => {
+            // ImageBlit: image_id as u64 LE + x,y as i32 LE + w,h as u32 LE
+            if data.len() >= 25 {
+                let image_id = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                let x = i32::from_le_bytes(data[9..13].try_into().unwrap());
+                let y = i32::from_le_bytes(data[13..17].try_into().unwrap());
+                let w = u32::from_le_bytes(data[17..21].try_into().unwrap());
+                let h = u32::from_le_bytes(data[21..25].try_into().unwrap());
+                RenderCommand::ImageBlit {
+                    image_id,
+                    x,
+                    y,
+                    w,
+                    h,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x17 => {
+            // LoadImage: id as u64 LE + w,h as u32 LE + pixel data
+            if data.len() >= 17 {
+                let id = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                let w = u32::from_le_bytes(data[9..13].try_into().unwrap());
+                let h = u32::from_le_bytes(data[13..17].try_into().unwrap());
+                let pixel_data = data[17..].to_vec();
+                RenderCommand::LoadImage {
+                    id,
+                    w,
+                    h,
+                    data: pixel_data,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x18 => {
+            // RemoveImage: id as u64 LE
+            if data.len() >= 9 {
+                let id = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                RenderCommand::RemoveImage { id }
+            } else {
+                RenderCommand::Present
+            }
+        }
+        0x15 => {
+            // Batch: count as u32 LE + concatenated command data
+            if data.len() >= 5 {
+                let count = u32::from_le_bytes(data[1..5].try_into().unwrap());
+                let batch_data = data[5..].to_vec();
+                RenderCommand::Batch {
+                    count,
+                    data: batch_data,
+                }
+            } else {
+                RenderCommand::Present
+            }
+        }
         _ => RenderCommand::Present,
     }
 }

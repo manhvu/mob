@@ -135,6 +135,7 @@ defmodule Dala.Media.Clock do
         0
       end
 
+    %__MODULE__{} = state
     {:noreply, %__MODULE__{state |
       audio_clock_us: timestamp_us,
       drift_us: drift,
@@ -159,6 +160,7 @@ defmodule Dala.Media.Clock do
       }})
     end
 
+    %__MODULE__{} = state
     timer_ref = schedule_tick(state.frame_budget_us)
 
     {:noreply, %__MODULE__{state |
