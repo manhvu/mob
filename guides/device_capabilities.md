@@ -607,6 +607,20 @@ handle_info({:wifi, :state_changed, %{connected: bool, ssid: ssid}}, socket)
 handle_info({:wifi, :scan_result, [%{ssid: ssid, rssi: rssi}]}, socket)
 ```
 
+## Locale / Language / Region
+
+`Dala.Device.Device` provides synchronous queries for the device's current locale, language, and region. No permission needed — these are read-only system settings.
+
+```elixir
+Dala.Device.Device.locale()    # "en_US" — full locale identifier
+Dala.Device.Device.language()  # "en"    — ISO 639 language code
+Dala.Device.Device.region()    # "US"    — ISO 3166 country code
+```
+
+All three return strings. `locale()` combines language and region (e.g. `"en_US"`, `"fr_FR"`, `"zh_Hans_CN"`). `language()` returns the lowercase language code. `region()` returns the uppercase country code.
+
+iOS uses `NSLocale.currentLocale`. Android uses `Locale.getDefault()`.
+
 ## Wakelock
 
 `Dala.Wakelock` keeps the device screen on. No permissions required.
