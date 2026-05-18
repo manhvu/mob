@@ -260,4 +260,18 @@ defmodule Dala.Platform.Native do
   def clear_text, do: :erlang.nif_error(:nif_not_loaded)
   def long_press_xy(_x, _y, _ms), do: :erlang.nif_error(:nif_not_loaded)
   def swipe_xy(_x1, _y1, _x2, _y2), do: :erlang.nif_error(:nif_not_loaded)
+
+  # Accessibility test helpers
+  def ax_action(_match, _action), do: :erlang.nif_error(:nif_not_loaded)
+  def ax_action_at_xy(_x, _y, _action), do: :erlang.nif_error(:nif_not_loaded)
+  def screen_info, do: :erlang.nif_error(:nif_not_loaded)
+
+  # ONNX session management
+  def onnx_session_count(), do: :erlang.nif_error(:nif_not_loaded)
+
+  # GPU / Media runtime
+  def texture_create(_width, _height, _format), do: :erlang.nif_error(:nif_not_loaded)
+  def texture_destroy(_texture_id), do: :erlang.nif_error(:nif_not_loaded)
+  def video_init_decoder(_source), do: :erlang.nif_error(:nif_not_loaded)
+  def video_release_decoder(_ref), do: :erlang.nif_error(:nif_not_loaded)
 end

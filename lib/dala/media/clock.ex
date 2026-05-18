@@ -125,7 +125,7 @@ defmodule Dala.Media.Clock do
     {:noreply, %{state | listeners: List.delete(state.listeners, pid)}}
   end
 
-  def handle_cast({:audio_clock, timestamp_us}, state) do
+  def handle_cast({:audio_clock, timestamp_us}, %__MODULE__{} = state) do
     drift = timestamp_us - state.video_clock_us
 
     dropped =
@@ -135,7 +135,6 @@ defmodule Dala.Media.Clock do
         0
       end
 
-    %__MODULE__{} = state
     {:noreply, %__MODULE__{state |
       audio_clock_us: timestamp_us,
       drift_us: drift,
@@ -148,7 +147,7 @@ defmodule Dala.Media.Clock do
   end
 
   @impl GenServer
-  def handle_info(:tick, state) do
+  def handle_info(:tick, %__MODULE__{} = state) do
     now = System.monotonic_time(:microsecond)
     frame_count = state.frame_count + 1
 
@@ -160,7 +159,6 @@ defmodule Dala.Media.Clock do
       }})
     end
 
-    %__MODULE__{} = state
     timer_ref = schedule_tick(state.frame_budget_us)
 
     {:noreply, %__MODULE__{state |

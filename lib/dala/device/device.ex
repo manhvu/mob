@@ -208,7 +208,7 @@ defmodule Dala.Device.Device do
   end
 
   def handle_info({:dala_device_ios, _} = msg, state) do
-    forward_to(Dala.Device.IOS, msg)
+    forward_to(Dala.Device.Ios, msg)
     {:noreply, state}
   end
 

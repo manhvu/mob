@@ -114,7 +114,7 @@ defmodule Dala.Plugin.Manifest do
   @spec to_json(Plugin.t()) :: String.t()
   def to_json(plugin) do
     generate(plugin)
-    |> JSON.encode!()
+    |> Jason.encode!()
   end
 
   @doc """
@@ -135,7 +135,7 @@ defmodule Dala.Plugin.Manifest do
   """
   @spec from_json(String.t()) :: {:ok, map()} | {:error, term()}
   def from_json(json) do
-    case JSON.decode(json) do
+    case Jason.decode(json) do
       {:ok, data} -> {:ok, data}
       {:error, reason} -> {:error, reason}
     end

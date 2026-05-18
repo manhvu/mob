@@ -185,7 +185,7 @@ defmodule Dala.Media.Pipeline do
 
   # Private — pipeline setup
 
-  defp setup_pipeline(state) do
+  defp setup_pipeline(%__MODULE__{} = state) do
     config = state.config
     width = Map.get(config, :width, 1920)
     height = Map.get(config, :height, 1080)

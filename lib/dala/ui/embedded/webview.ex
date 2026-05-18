@@ -65,7 +65,7 @@ defmodule Dala.Ui.Embedded.Webview do
   """
   @spec navigate(Dala.Socket.t(), String.t()) :: Dala.Socket.t()
   def navigate(socket, url) when is_binary(url) do
-    js = "window.location.href = #{JSON.encode!(url)}"
+    js = "window.location.href = #{Jason.encode!(url)}"
     Dala.Platform.Native.webview_eval_js(js)
     socket
   end
@@ -123,8 +123,8 @@ defmodule Dala.Ui.Embedded.Webview do
   defp interact_js({:tap, selector}) when is_binary(selector) do
     """
     (function() {
-      var el = document.querySelector(#{JSON.encode!(selector)});
-      if (el) { el.click(); return {action: "tap", success: true, selector: #{JSON.encode!(selector)}}; }
+      var el = document.querySelector(#{Jason.encode!(selector)});
+      if (el) { el.click(); return {action: "tap", success: true, selector: #{Jason.encode!(selector)}}; }
       return {action: "tap", success: false, error: "Element not found"};
     })()
     """
@@ -133,11 +133,11 @@ defmodule Dala.Ui.Embedded.Webview do
   defp interact_js({:type, selector, text}) when is_binary(selector) and is_binary(text) do
     """
     (function() {
-      var el = document.querySelector(#{JSON.encode!(selector)});
+      var el = document.querySelector(#{Jason.encode!(selector)});
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-        el.value = #{JSON.encode!(text)};
+        el.value = #{Jason.encode!(text)};
         el.dispatchEvent(new Event('input', {bubbles: true}));
-        return {action: "type", success: true, selector: #{JSON.encode!(selector)}};
+        return {action: "type", success: true, selector: #{Jason.encode!(selector)}};
       }
       return {action: "type", success: false, error: "Input element not found"};
     })()
@@ -147,7 +147,7 @@ defmodule Dala.Ui.Embedded.Webview do
   defp interact_js({:clear, selector}) when is_binary(selector) do
     """
     (function() {
-      var el = document.querySelector(#{JSON.encode!(selector)});
+      var el = document.querySelector(#{Jason.encode!(selector)});
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
         el.value = '';
         el.dispatchEvent(new Event('input', {bubbles: true}));
@@ -166,7 +166,7 @@ defmodule Dala.Ui.Embedded.Webview do
        when is_binary(selector) and is_number(dx) and is_number(dy) do
     """
     (function() {
-      var el = document.querySelector(#{JSON.encode!(selector)});
+      var el = document.querySelector(#{Jason.encode!(selector)});
       if (el) { el.scrollLeft += #{dx}; el.scrollTop += #{dy}; return {action: "scroll", success: true}; }
       return {action: "scroll", success: false};
     })()
@@ -181,8 +181,8 @@ defmodule Dala.Ui.Embedded.Webview do
       var interval = 100;
       var elapsed = 0;
       var check = function() {
-        if (document.querySelector(#{JSON.encode!(selector)})) {
-          return {action: "wait", success: true, selector: #{JSON.encode!(selector)}};
+        if (document.querySelector(#{Jason.encode!(selector)})) {
+          return {action: "wait", success: true, selector: #{Jason.encode!(selector)}};
         }
         elapsed += interval;
         if (elapsed >= timeout) {

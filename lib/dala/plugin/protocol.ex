@@ -282,7 +282,7 @@ defmodule Dala.Plugin.Protocol do
   @spec encode_lifecycle_event(atom(), map()) :: binary()
   def encode_lifecycle_event(event, payload) do
     event_name = Atom.to_string(event)
-    payload_json = JSON.encode!(payload)
+    payload_json = Jason.encode!(payload)
 
     <<@lifecycle_opcode, byte_size(event_name)::16, event_name::binary,
       byte_size(payload_json)::32, payload_json::binary>>

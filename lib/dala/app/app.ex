@@ -97,7 +97,7 @@ defmodule Dala.App.App do
 
         # Start core services — crash on real errors, ignore already-started
         ensure_started(Dala.Nav.Registry, __MODULE__)
-        ensure_started(Dala.State)
+        ensure_started(Dala.Platform.State)
         ensure_started(Dala.Ui.NativeView.Registry)
         ensure_started(Dala.Screen.Manager)
 

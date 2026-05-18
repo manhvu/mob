@@ -85,7 +85,7 @@ defmodule Dala.ML.CoreML do
   """
   @spec predict(String.t(), map()) :: {:ok, String.t()} | {:error, term()} | :not_supported
   def predict(identifier, inputs) when is_binary(identifier) and is_map(inputs) do
-    inputs_json = JSON.encode!(inputs)
+    inputs_json = Jason.encode!(inputs)
     Dala.Native.coreml_predict(identifier, inputs_json)
   end
 

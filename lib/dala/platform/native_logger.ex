@@ -1,4 +1,4 @@
-defmodule Dala.Platform.NativeUlogger do
+defmodule Dala.Platform.NativeLogger do
   @moduledoc """
   OTP logger handler that routes Elixir Logger output to the platform's native
   system log.
@@ -48,7 +48,13 @@ defmodule Dala.Platform.NativeUlogger do
   def install(opts \\ []) do
     nif = Keyword.get(opts, :nif, Dala.Platform.Native)
 
-    if nif.platform() in [:android, :ios] do
+    platform = try do
+      nif.platform()
+    rescue
+      _ -> :host
+    end
+
+    if platform in [:android, :ios] do
       case :logger.add_handler(@handler_id, __MODULE__, %{nif: nif}) do
         :ok -> :ok
         {:error, {:already_exist, @handler_id}} -> :ok
@@ -71,7 +77,7 @@ defmodule Dala.Platform.NativeUlogger do
   @spec log(map(), map()) :: :ok
   def log(%{level: level, msg: msg, meta: meta}, %{nif: nif}) do
     text = format_msg(msg, meta)
-    nif.log(level_to_nif(level), text)
+    nif.log_level(level_to_nif(level), text)
   end
 
   # ── Helpers (public for testing) ──────────────────────────────────────────

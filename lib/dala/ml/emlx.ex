@@ -127,9 +127,8 @@ defmodule Dala.ML.EMLX do
   defp ios_simulator_env? do
     case System.get_env("SIMULATOR_UDID") do
       nil ->
-        # Fallback: check if we're in a dev/test environment on macOS
-        match?("iex", System.get_env("MIX_ENV")) and
-          :os.type() == {:unix, :darwin}
+        # Fallback: check if we're on macOS (likely simulator during dev)
+        match?({:unix, :darwin}, :os.type())
 
       _ ->
         true
